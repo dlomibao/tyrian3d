@@ -38,7 +38,7 @@ interface GltfNode {
 
 interface GltfMaterial {
   name: string;
-  extras?: { tyrian_plain?: boolean; tyrian_rock_ramps?: number[]; tyrian_rock_bands?: string[]; tyrian_rock_band_depth?: number };
+  extras?: { tyrian_plain?: boolean; tyrian_rock_ramps?: number[]; tyrian_rock_bands?: string[]; tyrian_rock_band_depth?: number; tyrian_rock_ground?: boolean };
   pbrMetallicRoughness?: { baseColorTexture?: unknown };
   emissiveTexture?: unknown;
   normalTexture?: unknown;
@@ -115,9 +115,10 @@ function gltf(model: string): {
   return JSON.parse(b.subarray(20, 20 + len).toString("utf8"));
 }
 
-/** An HD rock material: the ramps, its texture, plain (no bake), no baked normal map. */
+/** An HD rock material: the ramps, its texture, plain (no bake), no baked normal map, lit as the ground (D223). */
 function expectRock(m: GltfMaterial, what: string, ramps = ROCK_RAMPS): void {
   expect(m.extras?.tyrian_rock_ramps?.slice(0, 3), `${what}: ${m.name} is HD rock`).toEqual(ramps);
+  expect(m.extras?.tyrian_rock_ground, `${what}: ${m.name} takes the ground's light`).toBe(true);
   expect(m.extras?.tyrian_plain, `${what}: ${m.name} is plain`).toBe(true);
   expect(m.pbrMetallicRoughness?.baseColorTexture, `${what}: ${m.name} has its texture`).toBeDefined();
   expect(m.normalTexture, `${what}: ${m.name} has no baked normal map`).toBeUndefined();

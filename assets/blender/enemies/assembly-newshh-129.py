@@ -94,7 +94,8 @@ def material(name, ch, ramps, finish):
     old = bpy.data.materials.get(name)
     if old is not None:
         bpy.data.materials.remove(old)
-    mat = lt.rock_material(name, ch, ramps, alpha=ch["alpha"])
+    # The models' light: its paint was toned for it (D212), not for the island rock's ground light (D223).
+    mat = lt.rock_material(name, ch, ramps, alpha=ch["alpha"], ground=False)
     bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
     bsdf.inputs["Roughness"].default_value = finish["roughness"]
     bsdf.inputs["Metallic"].default_value = finish["metallic"]

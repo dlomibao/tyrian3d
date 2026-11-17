@@ -12665,3 +12665,123 @@ measures them, sRGB, original | before (ratio) | after (ratio)):
 - *`?filters=old`* draws the effects into the filters' output, whose alpha then isn't the hue: the headlight's
   bank there can be wrong where effects drew (comparison mode only).
 - Not checked on a phone GPU.
+
+## D223 — The island rock keeps the art's tan and brightness and takes the ground's light: the mortar keeps the art's ramps, a tone lift gives back what the mortar lines took, and the rock models are lit as the terrain beside them (D222's island-rock finding; follows D66, D84, D205, D212, D222)
+
+2026-11-17
+
+**Problem** (D222, NOSE DRIP 4.16 t3300 and TYRIAN): the D84 island rock read cooler, paler and less tan than the original.
+Two causes, both in the models' path:
+- **The texture.** `lib_rock_hd.compose` drew every mortar line grey, whatever the stones beside it. A tan or brass
+  stone's brown rim, and the art's brown mortar, turned grey. Over the 16 rock tiles, flat and unlit, the warm share was
+  13.8% against the art's 18.9%.
+  - The texture was also 13% darker than the art: mean (79, 76, 73) against (91, 87, 82). The mortar lines
+    (MORTAR_SHADE) took about 7 levels and the darker stone edges (EDGE_DARK) about 4. The models' light (about 1.35x,
+    blue sky) hid that.
+  - Per-stone majority ramps were not a cause. The stones are found apart by kind (`climb` on grey and on warm pixels
+    separately), so every stone is already one ramp.
+- **The light.** The rock materials took the models' lights: the hemisphere's blue sky (`0x9fb8ff` x1.2) and the
+  environment's sheen, on a grey ramp that is neutral in the palette. 78% of the plateau's pixels came out bluer than
+  red, against 1% in the original.
+
+**Premise checked:** D222 lists 1-6 and 3-3 (layer 1) among the levels these tiles are on, but the models don't draw there.
+- The rock models are layer-2 entries only (`tileModels/shapesz-t1xx.json`, `layer: 2`).
+- The harness draws no layer-1 tile on MINEMAZE (1-6) or GAUNTLET (3-3).
+- MINEMAZE draws `shapesz` 120-152 on layer 0, as HD terrain, not as these models.
+- The models are on 1-9 and 1-15 (TYRIAN), 3-8 (TYRIAN X) and 4-16 (NOSE DRIP).
+- MINEMAZE was captured as a control. It shows `newsha-93`'s rubble, which does use this rock.
+
+**Decision:**
+1. **Texture** (`assets/blender/tiles/lib_rock_hd.py`):
+   - **Mortar.** The mortar line keeps the ramp code of the art under it (F["code"]): the stone's ramp on its side,
+     the dark pixels' own ramp in the mortar. Brown mortar and a tan stone's rim stay warm; mortar between grey stones
+     stays grey.
+   - **Tone lift** (`tone_lift`, a new field "lift"). It compares the art's smoothed brightness with the composed
+     texture's, over the opaque area at TONE_SIGMA = 2 px. The brightness is palette luminance, so the ramps' steeper
+     top doesn't count against the texture.
+     - The difference goes back as shade: all of it on the stone tops and TONE_DARK = 0.5 of it in the mortar, capped
+       at ±3 shades.
+     - It is a field like the others, so the seam solve and the edge bands carry it.
+     - `compose` takes `noise=False` for the measure. CACHE_VERSION is 2.
+2. **Light** (`src/render/rockMaterial.ts`). A rock material marked `tyrian_rock_ground` (`lib_tiles.rock_material`,
+   on by default) takes the ground's light (`patchGroundLight`, D205):
+   - the sun's and the white environment's diffuse, summing to its palette colour facing up;
+   - no hemisphere;
+   - the ground's specular (none), through CUTOUT_SPECULAR;
+   - Neutral's toe undone.
+
+   **ROCK_GROUND_GAIN 1.1** gives back what the bump's tilted normals take. NOSE DRIP's plateau measured luma 98.5
+   without the bump and 94.1 with it, about 0.90 in linear.
+   - It applies in the current rig only (`groundUntoe`), so `?lighting=old` draws the rock as before.
+
+   **The TORM waterfall** (`assembly-newshh-129`, D212) passes `ground=False`, because its paint was toned for the
+   models' light.
+   - Its glbs are not rebuilt (its texture doesn't use `fields`/`compose`) and carry no mark.
+   - Captures before and after are identical there.
+3. **Rebuilt** with `tools/build-models.sh -j 2` (meshopt): the 16 rock tiles, the 13 island structures (`tyrbld-*`), the
+   14 rock enemy pieces and `newsha-93`/`-f2`. That is 45 glbs, 13.5 -> 14.3 MB.
+   - `shapesz_bg3.py` rebuilt every `shapesz` tile. Only the rock tiles changed, apart from a 4-byte difference in `t149`
+     (an inlay, no rock), which was put back.
+
+**Measured:**
+- **Texture, flat and unlit** (`tyrian-scratch/island-rock/bin/share.py`; the 16 tiles, each among its usual neighbours on
+  1-9):
+
+  | | Art | Before | After |
+  |---|---|---|---|
+  | Warm share | 18.9% | 13.8% | 20.0% |
+  | Mean colour | (91, 87, 82) | (79, 76, 73) | (90, 86, 81) |
+
+  - Per tile, the tan/brass share is now within 3 points of the art's; it was 4-8 points under.
+  - Per tile, the mean is within 2 levels.
+- **Seams** (`tools/rock_hd_check.py`):
+
+  | | Before | After | Original 1x art |
+  |---|---|---|---|
+  | Texel ratio | 1.058 | 1.126 | 1.130 |
+  | Band ratio | 1.021 | 1.030 | 1.149 |
+
+  No seam shows in the map preview.
+- **In the game** (`&compare=1`, 3840x2160, matching rock areas in both panels; `tyrian-scratch/island-rock/{before,after,crops}/`).
+  Warm = R-B ≥ 15; bluer = B > R.
+
+  | Capture | | Original | Before | After |
+  |---|---|---|---|---|
+  | NOSE DRIP t3300 | mean | (112, 105, 96) | (116, 113, 111) | (105, 100, 93) |
+  | | warm / bluer | 27.4% / 0.8% | 18.6% / 78.3% | 26.8% / 0.1% |
+  | TYRIAN t3100 | mean | (95, 91, 85) | (103, 99, 98) | (97, 92, 86) |
+  | | warm / bluer | 23.9% / 1.3% | 21.2% / 75.4% | 27.5% / 2.0% |
+  | TYRIAN t4450 | mean | (103, 97, 92) | (110, 106, 106) | (101, 95, 90) |
+  | | warm / bluer | 19.5% / 0.2% | 17.7% / 79.3% | 22.0% / 2.2% |
+  | TYRIAN X t2700 | mean | (101, 97, 90) | (112, 110, 110) | (97, 94, 88) |
+  | | warm / bluer | 25.2% / 3.5% | 17.7% / 78.2% | 23.6% / 2.8% |
+
+  - Luma after is 0.95-1.01 of the original.
+  - TYRIAN's grass (HD terrain) measures 0.93 of its original in the same capture, so the rock now sits with the terrain
+    beside it.
+  - TORM t4050: the waterfall's region is byte-identical before and after.
+  - MINEMAZE t1100: only `newsha-93`'s rubble changed (1.6% of the 3D panel). It now sits in the layer-0 rock terrain
+    round it, without the sheen.
+
+**Options considered:**
+- *A constant shade lift on the stones:* the tiles with many small tan stones stayed 8-10% dark, because their tops
+  hardly reach full cushion.
+- *Lighter or narrower mortar lines:* this changes the D84 look the user accepted. The tone lift keeps the lines and
+  restores the brightness round them.
+- *A neutral (white) hemisphere for the rock:* still about 1.35x the palette colour, and the stones keep their sheen. The
+  ground's light is the calibrated one, and it is what the terrain beside the rock gets.
+- *Ground light for the waterfall too:* its paint is darkened for the models' light (D212), so it would come out about a
+  fifth dark against the river.
+
+**Not done:**
+- The purple pads (`newsh2-279`/`283`) are machine models under the models' light, still about 20% light (D222's demo
+  note). Out of scope here.
+- The brass stones at the islands' rim are patchier than the original's solid brass: their bright highlight pixels read
+  as grey stone.
+
+**Review:** NOSE DRIP t3300 and TYRIAN t3100, `&compare=1`.
+- If the rock reads flat without the sheen, raise ROCK_GROUND_GAIN or give `CUTOUT_SPECULAR` a small rock specular.
+- If the tan reads too strong, raise TONE_DARK toward 1, or bring back grey mortar between unlike stones only.
+
+**Cost:** one Opus agent, no workflow, no Gemini. One Blender rebuild (about 4 minutes at -j 2) and about 25 headless
+captures.

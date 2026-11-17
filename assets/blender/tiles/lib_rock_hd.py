@@ -11,11 +11,14 @@ From a patch of palette-index art (a tile among its neighbours, or an enemy's sp
 2. At TEX texels per pixel: the signed distance to a stone's edge (`sd`: + inside a stone, - outside;
    from the 4x boundary, upsampled and smoothed, so the outline is a smooth curve and not stair
    steps), the stones' own shading (the art's shade numbers, smoothed within stones), the dark
-   areas' shading, and a ramp code per stone (its majority colour: grey, brass, tan or the patch's
-   extra ramp).
-3. `compose`, pointwise: a soft mortar line along every stone edge, a cushion (height rising over
-   CUSHION px from the edge, the stone's shading a little darker toward its edge), a little
-   tile-periodic surface noise. Out: shade (0..15, continuous), ramp code (0..1), height (0..1).
+   areas' shading, a ramp code per stone (its majority colour: grey, brass, tan or the patch's
+   extra ramp) and per dark pixel (its own), and the tone lift (`tone_lift`, D223: how much the
+   stones are raised so the texture keeps the art's local brightness under its mortar lines).
+3. `compose`, pointwise: a soft mortar line along every stone edge, in the ramps of the art under
+   it (a tan stone's rim and the brown mortar stay warm, D223), a cushion (height rising over
+   CUSHION px from the edge, the stone's shading a little darker toward its edge, raised by the
+   tone lift), a little tile-periodic surface noise. Out: shade (0..15, continuous), ramp code
+   (0..1), height (0..1).
 
 The game draws the texture with lib_tiles' rock material (src/render/rockMaterial.ts): colour =
 palette[ramp * 16 + shade], interpolated between the two shades, so fades, the hit flash and the
@@ -56,6 +59,10 @@ MORTAR_SHADE = 0.55  # a mortar line's shade against what is round it
 EDGE_DARK = 0.15  # how much darker a stone's shading is at its edge than at its top
 NOISE = 0.35  # shade units of surface variation on the stones
 DIST_R = 12  # 4x texels: how far the distance to an edge is measured (3 px)
+TONE_SIGMA = 2.0  # px: the scale at which the texture keeps the art's brightness (tone_lift, D223)
+TONE_MIN_COVER = 0.25  # the least stone top a neighbourhood's lift is spread over
+TONE_MAX = 3.0  # shade units: the most a stone is raised or lowered
+TONE_DARK = 0.5  # how much of the lift the mortar and the dark areas take (the stone tops take all of it)
 
 # Seam solve (tools/terrain_hd.py's, D58), in TEX texels.
 LAMBDA = 0.15
@@ -318,7 +325,7 @@ def fields(pal, g1, ramps=RAMPS):
     """The HD fields of a patch of art at TEX texels per pixel. `g1`: palette indices at 1x, -1
     transparent, already in the colours the rock may use (`ramps`' ramps). Returns a dict of float
     arrays: sd (signed px from a stone's edge), stone (stone shade 0..15), dark (the dark areas'
-    shade), code (ramp code 0..1, the stones' and dark areas' ramps), alpha (0..1)."""
+    shade), code (ramp code 0..1, the stones' and dark areas' ramps), alpha (0..1), lift (tone_lift)."""
     g1 = np.asarray(g1, dtype=np.int32)
     luma = np.append(pal.lum[:256] * 765 + 1, 0.0)  # index -1 reads the appended 0
     g2 = mmpx2x(g1, luma)
@@ -354,7 +361,7 @@ def fields(pal, g1, ramps=RAMPS):
     inside4 = nearest(stone, 2)
     sd4 = np.where(inside4, d4, -d4) / 4.0  # 4x texels -> px
     sd = blur(upsample(sd4, 2), EDGE_SMOOTH * TEX)
-    return {
+    out = {
         "sd": sd,
         "stone": upsample(stone_shade, k),
         "dark": upsample(norm_blur(shade, (op & ~stone).astype(float), SHADE_SIGMA), k),
@@ -362,6 +369,55 @@ def fields(pal, g1, ramps=RAMPS):
         "code": blur(nearest(code2, k), 0.25 * TEX),
         "alpha": blur(nearest(op.astype(float), k), 0.3 * TEX),
     }
+    # The art's brightness (its palette colours', not its shade numbers': the ramps are steeper
+    # toward white, so smoothed shades come out darker than the pixels they smooth).
+    art = upsample(norm_blur(lum, op.astype(float), SHADE_SIGMA), k)
+    out["lift"] = tone_lift(out, art, ramp_lum(pal, ramps))
+    return out
+
+
+def ramp_lum(pal, ramps):
+    """(len(ramps), 16) brightness of every shade of the ramps."""
+    return np.array([[pal.lum[r * 16 + i] for i in range(16)] for r in ramps])
+
+
+def shade_lum(table, shade, code):
+    """Brightness of a texel as the game draws it (preview_rgb): `table` (ramp_lum) at the shade,
+    interpolated between shades and between ramps by the code."""
+    s = np.clip(shade, 0, 15)
+    lo = np.floor(s).astype(int).clip(0, 15)
+    hi = np.clip(lo + 1, 0, 15)
+    f = s - lo
+    n = len(table) - 1
+    pos = np.clip(code, 0, 1) * max(n, 1)
+    out = np.zeros(s.shape)
+    for j in range(len(table)):
+        wj = np.clip(1 - np.abs(pos - j), 0, 1) if n else 1.0
+        out += wj * (table[j][lo] * (1 - f) + table[j][hi] * f)
+    return out
+
+
+def tone_cover(cush):
+    """How much of the tone lift a texel takes: all of it on a stone's top, TONE_DARK in the mortar."""
+    return TONE_DARK + (1 - TONE_DARK) * cush
+
+
+def tone_lift(F, art, table):
+    """How much `compose` raises the stones' shading (shade units, at full cushion), so the texture
+    keeps the art's brightness at TONE_SIGMA px (D223): the art's smoothed brightness `art` against
+    the composed texture's (`table`: ramp_lum), over the opaque area, spread over the stone tops
+    there (in shade units through the ramps' slope at each texel). The mortar lines and the darker
+    stone edges otherwise take about a sixth off, which the models' bright blue light used to hide;
+    under the ground's light (rockMaterial.ts) the texture shows as it is. A field like the others,
+    so the seam solve carries it and the tiles still meet."""
+    pre = compose({**F, "lift": np.zeros_like(F["sd"])}, noise=False)
+    w = F["alpha"]
+    s = TONE_SIGMA * TEX
+    deficit = norm_blur(art - shade_lum(table, pre["shade"], pre["code"]), w, s)
+    slope = shade_lum(table, pre["shade"] + 0.5, pre["code"]) - shade_lum(table, pre["shade"] - 0.5, pre["code"])
+    typical = float(np.mean(table[:, 1:] - table[:, :-1]))
+    cover = norm_blur(tone_cover(smoothstep(0.0, CUSHION, F["sd"])) * np.maximum(slope, 0.25 * typical), w, s)
+    return np.clip(deficit / np.maximum(cover, TONE_MIN_COVER * typical), -TONE_MAX, TONE_MAX)
 
 
 def periodic_noise(h, w, period=(TILE_H * TEX, TILE_W * TEX), cells=(7, 6), seed=7, origin=(0, 0)):
@@ -379,24 +435,28 @@ def periodic_noise(h, w, period=(TILE_H * TEX, TILE_W * TEX), cells=(7, 6), seed
     return top * (1 - fy) + bot * fy
 
 
-def compose(F, origin=(0, 0)):
+def compose(F, origin=(0, 0), noise=True):
     """The texture channels from the fields: shade (0..15), code (0..1), height (0..1).
 
     A stone (sd > 0) is its own smoothed shading, a little darker toward its edge (EDGE_DARK over
-    CUSHION px) and with a little surface noise; the dark areas (sd < 0) theirs; along every stone
-    edge a mortar line darkens what is there to MORTAR_SHADE of it. The height is the cushion."""
+    CUSHION px), raised by the tone lift (F["lift"], tone_lift) and with a little surface noise; the
+    dark areas (sd < 0) theirs; along every stone edge a mortar line darkens what is there to
+    MORTAR_SHADE of it, in the ramps of the art there. The height is the cushion. `noise`: False
+    leaves the surface noise out (tone_lift's measure)."""
     sd = F["sd"]
     line = 1 - smoothstep(MORTAR[0], MORTAR[1], np.abs(sd))
     cush = smoothstep(0.0, CUSHION, sd)
     h, w = sd.shape
-    noise = periodic_noise(h, w, origin=origin) + 0.5 * periodic_noise(h, w, cells=(14, 12), seed=11, origin=origin)
+    noise = periodic_noise(h, w, origin=origin) + 0.5 * periodic_noise(h, w, cells=(14, 12), seed=11, origin=origin) if noise else np.zeros((h, w))
     stone = F["stone"] * (1 - EDGE_DARK + EDGE_DARK * cush) + NOISE * noise * cush
     inside = smoothstep(-0.3, 0.3, sd)
     base = F["dark"] * (1 - inside) + stone * inside
-    shade = base * (1 - line) + MORTAR_SHADE * F["all"] * line
+    shade = base * (1 - line) + MORTAR_SHADE * F["all"] * line + F.get("lift", 0.0) * tone_cover(cush)
     height = np.clip(cush * (0.9 + 0.1 * noise) + 0.15 * (1 - inside) * np.clip(F["dark"] / 6, 0, 1), 0, 1)
-    # Mortar is grey whatever the stones beside it.
-    code = np.clip(F["code"], 0, 1) * (1 - line)
+    # The mortar keeps the art's ramps (D223): grey between grey stones, warm round a tan or brass
+    # stone and where the art paints brown mortar. Drawing it all grey (D84) took a fifth to a third
+    # of the islands' tan away.
+    code = np.clip(F["code"], 0, 1)
     return {"shade": np.clip(shade, 0, 15), "code": code, "height": height, "alpha": F["alpha"]}
 
 
@@ -535,8 +595,8 @@ def apply_strips(img, strips, band_lo=BAND_LO, band_hi=BAND_HI):
 
 # --- The island tiles ----------------------------------------------------------------------------
 
-FIELD_KEYS = ("sd", "stone", "dark", "all", "code", "alpha")
-CACHE_VERSION = 1
+FIELD_KEYS = ("sd", "stone", "dark", "all", "code", "alpha", "lift")
+CACHE_VERSION = 2
 
 
 def snap_rock(pal, g1, keep, ramps=RAMPS):
