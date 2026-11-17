@@ -337,12 +337,20 @@
 }
 
 .cinema-credits__ship {
+  /* The credits' line height: the ship sits beside .cinema-credits, not in it, so it doesn't inherit it. */
+  --line: clamp(1.9rem, 8.5cqh, 3.4rem);
   position: absolute;
   width: calc(var(--line) * 1.2);
   aspect-ratio: 24 / 28;
   image-rendering: pixelated;
   left: calc(var(--x, 0) * (100% - var(--line) * 1.2));
   top: calc(var(--y, 1) * 100%);
+}
+
+/* The painted pictures and ship (D218) scale smoothly, not as pixels. */
+.cinema-credits__pic.is-hd,
+.cinema-credits__ship.is-hd {
+  image-rendering: auto;
 }
 
 .cinema-credits__note {

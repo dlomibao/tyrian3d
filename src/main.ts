@@ -80,6 +80,11 @@ function startGame(): void {
     import("./debug/levelHarness")
       .then(({ runLevelHarness }) => runLevelHarness(view))
       .catch((err) => console.error("level harness failed", err));
+  } else if (debug === "credits") {
+    // The end credits on their own (src/debug/creditsHarness.ts), on demand like the others.
+    import("./debug/creditsHarness")
+      .then(({ runCreditsHarness }) => runCreditsHarness(view))
+      .catch((err) => console.error("credits harness failed", err));
   } else if (new URLSearchParams(location.search).has("destruct")) {
     // Destruct, the hidden artillery game (src/destruct/), straight away.
     ui.attachBackdrop(new Backdrop(view.renderer));
