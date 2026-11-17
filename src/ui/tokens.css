@@ -6,7 +6,8 @@
  * bronze rim, over the dimmed painted planet of the title (D64). One rule for colour: what you
  * choose is copper (the title's type, its brush smear, diamond ticks and glint); what the game
  * counts is phosphor green, as on the HUD (D61): credits, prices, scores, gauges and the message
- * bar. No glow, and green only for numbers. Fonts are Google Fonts under the SIL Open Font License
+ * bar, except the ship's armor, shield and generator gauges, which take the status panel's own
+ * colours, and a price the credits don't cover, greyed out (D232). No glow, and green only for numbers. Fonts are Google Fonts under the SIL Open Font License
  * (CREDITS.md), loaded by index.html; the fallbacks keep everything readable offline.
  */
 :root {
@@ -82,10 +83,20 @@
   --ui-danger: #ff6a4a;
   --ui-ok: var(--ui-phos);
 
-  /* Colour: stat bars (the HUD's armor, shield and generator colours; menus draw them as phosphor) */
+  /* Colour: stat bars, the in-game status panel's armor, shield and generator colours (hudFrame.ts
+     hudf-armorG / hudf-shieldG / hudf-powerG). Menus draw the ship's own gauges in them, so a
+     gauge reads the same in the shop as in play (D232). */
   --ui-armor: #d9c070;
   --ui-shield: #5aa8ff;
   --ui-power: #e07030;
+  --ui-armor-cell-on: linear-gradient(180deg, #fff0b8, #d9c070 45%, #c09a3a 80%, #6a5010);
+  --ui-armor-cell-off: rgba(217, 192, 112, 0.14);
+  --ui-shield-cell-on: linear-gradient(180deg, #b8e0ff, #5aa8ff 45%, #3b84e0 80%, #103c8c);
+  --ui-shield-cell-off: rgba(90, 168, 255, 0.14);
+  --ui-power-cell-on: linear-gradient(to top, #b8200c, #e86a1c 45%, #ffb030 80%, #ffe070);
+  --ui-power-cell-off: rgba(224, 112, 48, 0.14);
+  /* What the credits don't cover: greyed out, not a dimmer green (D232). */
+  --ui-unaffordable: #7a7570;
 
   /* Colour: surfaces */
   --ui-bg: #0a0605;

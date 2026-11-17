@@ -119,9 +119,10 @@
   opacity: 0.35;
 }
 
-/* An upgrade the credits don't cover: its cost in the phosphor's dim green. */
+/* An upgrade the credits don't cover: its cost greyed out (D232). */
 .shop-ro.is-short .shop-ro__num {
-  color: var(--ui-phos-dim);
+  color: var(--ui-unaffordable);
+  text-shadow: none;
 }
 
 .shop-pwr {
@@ -284,8 +285,10 @@
   margin-left: 0;
 }
 
+/* An item the credits don't cover: its price greyed out, not green (D232). */
 .shop-list .shop-row.dim .shop-price {
-  color: var(--ui-phos-dim);
+  color: var(--ui-unaffordable);
+  text-shadow: none;
 }
 
 .shop-list .shop-row.done {

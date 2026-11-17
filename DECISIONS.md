@@ -13922,3 +13922,20 @@ structure traced crisp, every tone measured from the sprite.
 **Review:** TIME WAR t19050, t19053 and t19063 with `&compare=1` against the original. Fallback: revert the two
 wrappers, `lib_newsh9_mothership.py` and the eight `newsh9` glbs together (`lib_b019.py` is untouched); the pods
 revert on their own (`assembly-newshl-39.py`, `-77.py` and the six `newshl` glbs).
+
+## D232 — The shop's armor, shield and generator gauges take the in-game status panel's colours; a price the credits don't cover is greyed out (follows D61, D85)
+2026-11-17
+The user: the generator, armor and shield gauges and the too-expensive prices were all green in the shop; align them
+with the in-game status colours, and grey out what can't be bought. D85 drew every menu gauge in phosphor green and an
+unaffordable price in a dimmer green, so a short price read as a gauge.
+**Decision:**
+- The loadout's armor and shield bars (`ui-stat--armor` / `--shield`, components.css) and the simulator's generator bar
+  (weaponPreview.css) use the framed HUD's own ramps (hudFrame.ts `hudf-armorG` gold, `hudf-shieldG` blue,
+  `hudf-powerG` red to yellow), turned across the bar, with an unlit cell in the same hue. Tokens in tokens.css
+  (`--ui-<armor|shield|power>-cell-on/-off`).
+- An unaffordable price (item rows `.shop-row.dim`, the Upgrade readout `.is-short`) is a neutral grey (`--ui-unaffordable`,
+  #7a7570) without the phosphor glow; its row label was already dimmed.
+- Unchanged: credits, prices you can pay, the weapon power level cells and the message bar stay phosphor (D85).
+**Options considered:** *dim the whole unaffordable row* (it also dims the icon, which the original doesn't); *the
+HUD's flat colours* (overlay.css, the minimal HUD) rather than the framed HUD's ramps (the default interface's).
+**Review:** the shop's ship and weapon submenus; fallback is reverting the four CSS files.
