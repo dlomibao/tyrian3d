@@ -13,7 +13,7 @@ import {
   TerrainTileset,
   type TerrainMap,
 } from "../../src/render/remaster/terrainArt";
-import { loadTerrainTileset, TerrainArtSet, type TerrainLoadIo } from "../../src/render/remaster/terrainLoader";
+import { disposeTerrainTileset, loadTerrainTileset, TerrainArtSet, type TerrainLoadIo } from "../../src/render/remaster/terrainLoader";
 import { loadTerrainStyle, onTerrainStyle, resetTerrainStyle, setTerrainStyle, storedTerrainStyle, terrainStyle, terrainStyleFromSearch } from "../../src/core/terrainStyle";
 import { optionsRows, SettingsMenu } from "../../src/app/options";
 import { loadPrefs, PREFS_STORAGE_KEY, PREFS_VERSION, savePrefs, type PrefsStorage } from "../../src/app/prefs";
@@ -337,6 +337,55 @@ describe("loading", () => {
     expect(t.tile(0, 2, 1)).toBeUndefined();
     await t.loadImages(["0-2.webp"]);
     expect(f.asked.filter((u) => u === url("0-2.webp"))).toHaveLength(1);
+  });
+
+  test("a level start releases every other tileset, and one still loading is freed as it lands (D236)", async () => {
+    const disposed: string[] = [];
+    let finish: (() => void) | null = null;
+    const set = new TerrainArtSet(async (name) => {
+      if (name === "slow") await new Promise<void>((r) => (finish = r));
+      const t = new TerrainTileset<THREE.Texture>(name, parseTerrainManifest({ scale: 8, layers: { "0": { image: "0.webp", tiles: { "1": rect(8, 16) } } } })!);
+      const texture = new THREE.Texture();
+      texture.addEventListener("dispose", () => disposed.push(name));
+      t.setImage("0.webp", { texture, width: 64, height: 64 });
+      return t;
+    });
+    await set.request("a");
+    await set.request("b");
+    const slow = set.request("slow");
+    // The caller frees what it made from the loaded ones, then their textures (disposeTerrainTileset).
+    expect(set.release("a").map((t) => t.name)).toEqual(["b"]);
+    expect([set.get("a")?.name, set.get("b"), set.get("slow")]).toEqual(["a", undefined, undefined]);
+    finish!();
+    expect(await slow).toBeNull();
+    expect(set.get("slow")).toBeUndefined();
+    expect(disposed).toEqual(["slow"]);
+    // Asked again, it loads again.
+    expect((await set.request("b"))?.name).toBe("b");
+  });
+
+  test("a released tileset frees the atlases it loaded for its map and on demand, and one landing later (D236)", async () => {
+    const freed = new Set<string>();
+    const f = io({ "/art/terrain/shapesz/manifest.json": perLevel });
+    const loadTexture = f.loadTexture;
+    let hold: (() => void) | null = null;
+    f.loadTexture = async (u) => {
+      if (u.endsWith("0-3.webp")) await new Promise<void>((r) => (hold = r));
+      const out = await loadTexture(u);
+      out.texture.addEventListener("dispose", () => freed.add(u.split("/").pop()!));
+      return out;
+    };
+    const set = new TerrainArtSet((name, images) => loadTerrainTileset(name, "/", f, "art/terrain/", images));
+    const t = (await set.request("shapesz", [Int16Array.from([1]), undefined, undefined]))!;
+    await t.loadImages(["0-2.webp"]); // asked for on demand by a tile
+    expect(t.tile(0, 3, 0)).toBeUndefined(); // a third starts loading, and is still on its way
+    expect(set.release(undefined)).toEqual([t]);
+    disposeTerrainTileset(t);
+    expect([...freed].sort()).toEqual(["0-2.webp", "0-covered.webp", "0-v.webp", "0.webp"]);
+    hold!();
+    await t.loadImages(["0-3.webp"]);
+    expect(freed.has("0-3.webp")).toBe(true);
+    expect(t.images.get("0-3.webp")).toBeNull(); // never set on the released tileset
   });
 });
 

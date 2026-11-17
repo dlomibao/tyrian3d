@@ -71,6 +71,8 @@ export async function loadTerrainTileset(
         ? Promise.resolve()
         : io.loadTexture(root + image.split("/").map(encodeURIComponent).join("/")).then(
             ({ texture, width, height }) => {
+              // An atlas asked for on demand that lands after its tileset was released (D236).
+              if (released.has(tileset)) return void texture.dispose();
               prepareTerrainTexture(texture, !opaque.has(image));
               tileset.setImage(image, { texture, width, height });
             },
@@ -99,26 +101,60 @@ export class TerrainArtSet {
   /**
    * Start loading `tileset`'s art if not yet asked for: with `maps` (the level's), only the atlases
    * those maps can draw from, else every atlas (D234). Settles when the manifest and those atlases
-   * have loaded or failed; a later request with other maps loads what they add.
+   * have loaded or failed; a later request with other maps loads what they add. If it was released
+   * meanwhile (D236), its textures are freed as they arrive and it settles to null.
    */
   request(tileset: string, maps?: TerrainMaps): Promise<TerrainTileset<THREE.Texture> | null> {
     const wanted = maps && ((t: TerrainTileset<THREE.Texture>) => t.imagesFor(maps));
     let p = this.loads.get(tileset);
     if (!p) {
-      p = this.load(tileset, wanted)
+      const load: Promise<TerrainTileset<THREE.Texture> | null> = this.load(tileset, wanted)
         .catch(() => null)
         .then((t) => {
+          if (this.loads.get(tileset) !== load) {
+            if (t) disposeTerrainTileset(t);
+            return null;
+          }
           this.ready.set(tileset, t);
           return t;
         });
-      this.loads.set(tileset, p);
+      this.loads.set(tileset, (p = load));
       return p;
     }
-    return wanted ? p.then(async (t) => (t && (await t.loadImages(wanted(t))), t)) : p;
+    return wanted ? p.then(async (t) => (t && !released.has(t) && (await t.loadImages(wanted(t))), t)) : p;
+  }
+
+  /**
+   * Forget every tileset but `keep` (a level of another tileset starts, D236), loaded or loading; a
+   * later request loads it again. Returns those that had loaded, for the caller to free what it made
+   * from them and then their textures (disposeTerrainTileset).
+   */
+  release(keep: string | undefined): TerrainTileset<THREE.Texture>[] {
+    const out: TerrainTileset<THREE.Texture>[] = [];
+    for (const name of [...this.loads.keys()]) {
+      if (name === keep) continue;
+      const t = this.ready.get(name);
+      if (t) out.push(t);
+      this.loads.delete(name);
+      this.ready.delete(name);
+    }
+    return out;
   }
 
   /** The tileset's art if it has finished loading (null: none; undefined: not loaded yet). */
   get(tileset: string): TerrainTileset<THREE.Texture> | null | undefined {
     return this.ready.get(tileset);
   }
+}
+
+/** Tilesets released (D236): atlases they load on demand from now on are freed as they land. */
+const released = new WeakSet<TerrainTileset<THREE.Texture>>();
+
+/**
+ * Free a released tileset's atlases on the GPU (their images go with the tileset): every one it has
+ * loaded, for its level's map or on demand since (D234), and any still on their way as they land.
+ */
+export function disposeTerrainTileset(t: TerrainTileset<THREE.Texture>): void {
+  released.add(t);
+  for (const image of t.images.values()) image?.texture.dispose();
 }

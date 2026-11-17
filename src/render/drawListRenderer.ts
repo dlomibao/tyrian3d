@@ -43,7 +43,7 @@ import { PaletteTexture } from "./paletteTexture";
 import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
-import { castsShadow, isModelHelper, isShellMesh, OUTLINE_SHELL_LAYER, setModelBlended } from "./modelPrep";
+import { castsShadow, disposeModel, isModelHelper, isShellMesh, OUTLINE_SHELL_LAYER, setModelBlended } from "./modelPrep";
 import { depthBandOf, drawnBox, prepareObliqueClone, type DepthBand } from "./obliqueView";
 import { FADE_ROCK_ORDER } from "./outlineHook";
 import { sheetCoverMaterial, type MaskCut } from "./screenFilters";
@@ -82,7 +82,7 @@ import { BG_KEY_LAYER } from "../sim/backgrnd";
 import { MAP_SIZES, TILE_HEIGHT, TILE_WIDTH } from "../data/levels";
 import { terrainStyle as currentTerrainStyle, type TerrainStyle } from "../core/terrainStyle";
 import { parseTileId, type TerrainTileset } from "./remaster/terrainArt";
-import { TerrainArtSet } from "./remaster/terrainLoader";
+import { disposeTerrainTileset, TerrainArtSet } from "./remaster/terrainLoader";
 import { terrainDepthMaterial, terrainLevelUniforms, terrainMaterial, type TerrainKind } from "./remaster/terrainMaterial";
 
 /** How backgrounds are drawn: the original tiles extruded (D8) or remastered (D34). */
@@ -269,10 +269,15 @@ class Pool {
     this.count = 0;
   }
 
-  dispose(): void {
+  /** Free it (and its sheet cover's material, after telling `forget` of it). */
+  dispose(forget?: (material: THREE.Material) => void): void {
     if (this.cover) {
       this.parent.remove(this.cover);
       this.cover.dispose();
+    }
+    if (this.coverMaterial) {
+      forget?.(this.coverMaterial);
+      this.coverMaterial.dispose();
     }
     this.parent.remove(this.mesh);
     this.mesh.dispose();
@@ -307,6 +312,8 @@ interface ModelPool {
   used: number;
   /** The source's box at its root's origin and scale 1 (for the sheets' lift, D129), once loaded. */
   box?: THREE.Box3;
+  /** Freed by a level that doesn't show it (D236): a load still on its way is freed as it lands. */
+  released?: boolean;
 }
 
 /** What a level can show (preloadLevel): the sprites it can draw and its background tiles. */
@@ -322,6 +329,12 @@ export interface LevelModelInfo {
    * terrain's neighbour variants (D57).
    */
   maps?: readonly [ArrayLike<number>, ArrayLike<number>, ArrayLike<number>];
+  /**
+   * Its three maps as the tile number each cell draws (-1: none drawn; sim/levelSprites.ts
+   * levelDrawnMaps): only the structure models whose patterns can match on them are loaded (D236).
+   * Without it, every model with a tile on the maps.
+   */
+  drawnMaps?: readonly [ArrayLike<number>, ArrayLike<number>, ArrayLike<number>];
   /** Its enemies' damaged frames (levelDamageFrames), drawn with their intact models (D87). */
   damage?: readonly LevelDamage[];
 }
@@ -443,6 +456,10 @@ export class DrawListRenderer {
   /** `?height=N`: the models stretched along their up axis (modelHeight.ts). */
   private readonly modelHeight = modelHeightFromUrl();
   private loader: ModelLoader | null = null;
+  /** preloadLevel calls so far: a level's background loads stop when the next level's preload starts (D236). */
+  private preloadRun = 0;
+  /** Models asked for outside any level (preloadModel, the shop's ships): never released (D236). */
+  private readonly pinned = new Set<string>();
   private frame = 0;
   private lastTime = performance.now();
   private instances = 0;
@@ -746,12 +763,16 @@ export class DrawListRenderer {
     if (this.damage !== null) this.router.setDamage([]);
     if (!allShips) return;
     const lead = firstShip && this.router.modelFor(firstShip.sheet, 2, firstShip.index, false);
-    if (lead) this.modelPool(lead);
-    for (const o of models.banked) this.modelPool(o.model);
+    if (lead) this.preloadModel(lead);
+    for (const o of models.banked) this.preloadModel(o.model);
   }
 
-  /** Start loading model `name` now (if it isn't loaded or loading), for a model known to be needed soon. */
+  /**
+   * Start loading model `name` now (if it isn't loaded or loading), for a model known to be needed
+   * soon. It stays loaded from level to level (a new game's ship, D236).
+   */
   preloadModel(name: string): void {
+    this.pinned.add(name);
     this.modelPool(name);
   }
 
@@ -769,7 +790,12 @@ export class DrawListRenderer {
       if (!had || r.time < had.time) out.set(name, { name, time: r.time, structure: false });
     }
     if (this.background === "remaster" && info.tileShapes) {
-      for (const [name, time] of this.tileModels.modelsOfTiles(info.tileShapes, info.tiles ?? [])) out.set(name, { name, time, structure: true });
+      // Only those whose pattern match() can find on the maps (D236): a model with a tile there but
+      // never its pattern (or always a bigger one's) was a load never drawn.
+      const drawable = info.drawnMaps ? this.tileModels.modelsOnMaps(info.tileShapes, info.drawnMaps) : null;
+      for (const [name, time] of this.tileModels.modelsOfTiles(info.tileShapes, info.tiles ?? [])) {
+        if (!drawable || drawable.has(name)) out.set(name, { name, time, structure: true });
+      }
     }
     return [...out.values()].sort((a, b) => a.time - b.time);
   }
@@ -786,6 +812,9 @@ export class DrawListRenderer {
     { progress, timeoutMs = Infinity, waitUntil = Infinity }: { progress?: (done: number, total: number) => void; timeoutMs?: number; waitUntil?: number } = {},
   ): Promise<PreloadResult> {
     const models = this.levelModels(info);
+    const tileset = info.tileShapes ? parseTileId(`${info.tileShapes}:0`)?.[0] : undefined;
+    // What the last level loaded and this one can't show goes first (D236).
+    this.releaseModels(models, info.tileShapes ? tileset ?? null : undefined);
     this.setLevelDamage(info.damage);
     // The structures' own first-sight loading (preloadStructures) would fetch the whole tileset.
     if (info.tileShapes) this.preloadedShapes.add(info.tileShapes);
@@ -804,8 +833,15 @@ export class DrawListRenderer {
       finished.set(m.name, { promise, resolve });
     }
     let next = 0;
+    // A later preloadLevel (the next level's start) stops this one's loads (D236): what that level
+    // lists it loads itself, and the rest would be freed unseen. What this one still waits for settles.
+    const run = ++this.preloadRun;
     const worker = async () => {
       while (next < models.length) {
+        if (run !== this.preloadRun) {
+          for (const f of finished.values()) f.resolve();
+          return;
+        }
         const m = models[next++];
         await load(m);
         finished.get(m.name)?.resolve();
@@ -815,8 +851,7 @@ export class DrawListRenderer {
 
     const waits = [...[...finished.values()].map((f) => f.promise), this.artLoading];
     // The HD terrain of its tileset (D57), so the ground doesn't change look once it's playing: the
-    // atlases the level's map can draw from (D234).
-    const tileset = info.tileShapes ? parseTileId(`${info.tileShapes}:0`)?.[0] : undefined;
+    // atlases the level's map can draw from (D234). (`tileset`: above, for the release.)
     this.levelMaps = tileset && info.maps ? { tileset, maps: info.maps } : null;
     if (tileset && this.background === "remaster") waits.push(this.requestTerrain(tileset).then(() => undefined));
     const result: PreloadResult = { total: waits.length, done: 0, models: models.length, timedOut: false };
@@ -838,6 +873,68 @@ export class DrawListRenderer {
     if (result.done === result.total) result.timedOut = false;
     return result;
   }
+
+  /**
+   * Free what a level starting with `models` can't show (D236): the sprite models' pools (source and
+   * clones), the structure models, and, unless `tileset` is undefined (keep them all), every HD terrain
+   * tileset but that one (null: none), with what was made from them. Models asked for outside a level
+   * (preloadModel) stay; so does everything a retry of the same level shows. A load still on its way
+   * is freed as it lands. Nothing drawn keeps a freed object: pools and their clones leave the scene,
+   * the warm-up queues drop them, structures in view forget their look, and the under-shade pass its
+   * materials made from them.
+   */
+  private releaseModels(models: readonly LevelModel[], tileset: string | null | undefined): void {
+    const keep = new Set(models.map((m) => m.name));
+    for (const name of this.pinned) keep.add(name);
+    const forget = this.forgetMaterial;
+    for (const [name, pool] of this.modelPools) {
+      if (keep.has(name)) continue;
+      this.modelPools.delete(name);
+      pool.released = true;
+      if (pool.source) disposeModel([pool.source, ...pool.clones.map((c) => c.object)], forget);
+      pool.source = null;
+      pool.clones.length = 0;
+    }
+    removeWhere(this.lateModels, (pool) => pool.released === true);
+    const gone = new Set<number>();
+    for (const name of [...this.structureLoads.keys()]) {
+      if (keep.has(name)) continue;
+      this.structureLoads.delete(name);
+      this.structures.release(name, forget);
+      const id = this.structureModelIds.get(name);
+      if (id !== undefined) gone.add(id);
+    }
+    removeWhere(this.lateStructures, (name) => !this.structureLoads.has(name));
+    for (const id of this.structureLooks.keys()) if (gone.has(id % 4096)) this.structureLooks.delete(id);
+    if (tileset !== undefined) {
+      for (const t of this.terrainArt.release(tileset ?? undefined)) this.releaseTerrain(t);
+    }
+  }
+
+  /** Free the HD terrain pools and materials made from a released tileset's atlases, then the atlases. */
+  private releaseTerrain(t: TerrainTileset<THREE.Texture>): void {
+    for (const image of t.images.values()) {
+      const byKind = image && this.hdMaterials.get(image.texture);
+      if (!byKind) continue;
+      for (const { material, depth } of byKind.values()) {
+        for (const pools of [this.hdPools, this.hdSpacePools]) {
+          const pool = pools.get(material);
+          if (!pool) continue;
+          pool.dispose(this.forgetMaterial);
+          pools.delete(material);
+          this.allPools.splice(this.allPools.indexOf(pool), 1);
+        }
+        this.forgetMaterial(material);
+        material.dispose();
+        depth?.dispose();
+      }
+      this.hdMaterials.delete(image!.texture);
+    }
+    disposeTerrainTileset(t);
+  }
+
+  /** A material is being freed: drop what the under-shade pass made from it. */
+  private readonly forgetMaterial = (m: THREE.Material): void => this.underShade?.forget(m);
 
   /**
    * Follow each player's armour (DrawList.ships, D90). Without it (the menus' and the item screen's
@@ -1730,16 +1827,18 @@ export class DrawListRenderer {
   private structureSettled(name: string): Promise<void> {
     let load = this.structureLoads.get(name);
     if (!load) {
-      load = this.loader
+      const started: Promise<void> = this.loader
         ? this.loader(name).then(
             (model) => {
+              // Released while it loaded (D236): its level ended.
+              if (this.structureLoads.get(name) !== started) return disposeModel([model]);
               this.structures.add(name, model);
               if (this.warmed) this.lateStructures.push(name);
             },
             (err) => console.error(`structure model ${name} failed to load; its tiles stay as they were`, err),
           )
         : Promise.resolve();
-      this.structureLoads.set(name, load);
+      this.structureLoads.set(name, (load = started));
     }
     return load;
   }
@@ -1792,6 +1891,7 @@ export class DrawListRenderer {
       if (this.loader) {
         created.settled = this.loader(name).then(
           (model) => {
+            if (created.released) return disposeModel([model]); // its level ended while it loaded (D236)
             created.source ??= model;
             if (this.warmed) this.lateModels.push(created);
           },
@@ -1949,7 +2049,7 @@ export class DrawListRenderer {
     for (const pools of [this.hdPools, this.hdSpacePools]) {
       for (const [material, pool] of pools) {
         if (frame - pool.lastUsed > POOL_TTL_FRAMES) {
-          pool.dispose();
+          pool.dispose(this.forgetMaterial);
           pools.delete(material);
           this.allPools.splice(this.allPools.indexOf(pool), 1);
         }
@@ -1958,7 +2058,7 @@ export class DrawListRenderer {
     for (let v = 0; v < this.pools.length; v++) {
       for (const [geometry, pool] of this.pools[v]) {
         if (frame - pool.lastUsed > POOL_TTL_FRAMES) {
-          pool.dispose();
+          pool.dispose(this.forgetMaterial);
           this.pools[v].delete(geometry);
           this.allPools.splice(this.allPools.indexOf(pool), 1);
         }
@@ -2144,4 +2244,11 @@ export function playerOfKey(key: number): number {
 /** Whether the blended layers read the terrain's own shades (D204): on unless `?undershade=0` (for comparisons). */
 export function underShadeFromSearch(search: string | undefined = typeof location === "undefined" ? undefined : location.search): boolean {
   return search === undefined || new URLSearchParams(search).get("undershade") !== "0";
+}
+
+/** Remove the items of `list` for which `drop` holds, in place. */
+function removeWhere<T>(list: T[], drop: (item: T) => boolean): void {
+  let k = 0;
+  for (const item of list) if (!drop(item)) list[k++] = item;
+  list.length = k;
 }

@@ -14067,3 +14067,65 @@ changed a pixel where two lie at one depth (one pixel, 7 levels, in a GYGES hit-
 the files of each item on its own (underShade.ts with View.warmUp/warmLate's `compileUnderShade`; the clone's
 `updateMatrixWorld`; renderFrame's update; outlineEffect.js; the shell layer in modelPrep.ts, drawListRenderer.ts,
 structureInstances.ts, view.ts and screenFilters.ts).
+## D236 — A level start frees the models, structures and HD terrain the new level can't show; a structure model loads only if its pattern can match on the map (follows D34, D54, D57, D91, D207, D234, D235)
+2026-11-17
+A perf scout (load lane) found the game View's memory only grew from level to level: `modelPools` (each model's source
+and clones), the structure models and the HD terrain tilesets were never freed. Over 8 episode-1 level starts the GPU
+process went 1.58 → 3.29 GB, the JS heap 196 → 519 MB, GL textures 410 → 1044. And the structure preload took every
+model with any tile of its pattern on the map (`modelsOfTiles`): ASTEROID1/2 loaded 7 `l1bld-*` models (7 MB) never
+drawn, TYRIAN 26 per-tile `t1xx` models a bigger pattern always takes over.
+**Decision:**
+- **Free on level start** (`DrawListRenderer.releaseModels`, at the top of `preloadLevel`): every model pool, structure
+  model and HD terrain tileset the new level's list (`levelModels`) doesn't name is freed: clones and sources leave the
+  scene, their geometry, materials (with the clones' shadow-pass materials) and textures are disposed and each texture's
+  ImageBitmap closed (`modelPrep.disposeModel`; `StructureInstances.release`; `TerrainArtSet.release` with the HD pools
+  and materials made from its atlases: every atlas the tileset loaded, for a level's map or on demand (D234), and one
+  still on its way is freed as it lands). Kept: what the new level lists (so a retry or restart frees nothing), and what
+  was asked for outside a level (`preloadModel`: a new game's ship; the shop's ships). Loads still on their way when
+  their level ends are freed as they land. Nothing keeps a freed object: the warm-up queues drop them (View skips a
+  texture marked `userData.released`), structures in view forget their look, and the under-shade pass frees the
+  materials it made from them, pass materials and warm-up copies (`UnderShadePass.forget`; the shared pal_, rock and
+  "unknown" stand-ins of D235 stay). The title backdrop, menus and the shop simulator load their
+  own copies (Backdrop, weaponPreview's own View) and are untouched. A model a level draws without listing it loads
+  on sight as before (D54: held, then the sprite), now also when an earlier level had loaded it.
+- **Structure preload by pattern** (`TileModelIndex.modelsOnMaps`, from `levelDrawnMaps`: the tile each map cell
+  draws): a structure model is preloaded only if match() can draw it somewhere on the map. It runs match()'s own code
+  (`matchAt`, `fits`, shared with the per-tick match) on every window the sim can draw over each cell holding a
+  pattern's tile: 7 or 8 screen rows of 12 consecutive map cells, from any start (any scroll, also rows that wrap round
+  the map's columns, which misaligned map positions can give). So it is exact for the sim's windows and errs toward
+  keeping a model; a structure never pops (D54 still decides its look in view). Quick tests (`columnFits`, `rowsFit`)
+  skip cells no window can match; the answer is cached per map. ~0.1 s for an asteroid field, 30-40 ms for TYRIAN.
+  Without minRows a lone tile can still match (a window can end right after it), so the gain is in minRows patterns and
+  per-tile models a bigger pattern always takes.
+- **A level's background loads stop at the next level's start** (`preloadLevel`'s run counter): what the new level
+  lists it loads itself; the rest would land after the release and sit unseen until the start after. The old
+  preload's wait settles.
+- **Enemies of a bank the level never loads** (`levelSprites`, `enemySheets`): JE_makeEnemy leaves such an enemy
+  the sheet of its slot's last enemy, and levelSprites skipped them. With the release they were never in memory
+  from an earlier level: TIME WAR's bank-28 turrets (types 673-676) drew newshl frames 153-197 as sprites. Now
+  a type the level really makes (`madeEnemyTypes`: its enemy events, events 33/45's death drops, random spawns,
+  the armour ship, what they launch or turn into) whose bank isn't loaded lists its frames on every sheet the
+  level loads; types only named by other events still list nothing. Episodes 2-4 by the bot: TORM 175 → 180
+  models, GYGES 108 → 128, CAMANIS 66 → 100, LAVA RUN 113 → 125, most others unchanged
+  (`tests/render/levelPreloadEpisodes.test.ts`; `PRELOAD_EPISODES=2,3,4` plays every level the bot reaches).
+**Options considered:** *keep the last level's set too* (a retry reuses the same list anyway; holding two levels
+halves the gain); *an LRU byte budget* (fewer reloads between levels sharing models, but the D54 list is already the
+level's need); *a full-pattern-on-the-map rule* (simpler, but a structure the screen's edges cut shows from a partial
+pattern, and per-tile models would not be pruned).
+**Measured** (`?debug=play`, headless Chrome on ANGLE Metal, episode 1: TYRIAN, ASTEROID1, ASTEROID2, SAVARA, MINES,
+BUBBLES, DELIANI, TYRIAN, TYRIAN again; each started as the game does and fully loaded): after the 8th start GL
+textures 1032 → 557, GL geometries 7282 → 2511, model pools 464 → 163, JS heap 494 → 210 MB, GPU process 3.0-3.8 →
+1.7-1.9 GB, renderer process 2.0 → 1.0 GB; memory now follows the level (MINES: 159 textures, 1.0 GB GPU) instead of
+growing. A restart frees nothing and starts faster. Preload: TYRIAN 245 → 220 models (25 per-tile, 1.5 MB), ASTEROID1
+133 → 129 (4 `l1bld`, 4.8 MB), ASTEROID2 154 → 149 (5, 5.9 MB); in a bot run of each no model drawn was missing from
+the preload. Each level's frame at tick 500 (Math.random seeded) is pixel-identical before and after for the first 7
+starts; TYRIAN revisited and restarted differ in 10 and 4 pixels by at most 3/255 (models loaded afresh there; two
+runs of the old code gave identical frames, so it is the change: likely equal-depth draw order by object id).
+Re-measured on main with D234 and D235: after the 8th start GL textures 1030 → 555, pools 464 → 164, JS heap 482 →
+211 MB, GPU process 3.7 → 1.7 GB, renderer 2.0 → 1.0 GB. Starts 1, 2 and 4-7 pixel-identical; ASTEROID2 (start 3)
+differs in 293 scattered pixels along the rock rims (max 40/255), also without the release and without the
+borrowed-sheet rule, so from the structure pruning: likely the load order, and so the material ids D235's passes
+break depth ties by, not verified.
+**Review:** `tests/render/structurePreload.test.ts` (modelsOnMaps against match() on every window of random maps; every
+structure the bot sees in episode 1 is preloaded); fallback: drop the `releaseModels` call, or `drawnMaps` from
+`levelModelInfo`.

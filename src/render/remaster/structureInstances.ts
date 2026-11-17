@@ -36,6 +36,7 @@ import { colourFrame, rigModel, type FrameRig } from "../modelFrames";
 import { isModelHelper, OUTLINE_SHELL_LAYER } from "../modelPrep";
 import { depthBandOf, obliqueUniforms, patchOblique } from "../obliqueView";
 import { hasRockBands, ROCK_SIDES, rockBandSlot, rockCell } from "../rockMaterial";
+import { disposeMaterial } from "../modelPrep";
 
 interface Part {
   mesh: THREE.InstancedMesh;
@@ -148,6 +149,30 @@ export class StructureInstances {
     }
     const low = bounds.isEmpty() ? 0 : bounds.min.y, high = bounds.isEmpty() ? 0 : bounds.max.y;
     this.models.set(name, { parts, rig: rigModel(source), count: 0, paletteVersion: -1, hue: -1, height: 0, low, high });
+  }
+
+  /**
+   * Drop a loaded model (a level that doesn't use it starts, D236): its instanced meshes leave the
+   * group, and their geometry, materials and textures are freed. `forget` is told of each material
+   * first, for caches keyed by it. Returns whether it was loaded.
+   */
+  release(name: string, forget?: (material: THREE.Material) => void): boolean {
+    const model = this.models.get(name);
+    if (!model) return false;
+    this.models.delete(name);
+    const materials = new Set<THREE.Material>();
+    for (const part of model.parts) {
+      part.mesh.removeFromParent();
+      part.mesh.dispose();
+      part.mesh.geometry.dispose();
+      const m = part.mesh.material;
+      for (const mat of Array.isArray(m) ? m : [m]) materials.add(mat);
+    }
+    for (const m of materials) {
+      forget?.(m);
+      disposeMaterial(m);
+    }
+    return true;
   }
 
   /** A loaded model's lowest and highest y at scale 1, or null if it isn't loaded. */

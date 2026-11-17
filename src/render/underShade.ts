@@ -520,6 +520,29 @@ export class UnderShadePass {
     return this.unknown;
   }
 
+  /**
+   * A material is being freed (its model or terrain left with its level, D236): free what this pass
+   * made for it, its pass material and its warm-up stand-in, unless shared (a palette index's
+   * shade, "unknown", the pal_ and rock stand-ins).
+   */
+  forget(material: THREE.Material): void {
+    const shared = (m: THREE.Material) => m === this.unknown || m === this.warmPal || m === this.warmRock || this.palShades.includes(m as THREE.MeshBasicMaterial);
+    const m = this.shadeMaterials.get(material);
+    if (m) {
+      this.shadeMaterials.delete(material);
+      this.sheetMarks.delete(m);
+      if (!shared(m)) m.dispose();
+    }
+    const w = this.warmOwn.get(material);
+    if (w) {
+      this.warmOwn.delete(material);
+      if (!shared(w)) w.dispose();
+    }
+    // The rock stand-in shows its first rock's map: once that is freed, the next warm-up makes another
+    // (not disposed: its program stays compiled meanwhile).
+    if (this.warmRock && this.warmRock.map === rockShadeMap(material)) this.warmRock = null;
+  }
+
   /** The mark material for a flat-art batch drawn with `material` (one per atlas). */
   private artMark(material: THREE.ShaderMaterial): THREE.ShaderMaterial {
     const map = material.uniforms.map.value as THREE.Texture;
