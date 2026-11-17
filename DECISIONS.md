@@ -14237,3 +14237,145 @@ diagnosis that are about the object, not about pixel luma:
 - Full bank passes D93's bar by 0.02 on frame 267.
 - Not checked: D90's wear at low armour, the invulnerable (translucent) ship, two players, the field's left and
   right edges.
+## D238 — The Silver Ship is a modelled ship again: a sculpted fuselage whose crowned deck and raised, polished spine make the sprite's bright bar under the game's own light, two low armour shells with arched engines in place of the thin wings; D229's deck painted in the sprite's tone bands is withdrawn (supersedes D229's deck, wings and stepped indices; follows D50-D53, D74, D90, D93, D118, D126, D229)
+
+2026-11-17
+
+**Problem:** D229 rebuilt the Silver Ship (`ship-silver-ship`, item 11, `tyrian.shp#8` frame 81 and its banks 77-85) to
+its sprite's pixel brightness. The user's verdict: the ship "regressed in feel". In `?viewer=ship-silver-ship` it had
+lost its modelled shape and read as a flat cut-out fitted to the sprite, a slab with a white panel painted on it. Two
+things in D229 did that:
+- **The deck was painted.** Its top was five flat plates and a collar in the sprite's tones by row (indices 12, 9, 10,
+  12, 10, 8), each stepped one index under its rows' mean to cancel the game's light on a level face. Those bands are
+  the sprite's shading and its sheen. Painting them breaks art rule 2, and a player ship is seen turning (the item
+  screen's backdrop, the viewer, the banks), where painted light stays put: D229's own Open says "in the hangar they
+  show as five grey panels".
+- **Nothing had a section.** A flat-topped fuselage with chamfers, a 0.95 px wing each side, a 3 px block on it.
+
+D229's reading of the sprite stands, and so do its corrections to D118: the ship is slim (D118's round pods stood as
+tall as the fuselage, 4.9 px beside 4.5, and made it a blob), three open exhaust pipes behind the fuselage, red
+nozzles the camera looks into, the reds glowing at 1 (D126), one palette index per part, read on the sprite's lit side.
+
+**Decision:** `assets/blender/ships/ship-silver-ship.py` is rewritten from D118's script (bc144db4: its lofts, plates
+and plan lines) with D229's measurements of the sprite. The Talon's helpers and bake as before (D50; `"bake": "model"`;
+no concept projection). The rule for the brightness: **the shape and the finish make it, one index per part** (art
+rule 2). No part is split into tone bands and no index is stepped to cancel the light.
+- **Fuselage:** the one tall part, 7 px wide inside its ink, deck at z 2.42-2.58, keel at -1.6. Its top is a shallow
+  crown: a flat middle (half width 1.45), a shoulder each side that drops 0.5 px over 1.1 (24 degrees), then a flank
+  that falls 1 px over 0.9 (about 50 degrees) to the engines' cowls. The game's sun stands 17 degrees left of up (D229), so the left shoulder
+  is lit most, the deck next, and the right flank least, which is the sprite's columns 9 to 14. Deck and shoulder are
+  one plate each side (the knee is a crease, not a seam), palette 11, the median of the sprite's deck; flanks 9.
+- **Spine:** a raised strip down the deck's middle in two steps (1.04 px wide standing 0.2, then 0.66 px standing
+  0.36), index 11 as the deck and polished (metallic 0.3, roughness 0.16 against the deck's 0.15 / 0.3), with the
+  nose's ridge the same; a polished collar across deck and shoulders behind the windshield (the sprite's near-white
+  row 9, index 12). The sprite's white over rows 16-18 is sheen and is left to the finish.
+- **Detail on the deck:** a panel break at row 15.5, a raised hatch and two louvres each side of the fore deck, two
+  bosses on each aft shoulder; a peaked nose in all-round plates; a pointed windshield over the sprite's ten cockpit
+  pixels in a sill (D229's outline, 0.62 px high).
+- **Side shells:** one low armour shell each side (rows 10-22) on D118's plan line, 2.5 px thick where D118's pod was
+  4.9, its top 1.4 px under the deck: a lofted section with a flat crown, a sloped shoulder, a blunt edge and a flat
+  belly, over a gunmetal core. On it: a root fairing with an intake mouth (rows 10-12), a shoulder plate with a raised
+  hatch, a prouder rail along the outer pixel to row 20 (index 9), a crown panel in front of the engine, a dark
+  trailing corner (the sprite's 4 and 2).
+- **Engines:** on each shell's inboard top, 3 px wide, a low arched cowl (crown at z 1.6). Its front is cut on the
+  sweep of the sprite's bright diagonal and open: a polished lip ring (index 12) over a dark intake mouth, with a
+  strip of bare core in front of it (the sprite's darker pixels ahead of the diagonal). Behind the cowl, two raised
+  bands over the arch (rows 19 and 21, indices 11 and 6) and two red grooves 0.3 px deep (rows 18 and 20), each with
+  a glowing tube held by two clamps.
+- **Red nozzles:** each engine ends in a trough cut on the rear diagonal, its opening tilted 29 degrees to face up,
+  aft and outboard (D229's faced aft at 12 degrees), so the camera looks in: a rim (113), walls (114) 0.55 px deep, a
+  floor (115), a pit with the core (117, 118). They glow at 1 (the rim's top at 0.7). The shroud round the throat is
+  red metal, lit (113 with 0.35 of its own glow), so the nozzle shades as a solid from the side.
+- **Pipes:** three open pipes on columns 9, 11 and 13, each leaving the tail through a collar, flared at the mouth
+  with a dark bore, over D229's dark heat shield (palette 1: the sprite's ink between and beside them, which is
+  inside the inner mask). Outer pipes 9, the middle one 7 and a little lower.
+- **Colours:** each part takes the median index of its sprite pixels on the sprite's lit (left) side; the right
+  side's darker indices are the same parts in shade and are not painted. 16 `pal_` materials (D229: 15; D118: 17),
+  one per index and finish: satin hull, the brighter deck, polished trim, dull cores, matte recesses, glass, and the
+  reds. The bake's tint is D118's (1, 0.96, 0.82), not D229's 0.88 of it.
+- **Outline shell (D90):** from the closed model, voxel 0.03, held 0.004 inside. For the shell only, the grooves and
+  the throats are filled (no ink across the red) and each canard gets a prism of its plan. The gaps between the
+  pipes stay open, so the ink falls where the sprite draws it.
+- **Banks (D93):** pose only. `tools/bank_roll.py --fit` gives roll 15 / 30 (D229: 17.5 / 30), shift 0.5, 0, 0, 0,
+  -0.5 as before. Nothing is shaped for them.
+- `tyrian_engines`: two red glows over the throats. No renderer change.
+
+**Result** (the build in this change; captures at 3840x2160, `&solid=1&front=0`, tick 400):
+- **Viewer** (`?viewer=ship-silver-ship`, old D118 | D229 | this): Free and Game angle, the top view, five orbits
+  (front and rear quarters, both sides low, from above), and the top view with the sprite laid over: windshield,
+  collar, lip, grooves, bands, tails and pipes sit on their pixels. The ship has sections from every angle: a hull
+  with shoulders and a keel, shells with a crown and a rounded edge, arched cowls, nozzles with a throat.
+- **In game** (`?debug=play&episode=1&main=1&seed=1&skip=400&freezeAt=400&ship=11&compare=1&solid=1`, and the ship
+  held mid-screen on the level frame). It reads as the sprite: a bright bar 5 px wide between darker sides, the
+  bright diagonal lips, two red stripes each side, red corners, three pipes with ink between them. Mean luma on the
+  sprite's grid, original / D118 / D229 / this (D229's regions; a check that the reading holds, not a target):
+
+  | Region (sprite px) | Original | D118 | D229 | This |
+  |---|---|---|---|---|
+  | Deck band, columns 9-13, rows 9-21 | 168 | 134 | 168 | 166 |
+  | The rest of rows 9-21 | 79 | 85 | 84 | 89 |
+  | Deck, rows 10-14 / 15-19 / 20-21 | 149 / 191 / 146 | 145 / 131 / 122 | 152 / 194 / 130 | 167 / 168 / 154 |
+  | Collar, row 9 | 176 | 114 | 182 | 156 |
+  | Flanks, left / right | 122 / 44 | 119 / 101 | 110 / 90 | 109 / 96 |
+  | Shell and engine top, rows 12-17, left / right | 95 / 68 | 72 / 72 | 86 / 80 | 88 / 88 |
+  | Nose ridge | 149 | 90 | 131 | 112 |
+  | Red grooves, left (R, G, B) | 116, 4, 0 | 143, 61, 58 | 98, 27, 25 | 98, 21, 19 |
+  | Red tail, left (R, G, B) | 99, 3, 0 | 95, 42, 35 | 85, 25, 17 | 87, 24, 15 |
+  | Pipes / ink between them | 98 / 17 | 96 / 44 | 98 / 17 | 87 / 19 |
+  | Whole ship | 94 | 90 | 98 | 98 |
+
+  The bar against its sides is 1.9 to 1 (sprite 2.1, D118 1.6, D229 2.0) with one index on the deck. The deck is one
+  tone along its length (167, 168, 154), where the sprite and D229's plates step 149, 191, 146: that step is the
+  sheen this change does not paint. At the right wall the bar is 161 against 93 (D229: 160 / 89).
+- **Item screen** (console `shop 1`, `shop add ships 11`, the ship bought): the backdrop flies the model turning,
+  with its two engine glows, and the Front Gun menu's simulator draws it. Old | D229 | this in one sheet.
+- Top view, `tools/bank_roll.py ship-silver-ship` (`iou_rule_grid`, D74; the built glb at the ship's pose):
+
+  | Frame | D229 (roll 17.5 / 30) | This (roll 15 / 30) | Bar |
+  |---|---|---|---|
+  | 81, level | 0.9965 | 0.9965 | 0.95 |
+  | 79 / 83, half bank | 0.9379 / 0.9308 | 0.9379 / 0.9308 | 0.80 |
+  | 77 / 85, full bank | 0.8826 / 0.8754 | 0.8516 / 0.8541 | 0.70 |
+
+  The level frame's one missed pixel is (5, 23), as in D229 (the sprite is not symmetric there). The full banks are
+  0.03 under D229's: the fuselage stands 1.4 px over the shells, and a roll moves a tall part further than the
+  sprite's banks do. D93's bars hold.
+- 9,949 triangles (D229: 5,888; D118: 12,002) plus the outline shell; 525 KB (D229: 357 KB; D118: 547 KB, meshopt);
+  `spriteModels` changes only `bank.roll`. The shop's ship icons are re-rendered (`tools/shop_icons.py models`, D226):
+  the Silver Ship's icon is this model (its fit against the inner mask 0.997); `public/art/shop/models.webp`.
+- Also captured: `&camera=overhead` and `steep`, the four banks in game, the right wall.
+- `tsc --noEmit` clean; `vitest run` of `spriteModels`, `bankShift`, `modelSwap`, `viewerFrames`, `modelPop`,
+  `modelCoverage`, `screens`, `player` and `shopIcons`: 57 passed. The full suite was not run.
+- Captures (not in git, D3): `tyrian-scratch/ship-feel-silver/final/` (`viewer-free-game.png`, `viewer-orbits.png`,
+  `viewer-top.png`, `viewer-overlay.png`, `hangar-simulator.png`, `sheet-*.png` as original | old | D229 | this, `table-centre.txt`,
+  `table-wall.txt`, `bank-frames-iou.png`, `shop-icons.png`); D118's and D229's builds in `base/`.
+
+**Options considered:**
+- *Keep D229 and soften it (bevel the deck plates, thicken the wings):* the bands would still be painted light, and
+  a thicker flat wing is still a slab. The user's objection was to the approach.
+- *Go back to D118 whole:* its pods stood as tall as the fuselage and read as a blob in game (D229's diagnosis 1),
+  its nozzles showed the camera their roofs, its tubes glowed pink at 3.
+- *A spine of index 12 or 13 over the deck's 11* (not built): it is the same part of the sprite as the deck (column
+  11's median over rows 10-20 is 11), so a lighter index there would be painted sheen; the polish sets it apart.
+- *Keep D229's indices stepped for the light (deck one down, nose and pipes up):* they tune one camera and one sun;
+  each part now has its sprite's own index, and the nose ridge and the pipes come out darker than D229's for it
+  (112 and 87 against 131 and 98).
+- *A canted round nozzle as D118's, tilted up* (not built): laid out on the plan, a nozzle along the diagonal's
+  normal runs its inboard wall over columns 8 and 14 at rows 24-25, the sprite's ink beside the outer pipes. The
+  trough stays on the engine's 3 px.
+- *Paint the right side in the sprite's shade indices:* art rule 2, as D229 found.
+
+**Open:**
+- The right side reads lighter than the sprite's (right half 94 against 76 mid-screen, 101 at the wall): the steep
+  right flank comes out at 96 where the sprite has 44. The game's fill light and the ray roll (D171, D229's renderer
+  facts) flatten it; the shade is not painted.
+- The deck does not brighten toward the rear as the sprite's does (rows 15-19: 168 against 191). A sheen that moves
+  with the view would be a renderer feature (an environment the ship reflects), for every polished part.
+- The banks are 0.85 and 0.93-0.94, not 0.95 (D93).
+- `assets/blender/features/ship-silver-ship.json` still calls the shells "pods" and the pipes "tail-ribs"; every
+  feature it lists is present, the wording was not changed. Its "flat top" for the deck is now a flat middle
+  between two shoulders.
+- `public/art/shop/models.webp` holds every ship's icon: if another ship's model lands in parallel, re-run
+  `python tools/shop_icons.py models` after merging.
+- Not checked: the hit flash by eye (one frame of `?debug=models&flash=1` was captured, not a flashing one; the
+  materials are `pal_` as before), `&armor=` wear, two-player mode, the title screen.
