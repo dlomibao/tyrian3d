@@ -14379,3 +14379,36 @@ rule 2). No part is split into tone bands and no index is stepped to cancel the 
   `python tools/shop_icons.py models` after merging.
 - Not checked: the hit flash by eye (one frame of `?debug=models&flash=1` was captured, not a flashing one; the
   materials are `pal_` as before), `&armor=` wear, two-player mode, the title screen.
+
+## D240 — The U-Ship goes back to its blueprint-built model; player ships must read as real ships from every angle and are reworked only through the flagship pipeline (withdraws D228 and D237 for the U-Ship)
+
+**Date:** 2026-11-17
+
+**Problem:** the user compared three U-Ships in `?viewer=ship-u-ship` (free angle, game angle, top): the model from
+before D228, D228 (painted bands, rejected) and D237 (D228's form withdrawn, D228's "corrections" kept). They picked
+the pre-D228 model: it "reads the most like a real ship". They asked whether the reworks skipped the side and
+other-angle steps of the earlier modelling. They had. D228/D229 and D237/D238 were each one agent refitting an existing
+script to the top-view sprite. Their "corrections" (slimmer guns and yoke, a smaller ogive pod, no nozzle glow) were
+taken from top-view pixels alone. None of the flagship pipeline's steps ran (PLAYBOOK "Steps" 2-6, D50): no multi-view
+blueprint, no competing designs, no judge, no strict review. The pre-D228 ships were built Talon-style from
+blueprints and reviewed at 7.5-8.5/10 (ed97466d, refit in D89/D93).
+
+**Decision:**
+- `assets/blender/ships/ship-u-ship.py`, `public/models/ships/ship-u-ship.glb` and
+  `src/render/spriteModels/ship-u-ship.json` are restored as they were before D228 (03d7d5b1^, bank roll 40 / 55). The
+  shop icon atlas (`public/art/shop/models.webp`, D226) is re-rendered.
+- New art rule 8 in `CLAUDE.md`, PLAYBOOK lesson 22 and a player-ship line under the flagship "Accept": a player ship
+  reads as a solid, real ship in `?viewer=` free angle (side, front, rear, three-quarter) and the hangar, judged beside
+  the current model. Ships are built and reworked only through `tools/workflows/model-flagship.js`, blueprint included.
+  No part is thinned or shrunk only to fit top-view pixels.
+- The Silver Ship (D238, the same shortcut on D118's form) stays as merged until the user has compared it with D118's
+  model.
+
+**Options considered:**
+- *Restore the pre-D228 model (chosen):* the user's pick; it passed the full pipeline and its review.
+- *Keep D237 and thicken its parts:* a fourth single-agent refit, the process that failed three times.
+- *Rerun the flagship pipeline on the U-Ship now:* the right route for any further change, but the user named a model
+  they already like.
+
+**Review:** look at `?viewer=ship-u-ship` free angle and the U-Ship in the hangar. Fallback: run the flagship
+pipeline for the U-Ship, with the pre-D228 model as the baseline its designs must beat at every angle.
