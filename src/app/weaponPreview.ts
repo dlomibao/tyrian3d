@@ -32,7 +32,11 @@ function sharedView(): { view: View; host: HTMLElement } {
     const host = document.createElement("div");
     host.className = "weapon-preview-view";
     const view = new View(host, loadSettings(), { frame: WINDOW, fitContainer: true });
-    view.draws.setSpriteModels(spriteModels(), loadModel, { allShips: true }); // the ship menu can show any ship (D207)
+    // The ship menu can show any ship (D207); the player's own ship (JE_drawItem1's sprite) loads
+    // first, so the simulator draws its model rather than the original pixels while it loads.
+    const ship = g.res.items.ships[g.player[0].items.ship]?.shipGraphic;
+    const firstShip = ship !== undefined && ship > 1 ? { sheet: g.res.spriteSheet9.id, index: ship } : undefined;
+    view.draws.setSpriteModels(spriteModels(), loadModel, { allShips: true, firstShip });
     shared = { view, host };
   }
   return shared;
@@ -61,6 +65,9 @@ export class WeaponPreview {
     this.power = this.element.querySelector(".weapon-preview-power i")!;
     this.screen = this.element.querySelector(".weapon-preview-screen")!;
     weaponSim_reset();
+    // Make the view (and start its ship models loading) as the item screen opens, not when the
+    // first submenu shows the simulator, so the ship is a model by then.
+    sharedView();
   }
 
   /**

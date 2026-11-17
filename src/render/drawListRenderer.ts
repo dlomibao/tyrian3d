@@ -731,15 +731,23 @@ export class DrawListRenderer {
    * meanwhile). Models are centred on their origin, forward -Z.
    *
    * `allShips`: fetch every player ship's model now (the shop's preview, where any ship can be
-   * shown). A level's view leaves them to preloadLevel, which loads only the ships the level can
-   * show (sim/levelSprites.ts; D207: the other ships were 3.2 MB fetched at every start).
+   * shown), the one `firstShip` (a sprite, sheet id and 2x2 index) draws as first in line. A level's
+   * view leaves them to preloadLevel, which loads only the ships the level can show
+   * (sim/levelSprites.ts; D207: the other ships were 3.2 MB fetched at every start).
    */
-  setSpriteModels(models: SpriteModels, loader: ModelLoader, { allShips = false }: { allShips?: boolean } = {}): void {
+  setSpriteModels(
+    models: SpriteModels,
+    loader: ModelLoader,
+    { allShips = false, firstShip }: { allShips?: boolean; firstShip?: { sheet: string; index: number } } = {},
+  ): void {
     // The island rock's HD materials (D84) take their colours from this renderer's palette.
     this.loader = (name) => loader(name).then((model) => adoptRockMaterials(model, this.palette));
     this.router = new Sprite2Router(models);
     if (this.damage !== null) this.router.setDamage([]);
-    if (allShips) for (const o of models.banked) this.modelPool(o.model);
+    if (!allShips) return;
+    const lead = firstShip && this.router.modelFor(firstShip.sheet, 2, firstShip.index, false);
+    if (lead) this.modelPool(lead);
+    for (const o of models.banked) this.modelPool(o.model);
   }
 
   /** Start loading model `name` now (if it isn't loaded or loading), for a model known to be needed soon. */
