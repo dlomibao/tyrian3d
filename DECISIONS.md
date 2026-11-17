@@ -11809,3 +11809,79 @@ To redo a picture, add a `RETRIES` entry, `sheets --retry NAME`, send it, and `c
 later sheet's picture wins).
 
 **Cost:** one Opus agent; 6 Gemini requests.
+## D214 — The last player shots get flat art: 76 frames of the later shops' sidekicks and specials and Plasma Storm's three table sprites, appended to the atlases without moving a committed frame (follows D97, D108, D172; D42/D43)
+
+2026-11-17
+
+**Asked:** `docs/roadmap/inventory.md` listed 76 shot frames with no flat art (`ranking.shots`) and 3 "special" frames
+(`tyrian.shp#5`), all player shots of weapons the bot never flies (0 ticks), so a player who buys them saw original
+pixels.
+
+**Identified from the item data** (`tyrian-scratch/shot-art/whofires.json`: every weapon port, sidekick and special whose
+weapon's `sg` frames, with `player_shot_create`'s animation rule, reach the frame), named per cell in the prompts (D187):
+
+| Frames | Fired by | Object |
+|---|---|---|
+| #11 172-183, 191-202, 210-221, 229-240 | Zica Flamethrower sidekick (weapon 780) | one fireball in four quarters (bx ±6, by ±7, moving together), 12 frames shrinking; the 12th two small fire balls |
+| #7 34 / 52 / 71 | MegaMissile / Mini-Missile / Buster Rocket sidekicks | missiles and a heavy rocket |
+| #7 142 | Atom Bombs sidekick, Atom Bomb special | a steel bomb with a glowing band |
+| #7 271-274 | MicroBomb sidekick, MineField specials | a steel sphere bomb, 4 spin frames |
+| #7 238 | Post-It Mine sidekick | an X of spikes |
+| #7 28 / 29, 30 | Beno Protron System -B- / Beno Wallop Beam sidekicks | a disc with a green "B" / chevron waves down and up |
+| #7 262 | MicroSol FrontBlaster II sidekick | a laser bolt |
+| #11 154 | Ice Beam special (last frame of #11 134-154) | fading ice specks |
+| #7 18, 56 / 102, 104 | Phoenix Device / BattleShip-Class Firebomb sidekicks | sideways fireballs (mirror pairs) |
+| #7 107, 108 | Side Ship sidekick | twin and single tracer streaks |
+| #7 148 | Vulcan Shot Option sidekick (weapon 11) | three Vulcan tracers |
+| #7 247 / 255 | Protron Cannon Indigo, Beno -B- / NortShip Spreader mode 2 | a blue plasma ball / a pearl |
+| #7 233-237 | Wobbley sidekick | a wobbling blue squiggle, 5 frames |
+| #5 22, 23, 24 | Plasma Storm sidekick (weapon 88, OPTION_SHAPES 60023-60025, blended) | one ring of fire, 62x24 + 65x28 + 62x23 stacked |
+
+**Decision:**
+- **Five Gemini sheets, five requests, no retries, no usage warning** (`flat_art.py` families `late-shots-flame`,
+  `-ordnance`, `-energy` (split in two), `-plasma`): the flame as 12 whole fireballs (new LAYOUTS entry `zica-flame`, its
+  quarters cut back out as D80's explosions are), Plasma Storm as one 65x75 picture (LAYOUTS `plasma-storm`). `energy-2`
+  (3x2) was padded to 3x3 before sending: Gemini's ratios are 1:1, 9:16, 3:4, 4:3, 16:9, no 3:2.
+- **Fits** (`cut`, per cell): flame 0.97-0.99; ordnance 0.77-0.98 except the ice specks #11 154 (0.63, a few dark-blue
+  pixels); energy 0.71-0.97 (weakest the Side Ship streaks #7 107/108, 0.71-0.72); Wobbley 0.86-0.91; Plasma Storm 0.86.
+- **#7 148 is painted, not Gemini's** (`PAINTED`, D56's `paint_tracer`): the Vulcan Shot Option fires the Vulcan Cannon's
+  tracers, so it is drawn as #7 67/70 are.
+- **Recoloured toward the sprite's ramp** (D172, `flat_art_recolour.json`): the flame (painted with a dark rim the sprite
+  doesn't have), Plasma Storm (paler than its red rim), the Phoenix and firebomb fireballs (pale yellow-white). The
+  recolour now takes a `tiles` LAYOUTS name for objects that aren't blit_sprite2x2's. Tried and dropped for the MicroBomb:
+  its blue steel and orange band share brightness levels, so the ramp turned it brown; its four frames keep Gemini's
+  painting, whose band turns less than the sprite's.
+- **Table sprites in `flat_art.py`:** `GameData.sprite` decodes `tyrian.shp#0..#6` as sprite tables (0-based, their own
+  width), and the cutter, picture and contact sheet use each sprite's own width. The game side already drew table art
+  (D42); `tyrian-shp-5.webp` is the first such atlas. `tools/inventory.mjs` counts a `#5` frame as flat once the manifest
+  has it.
+- **`cut --append`** (new, implies `--merge`): the committed frames keep their rects and pixels and the new ones are
+  shelf-packed below them in the same atlas, so the manifest only gains entries (`#7` 190 -> 217, 1024x4096 unchanged;
+  `#11` 48 -> 97, 1024x1024 -> 1024x2048; `#5` new, 3 frames). The other atlases are byte-identical. The `#7`/`#11` WebPs
+  are re-encoded (lossy, quality 92 as before), so their committed frames drift by the codec: alpha exact, colour mean
+  0.4-1.2 levels, 99th percentile 3-7, max 22.
+- **Harness:** `?debug=play&sidekicks=1` holds both sidekick buttons, so sidekicks with ammo fire.
+- **Inventory:** `npm run inventory`: 317 shot frames, 317 with flat art (was 238; the 3 `#5` frames counted as flat now),
+  `ranking.shots` empty.
+
+**In game** (no renderer change; `?sprites=original` brings back the extruded shots): `?debug=play&front=0&sidekicks=1&
+compare=1&camera=overhead` on 1.1 TYRIAN with each sidekick pair (`left=`/`right=` 17+9, 6+10, 11+7, 13+15, 8+18, 22+4,
+23+26, 27+28, 5), before (`&sprites=original`) and after: the flame, missiles, rocket, atom bombs, MicroBombs, fireballs,
+streaks, Vulcan tracers, Indigo balls, FrontBlaster bolts, Wallop chevron and Wobbley squiggles draw from the atlases (the
+status line's "flat in" count). Plasma Storm fires its 10 rounds in the level's first ticks (`skip=8&freezeAt=16`) and
+draws from `tyrian-shp-5.webp`. Sheet: `tyrian-scratch/shot-art/before-after.png` (original panel | before | after);
+original | atlas per object: `.../summary.png`.
+
+**Open:**
+- Plasma Storm's flat art is drawn at the plain blend opacity (BLEND_ALPHA), so its column reads whiter than the C's
+  `blit_sprite_blend`, which keeps the sprite's hue and averages its shade with what's under it (deep orange). The extruded
+  sprite before was pale too. D174's hue-keeping blend (`ART_HUE_BLEND`) is wired to the explosions' pass and its frame grab;
+  taking it for blended shots is a renderer change left for later.
+- Not captured in game: the Ice Beam special's last frame (#11 154), NortShip Spreader mode 2 (#7 255), the Beno -B- disc
+  (#7 28) and the Post-It Mine (#7 238) (the harness has no special weapons or rear-mode switch, and the last two weren't on
+  screen at the frozen tick); they are in `summary.png`.
+- The MicroBomb's four frames turn less than the sprite's (above).
+
+**Cost:** one Opus agent, no workflow: 5 Gemini requests, ~25 headless captures, one inventory run (~1 min).
+
+Sheets, answers, prompts, cut log and captures: `tyrian-scratch/shot-art/` (not in git, D3).

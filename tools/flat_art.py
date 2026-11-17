@@ -25,6 +25,8 @@ from input sheets of the original sprites. This tool does both ends of that loop
         tools/flat_art_explosions.json, D80). The manifest's other sheets are always kept, and so
         are frames another tool put in a rebuilt sheet (those with their own "scale": value_art.py's
         coin values share newsh6.shp, D76).
+        --append (implies --merge) adds only the frames the manifest lacks: every committed frame
+        keeps its rect and pixels, and the new ones are packed below them in the same atlas (D214).
 
     python tools/flat_art.py recolour [--only SHEET:INDEX,...]
         Recolours the frames tools/flat_art_recolour.json lists toward their sprite's own palette ramp
@@ -52,6 +54,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 SCALE = 8  # atlas texels per original sprite pixel
 TILE_W, TILE_H, SHEET_COLS = 12, 14, 19
+FIRST_SPRITE2_TABLE = 7  # tyrian.shp#0..#6 are sprite tables (blit_sprite), #7.. Sprite2 sheets (resources.ts)
 LEVEL1_PALETTE = 5  # drawList.palette in Episode 1's first level (TYRIAN)
 
 # --- Game data -----------------------------------------------------------------------------------
@@ -83,8 +86,46 @@ class GameData:
             raise ValueError(f"only tyrian.shp and newsh*.shp sheets are supported, not {sheet_id}")
         return self.tables[int(sheet_id.split("#")[1])]
 
+    def table_sprite(self, table: int, index: int) -> np.ndarray:
+        """A sprite table's sprite (tyrian.shp#0..#6; parseSpriteTable + decodeTableSprite in
+        src/data/sprites.ts), 0-based as the C passes it: its own width and height; -1 = transparent."""
+        t = self.tables[table]
+        count, p = struct.unpack_from("<H", t, 0)[0], 2
+        for i in range(count):
+            if not t[p]:
+                p += 1
+                if i == index:
+                    break
+                continue
+            w, h, size = struct.unpack_from("<HHH", t, p + 1)
+            p += 7
+            if i == index:
+                data, px, x, y, k = t[p:p + size], np.full((h, w), -1, np.int16), 0, 0, 0
+                while k < len(data):
+                    b = data[k]
+                    if b == 255:
+                        k += 1
+                        x += data[k]
+                    elif b == 254:
+                        x = w
+                    elif b == 253:
+                        x += 1
+                    else:
+                        if y < h and x < w:
+                            px[y, x] = b
+                        x += 1
+                    if x >= w:
+                        x, y = 0, y + 1
+                    k += 1
+                return px
+            p += size
+        return np.full((0, TILE_W), -1, dtype=np.int16)
+
     def sprite(self, sheet_id: str, index: int) -> np.ndarray:
-        """decodeSprite2: palette indices, 12 wide, as many rows as the RLE has; -1 = transparent."""
+        """decodeSprite2: palette indices, 12 wide, as many rows as the RLE has; -1 = transparent.
+        A sprite table's (tyrian.shp#0..#6) is its own size, 0-based (table_sprite)."""
+        if sheet_id.startswith("tyrian.shp#") and int(sheet_id.split("#")[1]) < FIRST_SPRITE2_TABLE:
+            return self.table_sprite(int(sheet_id.split("#")[1]), index)
         sheet = self.sheet(sheet_id)
         off = (index - 1) * 2
         if index < 1 or off + 1 >= len(sheet):
@@ -226,6 +267,13 @@ def bleed(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
 LAYOUTS = {
     "explosion-air": ((0, 0, 0), (38, 12, 0), (19, 0, 14), (57, 12, 14)),
     "explosion-ground": ((0, 0, 0), (-38, 12, 0), (19, 0, 14), (-19, 12, 14)),
+    # The Zica Flamethrower sidekick's flame (weapon 780): four shots at bx -6/+6, by -7/+7 that move
+    # together, quarters of one fireball, each animating 12 frames from tyrian.shp#11 172 (top left),
+    # 191 (top right), 210 (bottom left), 229 (bottom right). Painted whole per frame (D214).
+    "zica-flame": ((0, 0, 0), (19, 12, 0), (38, 0, 14), (57, 12, 14)),
+    # The Plasma Storm sidekick's shot (weapon 88): three blended OPTION_SHAPES table sprites 22, 23, 24
+    # (62x24, 65x28, 62x23) at bx -32 and by -24, 0, 28, stacked into one ring of fire (D214).
+    "plasma-storm": ((0, 0, 0), (1, 0, 24), (2, 0, 52)),
 }
 
 
@@ -245,10 +293,11 @@ def picture(gd: GameData, sheet: str, index: int, size: int, layout: str | None 
     """The frame as drawn: its tiles overlaid in draw order, not cropped (a tile may be taller than 14)."""
     tiles = object_tiles(gd, sheet, index, size, layout)
     h = max([size * TILE_H] + [t["oy"] + t["pixels"].shape[0] for t in tiles])
-    out = np.full((h, size * TILE_W), -1, np.int16)
+    w = max([size * TILE_W] + [t["ox"] + t["pixels"].shape[1] for t in tiles])  # a table sprite is wider
+    out = np.full((h, w), -1, np.int16)
     for t in tiles:
         p = t["pixels"]
-        sub = out[t["oy"]:t["oy"] + p.shape[0], t["ox"]:t["ox"] + TILE_W]
+        sub = out[t["oy"]:t["oy"] + p.shape[0], t["ox"]:t["ox"] + p.shape[1]]
         sub[p >= 0] = p[p >= 0]
     return out
 
@@ -294,6 +343,11 @@ SHEET_GROUPS = [
     ("rest-pickups", ["rest-pickups"]),
     ("rest-hotdog", ["rest-hotdog"]),  # D108 follow-up: the 2x2 hot-dog alone, with a lettering prompt
     ("fix-shots", ["fix-shots"]),  # D172: sidekick shots the inventory's sidekick scan missed
+    # D214: the last player shots (sidekicks and specials sold in later shops), named per cell in the prompt
+    ("late-shots-flame", ["late-shots-flame"]),  # Zica Flamethrower: 12 frames, each four quarters (layout zica-flame)
+    ("late-shots-ordnance", ["late-shots-ordnance"]),  # missiles, rockets, bombs, mines, a disc, a laser bolt
+    ("late-shots-energy", ["late-shots-energy"]),  # fireballs, chevron waves, streaks, plasma balls, the Wobbley
+    ("late-shots-plasma", ["late-shots-plasma"]),  # Plasma Storm's ring of fire: three table sprites (layout plasma-storm)
     ("explosions-fireball", ["fireball"]),
     ("explosions-air", ["explosion-air"]),
     ("explosions-ground", ["explosion-ground"]),
@@ -521,27 +575,27 @@ def cut_sheet(gd: GameData, sheet: dict, art: np.ndarray, palette: int) -> list[
         floor_pic = original_colour(gd, pic, palette) * floor if floor else None
         for fr in cell["frames"]:
             own = gd.sprite(fr["sheet"], fr["index"])
-            h = own.shape[0]
-            v, u = np.mgrid[0:h * SCALE, 0:TILE_W * SCALE].astype(np.float32)
+            h, tw = own.shape  # tw: 12 for a Sprite2 sprite, a table sprite's own width
+            v, u = np.mgrid[0:h * SCALE, 0:tw * SCALE].astype(np.float32)
             u, v = (u + 0.5) / SCALE, (v + 0.5) / SCALE
             px, py = fr["sx"] * u + fr["tx"], fr.get("sy", 1) * v + fr["ty"]
             rgb = sample(art, fit["x0"] + fit["kx"] * px, fit["y0"] + fit["ky"] * py, fit["kx"] / SCALE)
             # alpha: from the picture where this tile is the picture (unmirrored, inside it), else its own
             whole = float(fr["tx"]).is_integer() and float(fr["ty"]).is_integer()
-            if whole and fr["sx"] == 1 and fr.get("sy", 1) == 1 and int(fr["ty"]) + h <= pic.shape[0] and np.array_equal(pic[int(fr["ty"]):int(fr["ty"]) + h, int(fr["tx"]):int(fr["tx"]) + TILE_W] >= 0, own >= 0):
+            if whole and fr["sx"] == 1 and fr.get("sy", 1) == 1 and int(fr["ty"]) + h <= pic.shape[0] and np.array_equal(pic[int(fr["ty"]):int(fr["ty"]) + h, int(fr["tx"]):int(fr["tx"]) + tw] >= 0, own >= 0):
                 ty, tx = int(fr["ty"]), int(fr["tx"])
-                alpha = alpha_pic[ty * SCALE:(ty + h) * SCALE, tx * SCALE:(tx + TILE_W) * SCALE]
+                alpha = alpha_pic[ty * SCALE:(ty + h) * SCALE, tx * SCALE:(tx + tw) * SCALE]
             else:
                 alpha = silhouette(own >= 0)
             if floor_pic is not None and whole and fr["sx"] == 1:
                 ty, tx = int(fr["ty"]), int(fr["tx"])
-                under = floor_pic[ty * SCALE:(ty + h) * SCALE, tx * SCALE:(tx + TILE_W) * SCALE]
+                under = floor_pic[ty * SCALE:(ty + h) * SCALE, tx * SCALE:(tx + tw) * SCALE]
                 if under.shape[:2] == rgb.shape[:2]:
                     rgb = np.maximum(rgb, under)
             rgb = bleed(np.clip(rgb, 0, 1), alpha)
             if shadow_pic is not None and whole and fr["sx"] == 1:
                 ty, tx = int(fr["ty"]), int(fr["tx"])
-                sh = shadow_pic[ty * SCALE:(ty + h) * SCALE, tx * SCALE:(tx + TILE_W) * SCALE]
+                sh = shadow_pic[ty * SCALE:(ty + h) * SCALE, tx * SCALE:(tx + tw) * SCALE]
                 if sh.shape == alpha.shape:  # the shadow is black, not the body's colour bled under it
                     rgb = np.where((sh & (alpha < 0.98))[..., None], 0.0, rgb)
             rgba = np.dstack([rgb * 255, alpha * 255]).round().astype(np.uint8)
@@ -575,6 +629,35 @@ def pack(frames: list[dict], width: int = 1024) -> tuple[np.ndarray, dict]:
         fx, fy = places[f["index"]]
         padded = np.pad(f["rgba"], ((PAD, PAD), (PAD, PAD), (0, 0)), mode="edge")
         atlas[fy - PAD:fy + h + PAD, fx - PAD:fx + w + PAD] = padded
+        rects[str(f["index"])] = {"x": fx, "y": fy, "w": w, "h": h, **({"scale": f["scale"]} if f.get("scale") else {})}
+    return atlas, rects
+
+
+def pack_append(old: np.ndarray, old_rects: dict, frames: list[dict]) -> tuple[np.ndarray, dict]:
+    """--append: the committed atlas `old` keeps every pixel and rect; `frames` are shelf-packed
+    (tallest first) into the rows below its last frame, the atlas growing to the next power-of-two
+    height if they don't fit. Returns the atlas and the new frames' rects only."""
+    width = old.shape[1]
+    top = max((r["y"] + r["h"] + PAD for r in old_rects.values()), default=0)
+    order = sorted(frames, key=lambda f: (-f["rgba"].shape[0], f["index"]))
+    x, y, shelf = 0, top, 0
+    places = {}
+    for f in order:
+        h, w = f["rgba"].shape[:2]
+        if x + w + 2 * PAD > width:
+            x, y, shelf = 0, y + shelf, 0
+        places[f["index"]] = (x + PAD, y + PAD)
+        x += w + 2 * PAD
+        shelf = max(shelf, h + 2 * PAD)
+    need = y + shelf
+    H = max(old.shape[0], 1 << max(0, (need - 1).bit_length()))
+    atlas = np.zeros((H, width, 4), np.uint8)
+    atlas[:old.shape[0]] = old
+    rects = {}
+    for f in order:
+        h, w = f["rgba"].shape[:2]
+        fx, fy = places[f["index"]]
+        atlas[fy - PAD:fy + h + PAD, fx - PAD:fx + w + PAD] = np.pad(f["rgba"], ((PAD, PAD), (PAD, PAD), (0, 0)), mode="edge")
         rects[str(f["index"])] = {"x": fx, "y": fy, "w": w, "h": h, **({"scale": f["scale"]} if f.get("scale") else {})}
     return atlas, rects
 
@@ -675,6 +758,7 @@ def paint_tracer(gd: GameData, sheet: str, index: int, palette: int) -> np.ndarr
 PAINTED = {
     ("tyrian.shp#7", 67): paint_tracer,  # Vulcan Cannon, power 1-6
     ("tyrian.shp#7", 70): paint_tracer,  # Vulcan Cannon, power 7-11: two tracers side by side
+    ("tyrian.shp#7", 148): paint_tracer,  # Vulcan Shot Option sidekick (weapon 11): three Vulcan tracers (D214)
 }
 
 
@@ -742,11 +826,12 @@ def ramp_recolour(art: np.ndarray, art_w: np.ndarray, orig: np.ndarray, orig_w: 
 
 
 def recolour_tiles(gd: GameData, sheet: str, first: int, size: int, tiles: dict[int, np.ndarray], palette: int,
-                   strength: float = 1.0, layout: float = 0.6, sigma: float = 0.35) -> dict[int, np.ndarray]:
+                   strength: float = 1.0, layout: float = 0.6, sigma: float = 0.35, arrangement: str | None = None) -> dict[int, np.ndarray]:
     """Recolour one object's atlas tiles ({index: rgba uint8 (h*8, 96, 4)}), fitted over the whole
-    object (a 2x2 pickup's four tiles get one mapping, so they still meet without seams)."""
-    obj = object_tiles(gd, sheet, first, size)
-    pic = picture(gd, sheet, first, size)
+    object (a 2x2 pickup's four tiles get one mapping, so they still meet without seams). `arrangement`
+    is a LAYOUTS name for an object whose tiles aren't blit_sprite2x2's (the Zica flame, D214)."""
+    obj = object_tiles(gd, sheet, first, size, arrangement)
+    pic = picture(gd, sheet, first, size, arrangement)
     H, W = pic.shape[0] * SCALE, pic.shape[1] * SCALE
     art = np.zeros((H, W, 3), np.float32)
     aw = np.zeros((H, W), np.float32)
@@ -778,7 +863,8 @@ def recolour_entries(config: dict) -> list[dict]:
     out = []
     for e in config.get("objects", []):
         for f in e["frames"]:
-            out.append({"sheet": e["sheet"], "first": f, "size": e.get("size", 1), "strength": e.get("strength", 1.0), "layout": e.get("layout", 0.6)})
+            out.append({"sheet": e["sheet"], "first": f, "size": e.get("size", 1), "strength": e.get("strength", 1.0), "layout": e.get("layout", 0.6),
+                        "tiles": e.get("tiles")})
     return out
 
 
@@ -830,11 +916,12 @@ def apply_recolour(gd: GameData, frames: dict[tuple[str, int], np.ndarray], pale
     """Recolour the config's objects among frames ({(sheet, index): rgba}) and then join its beams, in place."""
     done: set[tuple[str, int]] = set()
     for e in recolour_entries(config):
-        idx = [t["index"] for t in object_tiles(gd, e["sheet"], e["first"], e["size"])]
+        idx = [t["index"] for t in object_tiles(gd, e["sheet"], e["first"], e["size"], e["tiles"])]
         tiles = {i: frames[(e["sheet"], i)] for i in idx if (e["sheet"], i) in frames}
         if not tiles:
             continue
-        for i, rgba in recolour_tiles(gd, e["sheet"], e["first"], e["size"], tiles, palette, e["strength"], e["layout"]).items():
+        for i, rgba in recolour_tiles(gd, e["sheet"], e["first"], e["size"], tiles, palette, e["strength"], e["layout"],
+                                      arrangement=e["tiles"]).items():
             frames[(e["sheet"], i)] = rgba
             done.add((e["sheet"], i))
     for j in config.get("joins", []):
@@ -846,7 +933,7 @@ def config_keys(gd: GameData, config: dict) -> set[tuple[str, int]]:
     """Every frame the config reads or writes."""
     keys = set()
     for e in recolour_entries(config):
-        keys.update((e["sheet"], t["index"]) for t in object_tiles(gd, e["sheet"], e["first"], e["size"]))
+        keys.update((e["sheet"], t["index"]) for t in object_tiles(gd, e["sheet"], e["first"], e["size"], e["tiles"]))
     for j in config.get("joins", []):
         keys.update((j["sheet"], k) for k in (j["frame"], j.get("top"), j.get("bottom")) if k is not None)
     return keys
@@ -880,7 +967,7 @@ def recolour_atlas(gd: GameData, out: Path, palette: int, config: dict) -> set[t
 
 
 def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, check: Path | None, merge: bool = False,
-        recolour: dict | None = None) -> dict:
+        recolour: dict | None = None, append: bool = False) -> dict:
     frames: dict[tuple[str, int], dict] = {}
     report = []
     for sheet in inputs["sheets"]:
@@ -894,8 +981,18 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
         scores = [f["fit"]["score"] for f in got if not f["mirrored"]] or [0.0]
         print(f"  {sheet['name']}: {len(got)} frames, fit score min {min(scores):.2f} mean {np.mean(scores):.2f}")
         report.extend(got)
+    old = json.loads((out / "manifest.json").read_text()) if (out / "manifest.json").exists() else {"sheets": {}}
+    if append:  # --append: the committed frames stay as they are; only frames the manifest lacks are added
+        have = {(sid, int(k)) for sid, sh in old["sheets"].items() for k in sh["frames"]}
+        skipped = sorted(k for k in frames if k in have)
+        for k in skipped:
+            del frames[k]
+        if skipped:
+            print(f"  append: {len(skipped)} frames already in the atlases left as they are")
     cut_sheets = {k[0] for k in frames}
     painted = [k for k in PAINTED if not merge or k[0] in cut_sheets]  # --merge: only for atlases rebuilt now
+    if append:
+        painted = [k for k in PAINTED if k not in have and k[0] in cut_sheets]
     for (sid, index) in painted:
         frames[(sid, index)] = painted_frame(gd, sid, index, palette)
     print(f"  painted: {len(painted)} frames ({', '.join(f'{s[7:]}:{i}' for s, i in painted)})")
@@ -908,12 +1005,19 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
             print(f"  recoloured: {len(changed)} frames")
     out.mkdir(parents=True, exist_ok=True)
     manifest = {"scale": SCALE, "sheets": {}}
-    old = json.loads((out / "manifest.json").read_text()) if (out / "manifest.json").exists() else {"sheets": {}}
     # Keep the atlases this run doesn't rebuild: other tools' sheets (value_art.py), and with --merge
     # the sheets whose Gemini answers aren't at hand.
     manifest["sheets"] = {sid: sh for sid, sh in old["sheets"].items() if sid not in cut_sheets}
     for sid in sorted({k[0] for k in frames}):
         mine = [f for k, f in frames.items() if k[0] == sid]
+        if append and sid in old["sheets"]:
+            # Every committed frame keeps its rect and pixels (the atlas is re-encoded with the new frames).
+            entry = old["sheets"][sid]
+            atlas, rects = pack_append(np.asarray(Image.open(out / entry["image"]).convert("RGBA")), entry["frames"], mine)
+            Image.fromarray(atlas, "RGBA").save(out / entry["image"], "WEBP", quality=92, alpha_quality=100, method=6, exact=True)
+            manifest["sheets"][sid] = {**entry, "frames": dict(sorted({**entry["frames"], **rects}.items(), key=lambda kv: int(kv[0])))}
+            print(f"  {out / entry['image']}: +{len(rects)} frames appended ({len(manifest['sheets'][sid]['frames'])} in all), {atlas.shape[1]}x{atlas.shape[0]}")
+            continue
         # Frames another tool put in this sheet keep their place in it (value_art.py's coin values
         # in newsh6.shp, D76, which the explosions share, D80): those with a scale of their own.
         if sid in old["sheets"]:
@@ -936,21 +1040,22 @@ def contact_sheet(gd: GameData, frames: list[dict], palette: int, path: Path, co
     """original (nearest, 8x) | remastered, for every frame, on a checker; label under each pair."""
     from PIL import ImageDraw
 
-    cw, chh = 2 * TILE_W * SCALE + 24, max(f["rgba"].shape[0] for f in frames) + 22
+    fw = max(f["rgba"].shape[1] for f in frames)  # 96 texels, more for a table sprite
+    cw, chh = 2 * fw + 24, max(f["rgba"].shape[0] for f in frames) + 22
     rows = math.ceil(len(frames) / cols)
     img = Image.new("RGB", (cols * cw, rows * chh), (16, 16, 20))
-    yy, xx = np.mgrid[0:chh, 0:TILE_W * SCALE]
+    yy, xx = np.mgrid[0:chh, 0:fw]
     for i, f in enumerate(frames):
         r, c = divmod(i, cols)
         x0, y0 = c * cw + 4, r * chh + 2
         own = gd.sprite(f["sheet"], f["index"])
         orig = np.kron(gd.rgba(own, palette), np.ones((SCALE, SCALE, 1), np.uint8))
         for j, im in enumerate((orig, f["rgba"])):
-            h = im.shape[0]
-            chk = np.where(((xx[:h] // 8 + yy[:h] // 8) % 2)[..., None] == 1, 52, 36).astype(np.float32) * np.ones(3)
+            h, w = im.shape[:2]
+            chk = np.where(((xx[:h, :w] // 8 + yy[:h, :w] // 8) % 2)[..., None] == 1, 52, 36).astype(np.float32) * np.ones(3)
             a = im[..., 3:4].astype(np.float32) / 255
             comp = (im[..., :3] * a + chk * (1 - a)).astype(np.uint8)
-            img.paste(Image.fromarray(comp), (x0 + j * (TILE_W * SCALE + 8), y0))
+            img.paste(Image.fromarray(comp), (x0 + j * (fw + 8), y0))
         ImageDraw.Draw(img).text((x0, y0 + f["rgba"].shape[0] + 2),
                                  f"{f['sheet'][7:]}:{f['index']} {f['input']}{' (mirror)' if f['mirrored'] else ' (shared)' if f.get('shared') else ''} fit {f['fit']['score']:.2f}",
                                  fill=(230, 230, 120))
@@ -973,6 +1078,7 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
     c.add_argument("--check", type=Path, help="also write a contact sheet here: original | remastered per frame")
     c.add_argument("--merge", action="store_true", help="rebuild only the atlases these inputs feed (and only their painted frames); other sheets are kept either way")
+    c.add_argument("--append", action="store_true", help="with --merge: keep every committed frame's rect and pixels, add only the frames the manifest lacks below them (D214)")
     r = sub.add_parser("recolour", help="apply tools/flat_art_recolour.json to the committed atlases once (cut applies it to what it cuts)")
     r.add_argument("--config", type=Path, default=RECOLOUR)
     r.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
@@ -992,8 +1098,8 @@ def main(argv: list[str] | None = None) -> None:
         for sh in m["sheets"]:
             print(f"  {args.out / sh['image']}: {len(sh['cells'])} cells, {sh['grid']['rows']}x{sh['grid']['cols']}, {sh['scale']}x")
     else:
-        cut(gd, json.loads(args.inputs.read_text()), args.results, args.out, args.palette, args.check, args.merge,
-            json.loads(RECOLOUR.read_text()) if RECOLOUR.exists() else None)
+        cut(gd, json.loads(args.inputs.read_text()), args.results, args.out, args.palette, args.check, args.merge or args.append,
+            json.loads(RECOLOUR.read_text()) if RECOLOUR.exists() else None, args.append)
 
 
 if __name__ == "__main__":

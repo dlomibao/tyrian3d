@@ -1019,7 +1019,8 @@ export async function buildInventory(m, files, { play = true, episodes, root = R
 
   const shotList = [...shotAssets.values()].map((s) => {
     const [sheet, , f] = s.id.split("|");
-    const status = sheet === "tyrian.shp#5" ? "special" : repo.flat.has(`${sheet}|${f}`) ? "flat" : "sprite";
+    // OPTION_SHAPES (tyrian.shp#5) table sprites are drawn blended; they are flat once the manifest has them (D214).
+    const status = repo.flat.has(`${sheet}|${f}`) ? "flat" : sheet === "tyrian.shp#5" ? "special" : "sprite";
     return { id: s.id, status, enemyLevels: s.enemyLevels.size, playerEpisodes: [...s.playerEpisodes].sort(sortNum), episodes: [...s.episodes].sort(sortNum), ticks: play ? s.ticks : undefined };
   }).sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }));
 
