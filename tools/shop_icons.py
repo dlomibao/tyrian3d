@@ -28,6 +28,17 @@ icons that src/app/shopIcons.ts draws in their place.
         keyed "<sheet id>:<first sprite index>" (a frame is 24x28 x scale), plus cut-report.json with
         each icon's NCC and colour error, and with --check a contact sheet original | remastered.
         --keep reuses committed icons whose answers aren't in RESULTS (cut a retry on its own).
+
+    python tools/shop_icons.py models [--server URL] [--inventory INV.json] [--check PNG]
+        (D226) Re-renders every picture the game draws as a 3D model (the player ships: the shop draws
+        blit_sprite2x2 of shipGraphic, which the renderer replaces with the ship's model) from the
+        models in this checkout, through the game's renderer (?debug=shopicons, captured with
+        tools/cdpshot.mjs; a dev server is started on a free port 5220-5299 unless --server), cuts
+        each onto its original silhouette as `cut` does, and writes models.webp + models.json beside
+        the painted atlas; src/app/shopIcons.ts draws them over the paintings. Prints each icon's
+        fit (IoU of the render with its ink against the sprite, the model's own IoU against the
+        sprite's inner mask (D74), NCC, colour error); --check writes original | painted | render
+        and models-report.json. Re-run whenever a ship model changes.
 """
 
 from __future__ import annotations
@@ -363,6 +374,28 @@ def pack(icons: list[dict], cols: int) -> tuple[np.ndarray, dict]:
     return atlas, rects
 
 
+def committed_icons(out: Path) -> dict[str, np.ndarray]:
+    """The icons in the atlas at `out` (manifest.json + its image), by key; {} if there is none."""
+    if not (out / "manifest.json").exists():
+        return {}
+    old = json.loads((out / "manifest.json").read_text())
+    img = np.asarray(Image.open(out / old["image"]).convert("RGBA"))
+    return {key: img[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]].copy() for key, r in old["icons"].items()
+            if r["w"] == ICON_W * SCALE and r["h"] == ICON_H * SCALE}
+
+
+def write_atlas(icons: list[dict], out: Path, image: str = "icons.webp", manifest: str = "manifest.json", cols: int = 10) -> None:
+    """Pack icons ({"key", "rgba"}) into out/<image> and out/<manifest>."""
+    atlas, rects = pack(icons, cols=cols)
+    Image.fromarray(atlas, "RGBA").save(out / image, "WEBP", quality=90, alpha_quality=100, method=6, exact=True)
+    lines = ["{", f'  "scale": {SCALE},', f'  "image": "{image}",', '  "icons": {']
+    items = list(rects.items())
+    lines += [f"    {json.dumps(k)}: {json.dumps(r)}" + ("," if i < len(items) - 1 else "") for i, (k, r) in enumerate(items)]
+    lines += ["  }", "}", ""]
+    (out / manifest).write_text("\n".join(lines))
+    print(f"  {out / image}: {len(rects)} icons, {atlas.shape[1]}x{atlas.shape[0]}, {(out / image).stat().st_size // 1024} KB")
+
+
 def cut(gd: GameData, inputs: dict, results: Path, out: Path, check: Path | None, keep: bool) -> None:
     icons: dict[str, dict] = {}
     for sheet in inputs["sheets"]:
@@ -376,22 +409,12 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, check: Path | None
         s = [ic["fit"]["score"] for ic in got]
         print(f"  {sheet['name']} ({art.shape[1]}x{art.shape[0]}): {len(got)} icons, NCC min {min(s):.3f} mean {np.mean(s):.3f}")
     out.mkdir(parents=True, exist_ok=True)
-    if keep and (out / "manifest.json").exists():
-        old = json.loads((out / "manifest.json").read_text())
-        img = np.asarray(Image.open(out / old["image"]).convert("RGBA"))
-        for key, r in old["icons"].items():
-            if key not in icons and r["w"] == ICON_W * SCALE and r["h"] == ICON_H * SCALE:
-                icons[key] = {"key": key, "rgba": img[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]].copy(), "fit": {"score": float("nan")},
+    if keep:
+        for key, rgba in committed_icons(out).items():
+            if key not in icons:
+                icons[key] = {"key": key, "rgba": rgba, "fit": {"score": float("nan")},
                               "colour_mae": float("nan"), "colour_shift": [], "input": "kept", "names": key}
-    atlas, rects = pack(list(icons.values()), cols=10)
-    Image.fromarray(atlas, "RGBA").save(out / "icons.webp", "WEBP", quality=90, alpha_quality=100, method=6, exact=True)
-    manifest = {"scale": SCALE, "image": "icons.webp", "icons": rects}
-    lines = ["{", f'  "scale": {SCALE},', '  "image": "icons.webp",', '  "icons": {']
-    items = list(rects.items())
-    lines += [f"    {json.dumps(k)}: {json.dumps(r)}" + ("," if i < len(items) - 1 else "") for i, (k, r) in enumerate(items)]
-    lines += ["  }", "}", ""]
-    (out / "manifest.json").write_text("\n".join(lines))
-    print(f"  {out / 'icons.webp'}: {len(rects)} icons, {atlas.shape[1]}x{atlas.shape[0]}, {(out / 'icons.webp').stat().st_size // 1024} KB")
+    write_atlas(list(icons.values()), out)
     report = [{"key": ic["key"], "names": ic["names"], "input": ic["input"], "ncc": round(ic["fit"]["score"], 4),
                "scale": [round(x, 3) for x in ic["fit"].get("scale", [])], "shift_px": [round(x, 1) for x in ic["fit"].get("shift", [])],
                "colour_mae": round(ic["colour_mae"], 1), "colour_shift": ic["colour_shift"]} for ic in sorted(icons.values(), key=lambda e: e["fit"]["score"])]
@@ -399,7 +422,6 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, check: Path | None
         check.parent.mkdir(parents=True, exist_ok=True)
         (check.parent / "cut-report.json").write_text(json.dumps(report, indent=1))
         contact_sheet(gd, sorted(icons.values(), key=lambda e: (e["key"].split(":")[0], int(e["key"].split(":")[1]))), check)
-    del manifest
 
 
 def contact_sheet(gd: GameData, icons: list[dict], path: Path, cols: int = 6) -> None:
@@ -425,6 +447,205 @@ def contact_sheet(gd: GameData, icons: list[dict], path: Path, cols: int = 6) ->
     print(f"  check: {path}")
 
 
+# --- Model renders (D226) ---------------------------------------------------------------------------
+
+INK = (16, 8, 0)  # the game's ink outline (outlineColor.ts INK_OUTLINE): under the silhouette where the render left a gap
+
+
+def free_port(lo: int = 5220, hi: int = 5299) -> int:
+    import socket
+
+    for port in range(lo, hi + 1):
+        with socket.socket() as sock:
+            if sock.connect_ex(("127.0.0.1", port)) != 0:
+                return port
+    raise SystemExit(f"no free port in {lo}-{hi}")
+
+
+def node_env() -> dict:
+    import os
+
+    return {**os.environ, "NODE_OPTIONS": ""}
+
+
+# cdpshot's expression: the harness's result, once its module has loaded.
+WAIT_RENDERS = "(async () => { while (!window.tyrianShopIcons) await new Promise((r) => setTimeout(r, 200)); return await window.tyrianShopIcons.ready; })()"
+
+
+def capture_renders(data: Path, keys: list[str], server: str | None) -> dict:
+    """The model renders of `keys` from ?debug=shopicons (src/debug/shopIconsHarness.ts), captured with
+    tools/cdpshot.mjs from `server`, or from a dev server started (and stopped) here on a free port."""
+    import base64
+    import io
+    import subprocess
+    import time
+    import urllib.parse
+    import urllib.request
+
+    proc = None
+    if server is None:
+        port = free_port()
+        server = f"http://localhost:{port}/"
+        proc = subprocess.Popen(["npx", "vite", "--port", str(port), "--strictPort"], cwd=ROOT, env={**node_env(), "TYRIAN_DATA": str(data.resolve())},
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(120):
+            try:
+                urllib.request.urlopen(server, timeout=2)
+                break
+            except OSError:
+                time.sleep(0.5)
+        else:
+            proc.kill()
+            raise SystemExit(f"dev server on {server} didn't start")
+    try:
+        url = server.rstrip("/") + "/?debug=shopicons&keys=" + urllib.parse.quote(",".join(keys), safe=",:")
+        with __import__("tempfile").TemporaryDirectory() as tmp:
+            # stdout to a file: node's writes to a pipe can be cut short by cdpshot's process.exit.
+            with open(Path(tmp) / "out.txt", "w") as so:
+                run = subprocess.run(["node", str(ROOT / "tools" / "cdpshot.mjs"), url, str(Path(tmp) / "shot.png"), "2000", "1280", "800",
+                                      WAIT_RENDERS], cwd=ROOT, env=node_env(), stdout=so, stderr=subprocess.PIPE, text=True, timeout=600)
+            stdout = (Path(tmp) / "out.txt").read_text()
+    finally:
+        if proc:
+            proc.terminate()
+            proc.wait(10)
+    lines = [ln for ln in stdout.splitlines() if ln.startswith("{")]
+    if run.returncode != 0 or not lines:
+        raise SystemExit(f"capture failed ({url}):\n{run.stderr[-2000:]}\n{stdout[-2000:]}")
+    renders = json.loads(lines[-1])
+    if "png" not in renders:
+        raise SystemExit(f"capture failed ({url}): {lines[-1][:2000]}")
+    renders["image"] = np.asarray(Image.open(io.BytesIO(base64.b64decode(renders.pop("png").split(",", 1)[1]))).convert("RGBA"))
+    return renders
+
+
+def cut_render(gd: GameData, key: str, renders: dict) -> dict:
+    """One render cut back onto its original silhouette, as D210 cuts a painting: SCALE texels per
+    original pixel, the original mask upscaled smoothly as alpha; the render over the ink where it
+    leaves a gap inside the silhouette. With its fit to the original: IoU of the render's own
+    coverage against the sprite's mask, D210's NCC (register, at the render's own placement) and
+    colour error."""
+    px, margin = renders["px"], renders["margin"]
+    r = renders["icons"][key]
+    cw, ch = renders["cell"]
+    crop = renders["image"][r["y"]:r["y"] + ch, r["x"]:r["x"] + cw].astype(np.float32) / 255
+    # Down to SCALE texels per pixel by area (premultiplied), margin kept.
+    f = px / SCALE
+    if abs(f - round(f)) > 1e-6 or f < 1:
+        raise SystemExit(f"render px {px} must be a multiple of {SCALE}")
+    f = int(round(f))
+    pre = np.dstack([crop[..., :3] * crop[..., 3:], crop[..., 3:]])
+    small = pre.reshape(ch // f, f, cw // f, f, 4).mean((1, 3))
+    m = margin * SCALE
+    icon = small[m:m + ICON_H * SCALE, m:m + ICON_W * SCALE]
+    cover = icon[..., 3]
+    ink = np.array(INK, np.float32) / 255
+    rgb = icon[..., :3] + ink * (1 - cover[..., None])
+    sheet, index = key.rsplit(":", 1)
+    pic = composite(gd, sheet, int(index))
+    mask = pic >= 0
+    alpha = smooth_alpha(mask, SCALE, sigma=SCALE * 3 / 8)
+    rgb = bleed(np.clip(rgb, 0, 1), alpha)
+    rgba = np.dstack([rgb * 255, alpha * 255]).round().astype(np.uint8)
+    # Fit. IoU: the render's coverage, ink included (> half), against the sprite's pixels, at SCALE.
+    big = np.kron(mask, np.ones((SCALE, SCALE), bool))
+    covered = cover > 0.5
+    iou = float((covered & big).sum() / max(1, (covered | big).sum()))
+    # The model's own fit (D74, tools/sprite_mask.py): the render without its ink on the sprite's grid
+    # (a pixel covered when at least half of it is) against the inner mask, thin parts' border free.
+    import sprite_mask
+
+    bare = renders["image"][r["bareY"] + margin * px:r["bareY"] + (margin + ICON_H) * px, r["x"] + margin * px:r["x"] + (margin + ICON_W) * px, 3]
+    grid = bare.reshape(ICON_H, px, ICON_W, px).astype(np.float32).mean((1, 3)) / 255 >= 0.5
+    pal = gd.palettes[SHOP_PALETTE]
+    mm = {k: np.array(v, bool) for k, v in sprite_mask.masks(pic.tolist(), {i: tuple(int(c) for c in pal[i]) for i in range(256)}).items()}
+    keep = ~mm["free"]
+    rule_iou = float((grid & mm["inner"] & keep).sum() / max(1, ((grid | mm["inner"]) & keep).sum()))
+    # NCC: D210's registration, the render over the sheets' grey as the answer, nominally in place.
+    bg = np.array(BACKGROUND, np.float32) / 255
+    answer = small[..., :3] + bg * (1 - small[..., 3:])
+    margin_ref = 3
+    ref = icon_on_background(gd, pic, margin_ref)
+    window = (m - SCALE * 5, m - SCALE * 5, m + (ICON_W + 5) * SCALE, m + (ICON_H + 5) * SCALE)
+    fit = register(answer, ref, margin_ref, (m, m, SCALE), window)
+    # The render's placement is exact (the sprite's own spot on screen): its NCC in place, as register
+    # scores (q = 3 px per original pixel, the same blur), beside the best fit's.
+    from scipy import ndimage
+
+    q = 3
+    o = m - margin_ref * SCALE
+    A = answer[o:o + ref.shape[0] * SCALE, o:o + ref.shape[1] * SCALE]
+    I = ndimage.gaussian_filter(resize_f(gray(A), ref.shape[1] * q, ref.shape[0] * q), q * 0.4)
+    T = ndimage.gaussian_filter(np.kron(gray(ref), np.ones((q, q), np.float32)), q * 0.4)
+    Iz, Tz = I - I.mean(), T - T.mean()
+    fit["in_place"] = float((Iz * Tz).sum() / (math.sqrt(float((Iz * Iz).sum()) * float((Tz * Tz).sum())) or 1.0))
+    # Colour: the icon averaged back to the original's pixels against the original (0..255).
+    back = rgb.reshape(ICON_H, SCALE, ICON_W, SCALE, 3).mean((1, 3))
+    orig = gd.rgba(pic, SHOP_PALETTE)[..., :3].astype(np.float32) / 255
+    err = float(np.abs(back[mask] - orig[mask]).mean() * 255)
+    shift = ((back[mask] - orig[mask]).mean(0) * 255).round(1).tolist()
+    return {"key": key, "rgba": rgba, "fit": fit, "iou": iou, "rule_iou": rule_iou, "colour_mae": err, "colour_shift": shift, "input": r["model"], "names": r["model"]}
+
+
+def models(gd: GameData, data: Path, inventory: list[dict], out: Path, server: str | None, check: Path | None) -> None:
+    keys = [e["key"] for e in inventory]
+    renders = capture_renders(data, keys, server)
+    names = {e["key"]: " / ".join(dict.fromkeys(u["name"] for u in e["uses"])) for e in inventory}
+    print(f"  {len(renders['icons'])} of {len(keys)} pictures are drawn as models; the rest keep their icons")
+    before = committed_icons(out)  # the painted icons (D210), shown under the renders
+    got = [cut_render(gd, key, renders) for key in renders["icons"]]
+    out.mkdir(parents=True, exist_ok=True)
+    # Their own atlas, made whole from this run's renders: the painted atlas is never re-encoded, and
+    # an icon whose model goes away falls back to its painting.
+    write_atlas(got, out, "models.webp", "models.json", cols=4)
+    report = [{"key": ic["key"], "items": names.get(ic["key"], ""), "model": ic["input"], "iou": round(ic["iou"], 4), "rule_iou": round(ic["rule_iou"], 4), "ncc": round(ic["fit"]["in_place"], 4),
+               "ncc_best_fit": round(ic["fit"]["score"], 4),
+               "scale": [round(x, 3) for x in ic["fit"]["scale"]], "shift_px": [round(x, 2) for x in ic["fit"]["shift"]],
+               "colour_mae": round(ic["colour_mae"], 1), "colour_shift": ic["colour_shift"]} for ic in got]
+    for e in report:
+        print(f"  {e['key']:<18} {e['model']:<32} IoU {e['iou']:.3f} (model vs inner mask {e['rule_iou']:.3f})  NCC {e['ncc']:.3f} (best fit {e['ncc_best_fit']:.3f})  dC {e['colour_mae']:.0f}  ({e['items'][:60]})")
+    if check:
+        check.parent.mkdir(parents=True, exist_ok=True)
+        (check.parent / "models-report.json").write_text(json.dumps(report, indent=1))
+        contact_models(gd, got, before, check)
+
+
+def contact_models(gd: GameData, got: list[dict], before: dict[str, np.ndarray], path: Path) -> None:
+    """original (nearest) | the icon before | the render's icon, per model icon, on the shop's panel colour."""
+    from PIL import ImageDraw
+
+    w, h = ICON_W * SCALE, ICON_H * SCALE
+    cw, chh = 3 * (w + 8) + 16, h + 24
+    img = Image.new("RGB", (2 * cw, math.ceil(len(got) / 2) * chh), (14, 18, 26))
+    bg = np.array([22, 28, 40], np.float32)
+    for i, ic in enumerate(got):
+        r, c = divmod(i, 2)
+        x0, y0 = c * cw + 6, r * chh + 2
+        sheet, index = ic["key"].rsplit(":", 1)
+        orig = np.kron(gd.rgba(composite(gd, sheet, int(index)), SHOP_PALETTE), np.ones((SCALE, SCALE, 1), np.uint8))
+        for j, im in enumerate((orig, before.get(ic["key"]), ic["rgba"])):
+            if im is None:
+                continue
+            a = im[..., 3:4].astype(np.float32) / 255
+            img.paste(Image.fromarray((im[..., :3] * a + bg * (1 - a)).astype(np.uint8)), (x0 + j * (w + 8), y0))
+        ImageDraw.Draw(img).text((x0, y0 + h + 4), f"{ic['key'].replace('.shp', '')} {ic['input']} IoU {ic['iou']:.2f}/{ic['rule_iou']:.2f} NCC {ic['fit']['in_place']:.2f} dC {ic['colour_mae']:.0f}",
+                                 fill=(230, 230, 120))
+    img.save(path)
+    print(f"  check: {path}")
+
+
+def inventory_now(data: Path) -> list[dict]:
+    """tools/shop-icons-inventory.mjs's list, made now from the game data."""
+    import subprocess
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "inventory.json"
+        subprocess.run(["node", str(ROOT / "tools" / "shop-icons-inventory.mjs"), str(out)], cwd=ROOT, check=True,
+                       env={**node_env(), "TYRIAN_DATA": str(data.resolve())}, stdout=subprocess.DEVNULL)
+        return json.loads(out.read_text())
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", type=Path, default=ROOT / "data")
@@ -439,10 +660,18 @@ def main(argv: list[str] | None = None) -> None:
     c.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "shop")
     c.add_argument("--check", type=Path)
     c.add_argument("--keep", action="store_true", help="keep committed icons whose answers aren't in --results")
+    m = sub.add_parser("models", help="re-render the icons the game draws as 3D models (D226) and repack the atlas")
+    m.add_argument("--inventory", type=Path, help="tools/shop-icons-inventory.mjs's output (default: made now)")
+    m.add_argument("--server", help="a running dev server's URL (default: start one on a free port 5220-5299)")
+    m.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "shop")
+    m.add_argument("--check", type=Path, help="contact sheet original | before | after, with models-report.json beside it")
     args = ap.parse_args(argv)
     gd = GameData(args.data)
     if args.cmd == "sheets":
         build_sheets(gd, json.loads(args.inventory.read_text()), args.out, args.retry)
+    elif args.cmd == "models":
+        inventory = json.loads(args.inventory.read_text()) if args.inventory else inventory_now(args.data)
+        models(gd, args.data, inventory, args.out, args.server, args.check)
     else:
         cut(gd, json.loads(args.inputs.read_text()), args.results, args.out, args.check, args.keep)
 

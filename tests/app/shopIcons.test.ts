@@ -1,4 +1,5 @@
-// shopIcons.ts (D210): the item screen's remastered icons come from public/art/shop/manifest.json,
+// shopIcons.ts (D210, D226): the item screen's remastered icons come from public/art/shop/models.json
+// (the ships, rendered from their models) over manifest.json (the paintings),
 // keyed by sheet and first sprite; anything missing or malformed draws as the original pixels, and
 // the look follows D42's switch (?sprites=, else ?vfx=).
 import { readFileSync } from "node:fs";
@@ -33,6 +34,23 @@ test("the committed atlas has every shop icon (61 across episodes 1-4) at 24x28 
   }
   // The Pulse-Cannon (itemGraphic 7) and the USP Talon (shipGraphic 233).
   expect(m.icons.has(shopIconKey("newsh1.shp", 7))).toBe(true);
+  expect(m.icons.has(shopIconKey("tyrian.shp#8", 233))).toBe(true);
+});
+
+test("the model renders (models.json, D226) are shop icons the painted atlas also has, at its scale, inside their image", () => {
+  const painted = parseShopIconManifest(raw, (msg) => expect.fail(msg))!;
+  const m = parseShopIconManifest(JSON.parse(readFileSync(join(dir, "models.json"), "utf8")), (msg) => expect.fail(msg))!;
+  expect(m).not.toBeNull();
+  expect(m.image).not.toBe(painted.image); // the paintings stay underneath, never re-encoded
+  expect(m.scale).toBe(painted.scale);
+  const { w, h } = webpSize(readFileSync(join(dir, m.image)));
+  for (const [key, f] of m.icons) {
+    expect(painted.icons.has(key)).toBe(true); // a painted fallback under every render
+    expect([f.w, f.h]).toEqual([24 * m.scale, 28 * m.scale]);
+    expect(f.x + f.w).toBeLessThanOrEqual(w);
+    expect(f.y + f.h).toBeLessThanOrEqual(h);
+  }
+  // The new game's ship (USP Talon, shipGraphic 233) has a model.
   expect(m.icons.has(shopIconKey("tyrian.shp#8", 233))).toBe(true);
 });
 

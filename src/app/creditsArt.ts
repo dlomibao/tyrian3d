@@ -87,9 +87,12 @@ export class CreditsArt {
     return this.ready.get(n);
   }
 
-  /** Ship frame `sprite` (tyrian.shp#8) as an image URL: D210's shop icon, else a banking frame. */
+  /**
+   * Ship frame `sprite` (tyrian.shp#8) as an image URL: D210's painted shop icon, else a banking frame.
+   * The painted icon, not D226's model render, so a banking ship stays one painting throughout.
+   */
   shipFrame(sprite: number): string | undefined {
-    const shop = shopIconUrl(SHIP_SHEET, sprite);
+    const shop = shopIconUrl(SHIP_SHEET, sprite, true);
     if (shop) return shop;
     const hit = this.frameUrls.get(sprite);
     if (hit !== undefined) return hit || undefined;

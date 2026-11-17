@@ -12991,3 +12991,88 @@ than `lib_b019` and `lib_eyesphere` changed.
 
 **Review:** check TIME WAR t19050, EYESPY t7800, STARGATE t4800, TYRIAN t4300 and GYGES t4800 against the original.
 Fallback: revert per item; `lib_eyesphere` reverts with both its wrappers' glbs, `lib_b019` with `assembly-newsh9-92`'s.
+
+## D226 — The shop's ship icons are rendered from the ships' 3D models through the game's renderer, top view, cut back onto the original silhouette as D210 does; one command re-renders them whenever a model changes, and the sidekick pictures stay painted because they are not drawings of the sidekicks' models (follows D6, D15, D74, D210)
+
+2026-11-17
+
+**Goal (the user):** "pair/sync the remastered ship icons and the improved 3D models while maintaining the original
+outlines". D210's icons were Gemini paintings of the sprites, so the Upgrade Ship menus and the loadout pane showed
+a different ship from the one the simulator beside them (and every level) draws.
+
+**Which icons have a model** (the item data of all four episodes, `tools/shop-icons-inventory.mjs`): the shop
+draws a ship's picture as `blit_sprite2x2(tyrian.shp#8, shipGraphic)`, the very draw the item screen's simulator
+makes and the renderer replaces with the ship's model (`Sprite2Router.modelFor`, ungrouped, size 2). Six of the
+61 pictures map to a model:
+
+| Picture | Items | Model |
+| --- | --- | --- |
+| `tyrian.shp#8:233` | USP Talon, USP Fang | `usp_talon` |
+| `tyrian.shp#8:119` | SuperCarrot | `ships/ship-supercarrot` |
+| `tyrian.shp#8:157` | Gencore Phoenix, Gencore Maelstrom | `ships/ship-gencore-phoenix` |
+| `tyrian.shp#8:195` | MicroCorp Stalker, Stalker-B, Prototype Stalker-C, Stalker, The Stalker 21.126 | `ships/ship-microcorp-stalker` |
+| `tyrian.shp#8:81` | Silver Ship | `ships/ship-silver-ship` |
+| `tyrian.shp#8:271` | U-Ship | `ships/ship-u-ship` |
+
+Not mapped: the Nort Ship's picture (`tyrian.shp#8:1`, two stacked pods) is not the Nort Ship the levels draw (two
+halves at 220, `ship-nort-ship`, a grouped draw), and the simulator shows it as the sprite too. The sidekicks'
+pictures (newsh1.shp, `itemGraphic`) are separate drawings, not the sprites the sidekick models replace
+(`gr[]` on tyrian.shp#8/#9): the Single Shot Option's is a turret on a bracket, its in-game sprite a small pod;
+Companion Ship Gerund's a red-armed turret, its sprite a winged craft; Wobbley, Mint-O-Ship, Satellite Marlo and
+Tropical Cherry share one picture (a blue orb) for four different sprites. A model's top view can't keep those
+outlines, so they keep D210's paintings, as weapons, shields and generators do. Contact sheet:
+`tyrian-scratch/shop-icons-3d/compare-shop-vs-game.png` (picture | in-game sprite, per item).
+
+**Decision:**
+- **Render** (`?debug=shopicons`, `src/debug/shopIconsHarness.ts`): each picture is drawn as the simulator draws it
+  (Pass.Player, `blit_sprite2x2`) through a View of its own (`ViewOptions.transparent`: alpha kept, no background,
+  no mask), so the model, its `pal_<index>` materials in the item screen's palette (0), the game's lights and its
+  ink outline are the game's. The camera is Overhead and frames the whole playfield as a level does, the ship
+  centred where the camera aims, so the perspective is the levels' and the top view lands on the sprite's own
+  pixels (D6): no registration. 12 canvas pixels per game pixel, downsampled 2x2 to D210's 6 texels per pixel.
+  A second render without the ink gives the model's own fit.
+- **Cut** (`tools/shop_icons.py models`): the render over the ink colour (16, 8, 0) inside the sprite's
+  silhouette, upscaled smoothly as alpha (D210's `smooth_alpha`), so the outline is the original's. Models end at
+  the inner edge of the sprite's 1 px ink ring (D74) and the game's ink covers about half of it at this scale; the
+  rest of the ring is ink colour, as the sprite's was.
+- **Atlas:** `public/art/shop/models.webp` (640x368, 20 KB) + `models.json`, D210's format, made whole from each
+  run's renders; `shopIcons.ts` loads it with the painted atlas and an icon in it is drawn over the painting. The
+  painted atlas is never rewritten (re-encoding the lossy WebP each run drifted it: mean 0.25, max 19 per run), and
+  an icon whose model goes away falls back to its painting. The original pixels stay the fallback and the
+  `?sprites=original` look (checked: 0 HD icons in the ship menu).
+- **One command:** `python tools/shop_icons.py models [--check PNG]`: the inventory, a dev server on a free port
+  (or `--server URL`), the capture (`tools/cdpshot.mjs`), the cut and the atlas; about a minute, deterministic
+  (two runs, same bytes). Re-run after any ship model changes (the U-Ship and Silver Ship are being rebuilt).
+- **Fit** (per icon: IoU of the render with its ink against the sprite's mask; the model alone against the inner
+  mask, D74's rule; D210's NCC in place, and its best fit; colour error 0-255):
+
+| Picture | IoU (ink) | IoU inner (D74) | NCC (best) | Colour | D210 painting: NCC, colour |
+| --- | --- | --- | --- | --- | --- |
+| Silver Ship | 0.903 | 0.997 | 0.795 (0.819) | 30 | 0.79, 34 |
+| SuperCarrot | 0.860 | 1.000 | 0.839 (0.839) | 24 | 0.70, 48 |
+| Gencore Phoenix | 0.864 | 0.996 | 0.824 (0.824) | 23 | 0.84, 24 |
+| MicroCorp Stalker | 0.852 | 0.970 | 0.673 (0.680) | 30 | 0.83, 27 |
+| USP Talon | 0.847 | 0.943 | 0.653 (0.747) | 28 | 0.78, 29 |
+| U-Ship | 0.895 | 1.000 | 0.879 (0.879) | 33 | 0.81, 32 |
+
+  The ink IoU is 0.85-0.90 because the sprite's outer ink ring is only half covered by the game's ink (above);
+  the icon's own outline is the sprite's exactly. The USP Talon's model is at 0.943 on D74's rule (its own fit,
+  not this tool's). The renders' NCC is lower than the paintings' for the Stalker and Talon: their shading is the
+  models' (metal panels lit from the game's sun), not the sprites' hand-drawn shading.
+
+**Options considered:**
+- *Through the game's renderer, a level's framing, Overhead (chosen):* the icon is the model as the game draws it.
+- *A smaller frame round the ship (the View's `frame`):* the camera comes 6.6x closer, so the models' sides show.
+- *An orthographic camera of the debug page's own:* exact top view, but not the game's projection or ink.
+- *Rewrite the one painted atlas:* re-encoding drifts every painting on every run, and a model removed later
+  would leave its render behind.
+- *Render the sidekicks' models into their pictures:* their outlines aren't the models'; that would drop the
+  original outlines the user asked to keep (or need new pictures: left to the user).
+
+**Review:** `tyrian-scratch/shop-icons-3d/check/models.png` (original | D210 painting | render),
+`shots/compare-ship.png`, `compare-loadout.png`, `compare-phone-ship.png` (before | after),
+`style-ships-vs-guns.png` (the renders above painted guns). Style: the renders are flatter and less contrasty than
+the paintings (softer speculars, no painted rim light); beside the gun icons it reads as a mild difference at the
+menus' ~38 CSS px, and the ship icon now matches the simulator's ship next to it. The credits ships (D218) keep D210's
+painted icon for their level frame (`shopIconUrl(..., paintedOnly)`), so a banking ship stays one painting beside
+D218's painted banking frames rather than switching between a render and a painting.

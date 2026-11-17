@@ -11,6 +11,11 @@
 // 24x28 picture times `scale`, its alpha the original silhouette. An icon the manifest leaves out,
 // or any icon before the atlas has loaded (or when it fails), draws as the original pixels.
 //
+// public/art/shop/models.json (same format, its own atlas, D226) holds the pictures the game draws as
+// 3D models (the player ships), rendered from those models by tools/shop_icons.py `models`; an icon
+// it has takes the place of the painted one, which stays in the painted atlas as the fallback should
+// the model atlas fail to load or drop that icon.
+//
 // The look follows the flat sprite art (D42): `?sprites=original|remastered`, else the effects
 // look (`?vfx=original` draws the original pixels).
 
@@ -59,38 +64,47 @@ export function shopIconMode(search?: string): SpriteArtMode {
 }
 
 interface Loaded {
+  /** "models": rendered from the 3D models (D226); "painted": D210's paintings. */
+  kind: "models" | "painted";
   manifest: ShopIconManifest;
   atlas: CanvasImageSource;
   width: number;
   height: number;
 }
 
-let loaded: Loaded | null = null;
+/** The loaded atlases, first match wins: the model renders (models.json, D226), then the paintings (D210). */
+let loaded: Loaded[] = [];
 let loading: Promise<boolean> | null = null;
 const urls = new Map<string, string>();
 
+/** One manifest and its atlas from public/art/shop/; null if missing, malformed or failed. */
+async function loadAtlas(base: string, file: string, kind: Loaded["kind"]): Promise<Loaded | null> {
+  try {
+    const res = await fetch(`${base}art/shop/${file}`);
+    if (!res.ok) return null;
+    const manifest = parseShopIconManifest(await res.json());
+    if (!manifest) return null;
+    const img = new Image();
+    img.decoding = "async";
+    img.src = `${base}art/shop/${manifest.image.split("/").map(encodeURIComponent).join("/")}`;
+    await img.decode();
+    return { kind, manifest, atlas: img, width: img.naturalWidth, height: img.naturalHeight };
+  } catch (err) {
+    console.warn(`shop icons (${file}) didn't load; using the pictures under them`, err);
+    return null;
+  }
+}
+
 /**
- * Fetch the manifest and atlas once (no-op in the original look). Resolves true when the art is
+ * Fetch the manifests and atlases once (no-op in the original look). Resolves true when any art is
  * ready, false when there is none (missing, malformed or failed: every icon stays original).
  */
 export function loadShopIcons(base: string = import.meta.env.BASE_URL): Promise<boolean> {
   if (shopIconMode() === "original") return Promise.resolve(false);
   loading ??= (async () => {
-    try {
-      const res = await fetch(`${base}art/shop/manifest.json`);
-      if (!res.ok) return false;
-      const manifest = parseShopIconManifest(await res.json());
-      if (!manifest) return false;
-      const img = new Image();
-      img.decoding = "async";
-      img.src = `${base}art/shop/${manifest.image.split("/").map(encodeURIComponent).join("/")}`;
-      await img.decode();
-      loaded = { manifest, atlas: img, width: img.naturalWidth, height: img.naturalHeight };
-      return true;
-    } catch (err) {
-      console.warn("shop icons didn't load; using the original pictures", err);
-      return false;
-    }
+    const atlases = await Promise.all([loadAtlas(base, "models.json", "models"), loadAtlas(base, "manifest.json", "painted")]);
+    loaded = atlases.filter((a): a is Loaded => a !== null);
+    return loaded.length > 0;
   })();
   return loading;
 }
@@ -99,23 +113,27 @@ export function loadShopIcons(base: string = import.meta.env.BASE_URL): Promise<
  * The remastered icon for (sheet, first sprite) as an image URL, or undefined to draw the original
  * (no art for it, not loaded yet, or the original look). Each icon is cut from the atlas once.
  */
-export function shopIconUrl(sheetId: string, index: number): string | undefined {
-  if (!loaded || shopIconMode() === "original") return undefined;
+export function shopIconUrl(sheetId: string, index: number, paintedOnly = false): string | undefined {
+  if (loaded.length === 0 || shopIconMode() === "original") return undefined;
   const key = shopIconKey(sheetId, index);
-  const hit = urls.get(key);
+  const cacheKey = paintedOnly ? `painted:${key}` : key;
+  const hit = urls.get(cacheKey);
   if (hit !== undefined) return hit || undefined;
-  const f = loaded.manifest.icons.get(key);
   let url = "";
-  if (f && f.x + f.w <= loaded.width && f.y + f.h <= loaded.height) {
+  for (const a of loaded) {
+    if (paintedOnly && a.kind !== "painted") continue;
+    const f = a.manifest.icons.get(key);
+    if (!f || f.x + f.w > a.width || f.y + f.h > a.height) continue;
     const canvas = document.createElement("canvas");
     canvas.width = f.w;
     canvas.height = f.h;
     const ctx = canvas.getContext("2d");
     if (ctx) {
-      ctx.drawImage(loaded.atlas, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h);
+      ctx.drawImage(a.atlas, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h);
       url = canvas.toDataURL();
     }
+    break;
   }
-  urls.set(key, url);
+  urls.set(cacheKey, url);
   return url || undefined;
 }

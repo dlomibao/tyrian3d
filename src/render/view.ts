@@ -66,6 +66,11 @@ export interface ViewOptions {
   frame?: { x: number; y: number; w: number; h: number };
   /** Size the canvas to its container (and follow it with a ResizeObserver) instead of the window. */
   fitContainer?: boolean;
+  /**
+   * A transparent canvas: no background colour, alpha kept, for pictures cut from it (the shop
+   * icons' renders, `?debug=shopicons`, D226). Pair with `clip: false` settings (no mask).
+   */
+  transparent?: boolean;
 }
 
 /** A rectangle in CSS pixels, from the canvas's top left. */
@@ -140,7 +145,7 @@ export class View {
     this.frameRect = f
       ? { x0: screenWorldX(f.x), x1: screenWorldX(f.x + f.w), z0: screenWorldZ(f.y), z1: screenWorldZ(f.y + f.h) }
       : PLAYFIELD_RECT;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, stencil: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, stencil: true, alpha: options.transparent === true });
     // Shader error checks query every new program's logs, a stall per program on its first use; a
     // shader that fails to build is a development bug, so production skips them (D91).
     this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
@@ -163,7 +168,8 @@ export class View {
     pmrem.dispose();
     applyGroundLight(rig);
 
-    this.scene.background = new THREE.Color(BACKGROUND);
+    if (options.transparent) this.renderer.setClearColor(0x000000, 0);
+    else this.scene.background = new THREE.Color(BACKGROUND);
     this.maskScene.add(this.mask);
 
     this.scene.add(new THREE.HemisphereLight(rig.hemi.sky, rig.hemi.ground, rig.hemi.intensity));
