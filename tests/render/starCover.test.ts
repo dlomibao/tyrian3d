@@ -2,7 +2,7 @@
 // tests the screen in the C.
 import { describe, expect, test } from "vitest";
 import { Pass, type Draw } from "../../src/sim/draw";
-import { StarCover } from "../../src/render/starCover";
+import { StarCover, TileCover } from "../../src/render/starCover";
 
 /** A background-1 tile at (x, y) whose left half is ground (index 20) and right half black space. */
 function halfTile(x: number, y: number): Draw {
@@ -31,5 +31,17 @@ describe("star cover", () => {
     expect(c.hides([halfTile(30, 0)], 5, 5)).toBe(false);
     const upper: Draw = { ...halfTile(0, 0), layer: 1, pass: Pass.Background2Under } as Draw;
     expect(c.hides([upper], 5, 5)).toBe(false);
+  });
+});
+
+describe("tile cover (D224)", () => {
+  test("counts only the tiles it is asked about, at their painted pixels", () => {
+    const top: Draw = { ...halfTile(40, 20), layer: 1, pass: Pass.Background2Top, effect: "blend" } as Draw;
+    const c = new TileCover((d) => d.pass === Pass.Background2Top);
+    expect(c.covers([halfTile(0, 0), top], 45, 30)).toBe(true);
+    expect(c.covers([halfTile(0, 0), top], 55, 30)).toBe(false); // the tile's see-through half
+    expect(c.covers([halfTile(0, 0), top], 5, 5)).toBe(false); // background 1 isn't counted
+    expect(c.covers([halfTile(0, 0)], 45, 30)).toBe(false); // a new list without the cloud
+    expect(c.covers([top], 44.6, 29.7)).toBe(true); // rounded
   });
 });

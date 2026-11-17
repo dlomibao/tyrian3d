@@ -27,8 +27,8 @@ import * as THREE from "three";
 import { PALETTE_LUT_SIZE } from "./paletteTexture";
 
 const L = PALETTE_LUT_SIZE;
-/** Brightness steps of the shade lookup. */
-const SHADE_BINS = 256;
+/** Brightness steps of the shade lookup (ShadeLut). */
+export const SHADE_BINS = 256;
 
 const srgbToLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
 /** hbLum on an sRGB byte triple. */
@@ -83,6 +83,33 @@ export class ShadeLut {
     }
     this.texture.needsUpdate = true;
     return true;
+  }
+}
+
+/**
+ * The raw palette (before JE_filterScreen; PaletteTexture.raw) as a texture and its ShadeLut, the
+ * ramps an HD painting's shades are read along whatever the level filter does to the screen
+ * (underShade.ts D204; terrainMaterial.ts under the hues, D224). Call update() before a frame uses them.
+ */
+export class RawShades {
+  readonly palette: THREE.DataTexture;
+  readonly shades = new ShadeLut();
+
+  constructor(private readonly source: { readonly raw: Uint8Array; readonly version: number }) {
+    this.palette = new THREE.DataTexture(source.raw, 256, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+    this.palette.colorSpace = THREE.SRGBColorSpace;
+    this.palette.magFilter = this.palette.minFilter = THREE.NearestFilter;
+    this.palette.generateMipmaps = false;
+  }
+
+  /** Rebuild from the source's raw palette if it changed. */
+  update(): void {
+    if (this.shades.update(this.source.raw, this.source.version)) this.palette.needsUpdate = true;
+  }
+
+  dispose(): void {
+    this.palette.dispose();
+    this.shades.texture.dispose();
   }
 }
 

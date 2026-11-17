@@ -5,12 +5,12 @@
 import * as THREE from "three";
 import { describe, expect, test, vi } from "vitest";
 import { DrawListRenderer, underShadeFromSearch } from "../../src/render/drawListRenderer";
-import { HUE_BLEND_PARS, NdcRect, SECOND_BANK_SHARE, topBanks, UnderGrab, UnderGrabHook } from "../../src/render/hueBlend";
+import { HUE_BLEND_PARS, NdcRect, RawShades, SECOND_BANK_SHARE, topBanks, UnderGrab, UnderGrabHook } from "../../src/render/hueBlend";
 import { groundTileMaterial } from "../../src/render/paletteMaterial";
 import { PaletteTexture } from "../../src/render/paletteTexture";
 import { remasterGroundMaterial } from "../../src/render/remaster/groundMaterial";
 import { RemasterGroundAtlas } from "../../src/render/remaster/groundAtlas";
-import { terrainMaterial } from "../../src/render/remaster/terrainMaterial";
+import { terrainLevelUniforms, terrainMaterial } from "../../src/render/remaster/terrainMaterial";
 import { TileAtlas } from "../../src/render/tileAtlas";
 import { rockMaterial } from "../../src/render/rockMaterial";
 import { SHEET_MARK_MAX_HEIGHT, UnderShadePass, type ShadeOut } from "../../src/render/underShade";
@@ -108,7 +108,7 @@ describe("the terrain's own shade under the blends (D204)", () => {
     // Shared with the colour material, so the atlas and sharpness it reads are the same.
     expect((mmpx.userData.shadeOut as ShadeOut).uniforms).toMatchObject({ atlasMap: mmpx.userData.remasterUniforms.atlasMap, sharpness: mmpx.userData.remasterUniforms.sharpness });
     expect(remasterGroundMaterial(pt, rAtlas, undefined, under).userData.shadeOut).toBeUndefined();
-    const level = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
+    const level = terrainLevelUniforms(new RawShades(pt));
     const tex = new THREE.Texture();
     expect(terrainMaterial(pt, tex, level, { kind: "ground", scale: 8 }).userData.shadeOut).toMatchObject({ kind: "terrainHd", cutout: false });
     expect(terrainMaterial(pt, tex, level, { kind: "cutout", scale: 8 }).userData.shadeOut).toMatchObject({ kind: "terrainHd", cutout: true });
@@ -116,7 +116,8 @@ describe("the terrain's own shade under the blends (D204)", () => {
   });
 
   test("an HD blend sheet keeps its tile's main bank from the pair", () => {
-    const m = terrainMaterial(new PaletteTexture(), new THREE.Texture(), { levelFilter: { value: -99 }, levelBrightness: { value: 0 } }, { kind: "blend", scale: 8, under: new UnderGrab(new THREE.Texture()) });
+    const pt = new PaletteTexture();
+    const m = terrainMaterial(pt, new THREE.Texture(), terrainLevelUniforms(new RawShades(pt)), { kind: "blend", scale: 8, under: new UnderGrab(new THREE.Texture()) });
     const shader = {
       uniforms: {} as Record<string, unknown>,
       vertexShader: "#include <common>\n#include <begin_vertex>",

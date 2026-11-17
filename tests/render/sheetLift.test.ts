@@ -31,7 +31,18 @@ describe("sheet lift", () => {
     expect(sheetHeight(BASE, SHEET, 100, 50, 24, 28, [ground, lowSky])).toBeCloseTo((1.26 + 1.2) / 2);
   });
 
-  test("never lower than its pass's height", () => {
+  test("a later model counts only where its footprint overlaps; an earlier one within the lean margin (D224)", () => {
+    // GYGES t6300: a boss piece (SkyEnemies, low 0.36) ending 1 px left of the horn tile held it under the arm's balls.
+    const ball = block(Pass.GroundEnemies, 116, 60, 0.27, 1.08);
+    const beside = block(Pass.SkyEnemies, 75, 60, 0.36, 2.7); // right edge 99, the tile starts at 100
+    expect(sheetHeight(BASE, SHEET, 100, 50, 24, 28, [ball, beside])).toBeCloseTo(1.08 + SHEET_CLEARANCE);
+    const over = block(Pass.SkyEnemies, 80, 60, 0.36, 2.7); // its foot reaches into the tile
+    expect(sheetHeight(BASE, SHEET, 100, 50, 24, 28, [ball, over])).toBe(BASE);
+    // An earlier model 2 px off the tile still lifts it (its top leans).
+    expect(sheetHeight(BASE, SHEET, 100, 50, 24, 28, [block(Pass.GroundEnemies, 126, 60, 0.27, 1.08)])).toBeCloseTo(1.08 + SHEET_CLEARANCE);
+  });
+
+    test("never lower than its pass's height", () => {
     const sunk = block(Pass.GroundEnemies, 110, 60, -0.2, 1.0);
     expect(sheetHeight(0.05, Pass.Background2Under, 100, 50, 24, 28, [sunk])).toBe(0.05);
   });

@@ -9,7 +9,7 @@ function source() {
   return {
     uniforms: {} as Record<string, unknown>,
     vertexShader: "#include <common>\nvoid main() {\n#include <begin_vertex>\n#include <project_vertex>\n}",
-    fragmentShader: "#include <common>\nvoid main() {\n#include <map_fragment>\n#include <emissivemap_fragment>\n}",
+    fragmentShader: "#include <common>\nvoid main() {\n#include <map_fragment>\n#include <emissivemap_fragment>\n#include <lights_physical_fragment>\n}",
   };
 }
 
@@ -28,7 +28,7 @@ describe("patchDamage", () => {
     expect(s.uniforms.uDmgOn).toBeDefined();
     // The material's colour replaced map_fragment; the damage colour follows it.
     expect(s.fragmentShader).toMatch(/OWN_COLOUR\n[\s\S]*uDmgOn/);
-    expect(m.customProgramCacheKey()).toBe("own-key|tyrian-damage-2");
+    expect(m.customProgramCacheKey()).toBe("own-key|tyrian-damage-3");
   });
 
   test("a plain material gets the damage alone, once", () => {
@@ -65,5 +65,15 @@ describe("shadow shift", () => {
     expect(s.vertexShader).toContain("uniform vec3 uShadowShift;");
     expect(s.vertexShader).toMatch(/#include <project_vertex>[\s\S]*gl_Position = projectionMatrix \* viewMatrix \* \(modelMatrix \* vec4\(transformed, 1\.0\) \+ vec4\(uShadowShift, 0\.0\)\);/);
     expect(s.uniforms.uShadowShift).toBe(u.uShadowShift);
+  });
+
+  test("an enemy's darkened damage dulls the gloss; the ship's wear doesn't (D224)", () => {
+    const m = new THREE.MeshStandardMaterial();
+    patchDamage(m, damageUniforms());
+    const s = source();
+    m.onBeforeCompile(s as never, {} as never);
+    expect(s.fragmentShader).toMatch(/if \(uDmgCover < 0\.0\) dmgGloss = clamp\(/);
+    expect(s.fragmentShader).toMatch(/#include <lights_physical_fragment>\n[\s\S]*material\.roughness = mix\(1\.0, material\.roughness, dmgGloss\);/);
+    expect(s.fragmentShader).toContain("material.specularColorBlended *= dmgGloss;");
   });
 });

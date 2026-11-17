@@ -36,6 +36,7 @@ import { EXPLOSION_SHEET_ID, ExplosionKind, explosionFrame, shieldArcCentre } fr
 import { GlowLayer, GlowShape } from "./glowLayer";
 import { ParticleShape, ParticleSystem } from "./particles";
 import { ShieldLayer } from "./shieldLayer";
+import type { TileCover } from "../starCover";
 
 /** How the draw-list renderer should draw a sprite the effects have seen. */
 export const enum SpriteLook {
@@ -76,6 +77,25 @@ const SHOT_HALO_ORDER = SPRITE_ART_ORDER + Pass.PlayerShots / 100 - 0.002;
 const FLASH_REACH = 14;
 const FLASH_GAP = 0.12;
 const FLASH_MEMORY = 64;
+/**
+ * Explosions crowding one spot (D224): a big explosion's four quarters, a boss's death chain, a row
+ * of blasts at once. Each fireball birth counts the explosion births (a fireball 1, a quarter of a
+ * large one LARGE_WEIGHT) within CROWD_REACH screen px in the last CROWD_GAP s, itself left out; its
+ * share is 1 / (1 + that). A lone small fireball's share is 1 and it is drawn as before; a lone large
+ * explosion's quarters 0.57; a cluster's much less. Sparks spawn their count times the share squared
+ * (the rays crossing on one spot were the white starburst), embers, debris and smoke times the share
+ * (dark smoke over a crowd's fire greys it), and the flash's alpha times its square root. The
+ * fireballs' glows are dimmed by their overlaps as the shot halos are (EXPLOSION_GLOW_TOUCH, _CROWD),
+ * so four quarters or a dozen blasts glow about as one or two, not as a white core.
+ */
+const CROWD_REACH = 40;
+const CROWD_GAP = 0.25;
+const CROWD_MEMORY = 128;
+const LARGE_WEIGHT = 0.25;
+const EXPLOSION_GLOW_TOUCH = 0.8;
+const EXPLOSION_GLOW_CROWD = 0.5;
+/** Fireball glows one frame can hold before they're drawn undimmed. */
+const MAX_EXPLOSION_GLOWS = 512;
 /** Lights for explosion flashes: a fixed pool, so the scene's light count (and shaders) never change. */
 const LIGHTS = 4;
 /** Lights sit this high, between the ground and the enemies, at the explosion's screen position. */
@@ -161,6 +181,12 @@ export class RemasteredFx {
   private readonly halos = new Float32Array(MAX_HALOS * HALO_STRIDE);
   private haloCount = 0;
   private readonly haloOrder = new Int32Array(MAX_HALOS);
+  /** This frame's fireball glows, held to dim overlapping ones the same way (D224). */
+  private readonly fireGlows = new Float32Array(MAX_EXPLOSION_GLOWS * HALO_STRIDE);
+  private fireGlowCount = 0;
+  /** Recent explosion births (screen x, y, start time, weight), a ring, for their crowd (D224). */
+  private readonly crowd = new Float32Array(CROWD_MEMORY * 4).fill(-1e9);
+  private crowdHead = 0;
   /** Recent flashes (screen x, y, start time), a ring, to thin flashes on one spot (D169). */
   private readonly flashes = new Float32Array(FLASH_MEMORY * 3).fill(-1e9);
   private flashHead = 0;
@@ -189,6 +215,9 @@ export class RemasteredFx {
   private nextShotKeys = new Set<number>();
   /** The scroll, as explosions move with it (px per tick, down the screen). */
   private scrollPx = 0;
+  /** background2over 2's sheets' painted pixels and the draw list they are of (setTopCover, D224). */
+  private top: TileCover | null = null;
+  private topItems: readonly Draw[] = [];
 
   constructor(
     private readonly cache: SpriteMeshCache,
@@ -272,19 +301,47 @@ export class RemasteredFx {
     this.births[o + 5] = info ? (Math.min(255, info.r * 255) << 16) | (Math.min(255, info.g * 255) << 8) | Math.min(255, info.b * 255) : 0xffb060;
   }
 
+  /**
+   * The pixels background2over 2's sheets (NOSE DRIP's clouds) paint in this frame's draw list (D224).
+   * The C draws them over the shots and explosions: a shot, hit or fireball under one gets no halo,
+   * glow, flash or sparks, which spilled out past the cloud's edge (the sheet's depth cover, D199,
+   * hides only what is under its own texels).
+   */
+  setTopCover(cover: TileCover | null, items: readonly Draw[]): void {
+    this.top = cover;
+    this.topItems = items;
+  }
+
+  /** Whether screen point (x, y) is under a top sheet's painted pixel (setTopCover). */
+  private underTop(x: number, y: number): boolean {
+    return this.top !== null && this.top.covers(this.topItems, x, y);
+  }
+
   /** Start a display frame: age the particles and lights, and spawn what the last tick started. */
   begin(dt: number, camera: THREE.Camera): void {
     this.cam = camera.position;
     this.clock += dt;
     this.shieldCount = 0;
     this.haloCount = 0;
+    this.fireGlowCount = 0;
     this.additive.advance(dt);
     this.blended.advance(dt);
+    // Every explosion this batch starts is in the crowd before any of them spawns (D224), so a big
+    // explosion's quarters and a row of blasts share alike, whichever the sim drew first.
+    for (let b = 0; b < this.birthCount; b++) {
+      const o = b * 6;
+      const w = birthWeight(this.births[o] as Birth);
+      if (w > 0) this.noteCrowd(this.births[o + 1], this.births[o + 2], w);
+    }
     for (let b = 0; b < this.birthCount; b++) {
       const o = b * 6;
       const rgb = this.births[o + 5];
-      this.spawnBirth(this.births[o] as Birth, this.births[o + 1], this.births[o + 2], this.births[o + 3], this.births[o + 4] as Pass,
-        ((rgb >> 16) & 255) / 255, ((rgb >> 8) & 255) / 255, (rgb & 255) / 255);
+      const kind = this.births[o] as Birth;
+      if (this.underTop(this.births[o + 1], this.births[o + 2])) continue;
+      const w = birthWeight(kind);
+      const share = w > 0 ? 1 / (1 + Math.max(0, this.crowdAt(this.births[o + 1], this.births[o + 2]) - w)) : 1;
+      this.spawnBirth(kind, this.births[o + 1], this.births[o + 2], this.births[o + 3], this.births[o + 4] as Pass,
+        ((rgb >> 16) & 255) / 255, ((rgb >> 8) & 255) / 255, (rgb & 255) / 255, share);
     }
     this.birthCount = 0;
     for (const f of this.lights) {
@@ -306,10 +363,13 @@ export class RemasteredFx {
     this.infoColour(info);
     const cx = x + info.cx;
     const cy = y + info.cy;
+    // Under a top cloud the C shows none of it: the sprite stays (the cloud covers it), its glows go.
+    const hidden = this.underTop(cx, cy);
     if (d.pass === Pass.PlayerShots || d.pass === Pass.EnemyShots) {
       // Missiles and bombs are steel: no halo, and lit with their outline (D169).
       if (isOrdnance(d)) return SpriteLook.Default;
       const intensity = d.pass === Pass.EnemyShots ? ENEMY_SHOT_HALO_INTENSITY : SHOT_HALO_INTENSITY;
+      if (hidden) return SpriteLook.Hot;
       // Teleports and new shots have no motion to trail.
       const tx = Math.abs(vx) > 30 ? 0 : vx * TRAIL_TICKS;
       const ty = Math.abs(vy) > 30 ? 0 : vy * TRAIL_TICKS;
@@ -319,6 +379,7 @@ export class RemasteredFx {
     if (d.kind !== "sprite2" || d.pass !== Pass.Explosions || d.sheet.id !== EXPLOSION_SHEET_ID) return SpriteLook.Default;
     const f = explosionFrame(d.index);
     if (!f) return SpriteLook.Default;
+    if (hidden) return f.kind === ExplosionKind.Hit || f.kind === ExplosionKind.Smoke || f.kind === ExplosionKind.Shield ? SpriteLook.Hidden : SpriteLook.Hot;
     const h = height;
     const k = h / this.cam.y;
     const s = (1 - k) / PX_PER_UNIT;
@@ -333,7 +394,11 @@ export class RemasteredFx {
       case ExplosionKind.Fireball:
       case ExplosionKind.Large: {
         const fade = 1 - t;
-        this.glow(this.glows, cx, cy, cx, cy, h, Math.max(3, info.radius * 2) * s, info.r, info.g, info.b, 0.3 * fade, 0, GlowShape.Glow, 0);
+        // Held to the frame's end and dimmed by its overlaps (D224): a large explosion's four
+        // quarters, or a cluster of blasts, glow about as one instead of adding up to a white core.
+        const r0 = Math.max(3, info.radius * 2);
+        if (this.fireGlowCount < MAX_EXPLOSION_GLOWS) holdGlow(this.fireGlows, this.fireGlowCount++, cx, cy, cx, cy, h, r0, info.r, info.g, info.b, 0.3 * fade);
+        else this.glow(this.glows, cx, cy, cx, cy, h, r0 * s, info.r, info.g, info.b, 0.3 * fade, 0, GlowShape.Glow, 0);
         return SpriteLook.Hot;
       }
       case ExplosionKind.Smoke: {
@@ -401,6 +466,8 @@ export class RemasteredFx {
   /** Upload this frame's glows and new particles. */
   end(): void {
     this.flushHalos();
+    this.flushHeld(this.fireGlows, this.fireGlowCount, this.glows, EXPLOSION_GLOW_TOUCH, EXPLOSION_GLOW_CROWD);
+    this.fireGlowCount = 0;
     this.shields.commit();
     this.shotGlows.commit();
     this.glows.commit();
@@ -416,6 +483,8 @@ export class RemasteredFx {
     this.birthCount = 0;
     this.haloCount = 0;
     this.flashes.fill(-1e9);
+    this.crowd.fill(-1e9);
+    this.fireGlowCount = 0;
     this.shotKeys.clear();
     for (const f of this.lights) {
       f.age = f.life;
@@ -440,7 +509,11 @@ export class RemasteredFx {
 
   // --- spawning ---
 
-  private spawnBirth(kind: Birth, sx: number, sy: number, radius: number, pass: Pass, r: number, g: number, b: number): void {
+  /**
+   * `share` (D224): 1 for a lone explosion, less in a crowd (crowdAt): sparks spawn their count times
+   * its square, embers, debris and smoke times it, the flash's alpha times its square root.
+   */
+  private spawnBirth(kind: Birth, sx: number, sy: number, radius: number, pass: Pass, r: number, g: number, b: number, share = 1): void {
     const h = passHeight(pass);
     // D169: every flash and spark is the explosion's own colour (the mean of its sprite's colours,
     // infoColour), no longer mixed 40-50% toward white and boosted x1.3; flashes are smaller,
@@ -454,25 +527,30 @@ export class RemasteredFx {
         this.flash(sx, sy, h, 3, 7, 0.1, 1, 0.55, 0.22, 0.5);
         this.sparks(sx, sy, h, 5, 70, 150, 0.12, 0.24, 1, 0.55, 0.2);
         break;
-      case Birth.Fireball:
+      case Birth.Fireball: {
         // Small fireballs also mark every hit on a big enemy, many a second under a laser, so
         // they're kept light: debris and smoke only now and then.
-        this.flash(sx, sy, h, 5, 11, 0.14, r, g, b, 0.32);
-        this.sparks(sx, sy, h, 3, 80, 170, 0.14, 0.28, r, g, b);
-        this.embers(sx, sy, h, 1, r, g, b);
-        if (Math.random() < 0.3) this.debris(sx, sy, h, 1, 1.0);
-        if (Math.random() < 0.3) this.smoke(sx, sy, h, 1, 3, 8);
+        const flare = Math.sqrt(share);
+        this.flash(sx, sy, h, 5, 11, 0.14, r, g, b, 0.32 * flare);
+        this.sparks(sx, sy, h, crowdCount(3 * share * share), 80, 170, 0.14, 0.28, r, g, b);
+        this.embers(sx, sy, h, crowdCount(share), r, g, b);
+        if (Math.random() < 0.3 * share) this.debris(sx, sy, h, 1, 1.0);
+        if (Math.random() < 0.3 * share) this.smoke(sx, sy, h, 1, 3, 8);
         this.light(sx, sy, 2, 0.2, r, g, b);
         break;
-      case Birth.Large:
-        // One of four quarters: each throws a share, and they share one light and one flash.
-        this.flash(sx, sy, h, 7, 16, 0.22, r, g, b, 0.32);
-        this.sparks(sx, sy, h, 4, 90, 190, 0.2, 0.42, r, g, b);
-        this.embers(sx, sy, h, 2, r, g, b);
-        this.debris(sx, sy, h, 2, 1.3);
-        this.smoke(sx, sy, h, 1, 6, 14);
+      }
+      case Birth.Large: {
+        // One of four quarters: each throws a share, and they share one light and one flash (its
+        // reach is the flash's size, so all four quarters, 12 and 14 px apart, flash once).
+        const flare = Math.sqrt(share);
+        this.flash(sx, sy, h, 7, 16, 0.22, r, g, b, 0.32 * flare);
+        this.sparks(sx, sy, h, crowdCount(4 * share * share), 90, 190, 0.2, 0.42, r, g, b);
+        this.embers(sx, sy, h, crowdCount(2 * share), r, g, b);
+        this.debris(sx, sy, h, crowdCount(2 * share), 1.3);
+        this.smoke(sx, sy, h, crowdCount(share), 6, 14);
         this.light(sx, sy, 5, 0.32, r, g, b);
         break;
+      }
       case Birth.Shield:
         this.light(sx, sy, 1.2, 0.12, r, g, b);
         break;
@@ -496,11 +574,15 @@ export class RemasteredFx {
     return this.scrollPx * CLASSIC_TICK_HZ * s;
   }
 
-  /** A flash, unless one started close by a moment ago (FLASH_REACH, FLASH_GAP). */
+  /**
+   * A flash, unless one started close by a moment ago (FLASH_GAP; within FLASH_REACH px, or the
+   * flash's own final size if larger: a large explosion's quarters stand 14 px apart, D224).
+   */
   private flash(sx: number, sy: number, h: number, size0: number, size1: number, life: number, r: number, g: number, b: number, a: number): void {
     const f = this.flashes;
+    const reach = Math.max(FLASH_REACH, size1);
     for (let i = 0; i < FLASH_MEMORY * 3; i += 3) {
-      if (this.clock - f[i + 2] < FLASH_GAP && Math.abs(f[i] - sx) < FLASH_REACH && Math.abs(f[i + 1] - sy) < FLASH_REACH) return;
+      if (this.clock - f[i + 2] < FLASH_GAP && Math.abs(f[i] - sx) < reach && Math.abs(f[i + 1] - sy) < reach) return;
     }
     const o = this.flashHead * 3;
     this.flashHead = (this.flashHead + 1) % FLASH_MEMORY;
@@ -672,6 +754,21 @@ export class RemasteredFx {
     best.tick = this.tickCount;
   }
 
+  /** Add an explosion birth to the crowd memory (D224). */
+  private noteCrowd(sx: number, sy: number, weight: number): void {
+    const o = this.crowdHead * 4;
+    this.crowdHead = (this.crowdHead + 1) % CROWD_MEMORY;
+    this.crowd[o] = sx;
+    this.crowd[o + 1] = sy;
+    this.crowd[o + 2] = this.clock;
+    this.crowd[o + 3] = weight;
+  }
+
+  /** The weight of the explosion births within CROWD_REACH px of (sx, sy) in the last CROWD_GAP s (D224). */
+  private crowdAt(sx: number, sy: number): number {
+    return crowdWeight(this.crowd, sx, sy, this.clock);
+  }
+
   /** Hold a shot halo (screen px, radius in screen px) for flushHalos. */
   private halo(hx: number, hy: number, tx: number, ty: number, h: number, radius: number, r: number, g: number, b: number, a: number): void {
     if (this.haloCount >= MAX_HALOS) {
@@ -700,9 +797,17 @@ export class RemasteredFx {
    * search only looks at halos within reach.
    */
   private flushHalos(): void {
-    const n = this.haloCount;
+    this.flushHeld(this.halos, this.haloCount, this.shotGlows, HALO_TOUCH, HALO_CROWD);
+    this.haloCount = 0;
+  }
+
+  /**
+   * Draw `n` held glows (HALO_STRIDE floats each: head, tail, height, radius in screen px, colour,
+   * alpha) into `layer`, each dimmed by 1 / (1 + crowd x the others it overlaps heavily at its own
+   * height, centres closer than `touch` of their radii's sum).
+   */
+  private flushHeld(v: Float32Array, n: number, layer: GlowLayer, touch: number, crowd: number): void {
     if (n === 0) return;
-    const v = this.halos;
     const order = this.haloOrder;
     let maxR = 0;
     for (let i = 0; i < n; i++) {
@@ -710,7 +815,7 @@ export class RemasteredFx {
       maxR = Math.max(maxR, v[i * HALO_STRIDE + 5]);
     }
     const sorted = order.subarray(0, n).sort((a, b) => v[a * HALO_STRIDE] - v[b * HALO_STRIDE]);
-    const reach = 2 * maxR * HALO_TOUCH;
+    const reach = 2 * maxR * touch;
     for (let i = 0; i < n; i++) {
       const a = sorted[i] * HALO_STRIDE;
       for (let j = i + 1; j < n; j++) {
@@ -718,9 +823,9 @@ export class RemasteredFx {
         const dx = v[c] - v[a];
         if (dx > reach) break;
         if (v[c + 4] !== v[a + 4]) continue;
-        const touch = (v[a + 5] + v[c + 5]) * HALO_TOUCH;
+        const near = (v[a + 5] + v[c + 5]) * touch;
         const dy = v[c + 1] - v[a + 1];
-        if (dx * dx + dy * dy < touch * touch) {
+        if (dx * dx + dy * dy < near * near) {
           v[a + 10]++;
           v[c + 10]++;
         }
@@ -730,10 +835,9 @@ export class RemasteredFx {
       const o = i * HALO_STRIDE;
       const h = v[o + 4];
       const s = (1 - h / this.cam.y) / PX_PER_UNIT;
-      this.glow(this.shotGlows, v[o], v[o + 1], v[o + 2], v[o + 3], h, v[o + 5] * s, v[o + 6], v[o + 7], v[o + 8],
-        v[o + 9] / (1 + HALO_CROWD * v[o + 10]), 0, GlowShape.Glow, 0);
+      this.glow(layer, v[o], v[o + 1], v[o + 2], v[o + 3], h, v[o + 5] * s, v[o + 6], v[o + 7], v[o + 8],
+        v[o + 9] / (1 + crowd * v[o + 10]), 0, GlowShape.Glow, 0);
     }
-    this.haloCount = 0;
   }
 
   private glow(layer: GlowLayer, hx: number, hy: number, tx: number, ty: number, h: number, radius: number,
@@ -828,3 +932,43 @@ export function spriteGlowColour(indices: ArrayLike<number>, counts: ArrayLike<n
 }
 
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** An explosion birth's weight in the crowd (D224): a fireball 1, a large explosion's quarter LARGE_WEIGHT, else 0. */
+function birthWeight(kind: Birth): number {
+  return kind === Birth.Fireball ? 1 : kind === Birth.Large ? LARGE_WEIGHT : 0;
+}
+
+/**
+ * The summed weight of the births in `ring` (x, y, time, weight each) within CROWD_REACH screen px
+ * of (sx, sy) that started less than CROWD_GAP s before `now` (D224).
+ */
+export function crowdWeight(ring: Float32Array, sx: number, sy: number, now: number): number {
+  let w = 0;
+  for (let i = 0; i < ring.length; i += 4) {
+    if (now - ring[i + 2] >= CROWD_GAP) continue;
+    const dx = ring[i] - sx, dy = ring[i + 1] - sy;
+    if (dx * dx + dy * dy < CROWD_REACH * CROWD_REACH) w += ring[i + 3];
+  }
+  return w;
+}
+
+/** A fractional particle count as a whole one, rounded at random so the mean stays `n` (D224). */
+export function crowdCount(n: number, random = Math.random()): number {
+  return Math.floor(n + random);
+}
+
+/** Store a glow in a held buffer (HALO_STRIDE floats; see flushHeld). */
+function holdGlow(v: Float32Array, i: number, hx: number, hy: number, tx: number, ty: number, h: number, radius: number, r: number, g: number, b: number, a: number): void {
+  const o = i * HALO_STRIDE;
+  v[o] = hx;
+  v[o + 1] = hy;
+  v[o + 2] = tx;
+  v[o + 3] = ty;
+  v[o + 4] = h;
+  v[o + 5] = radius;
+  v[o + 6] = r;
+  v[o + 7] = g;
+  v[o + 8] = b;
+  v[o + 9] = a;
+  v[o + 10] = 0; // neighbours
+}

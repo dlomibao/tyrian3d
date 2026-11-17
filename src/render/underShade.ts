@@ -35,7 +35,7 @@
 // camera narrowed to the blended layers' area, so only what lies there is drawn (D206).
 
 import * as THREE from "three";
-import { areaPixels, GRAB_MARGIN, HB_SHADE_PARS, ShadeLut, type NdcRect } from "./hueBlend";
+import { areaPixels, GRAB_MARGIN, HB_SHADE_PARS, RawShades, type NdcRect } from "./hueBlend";
 import type { PaletteTexture } from "./paletteTexture";
 import { ART_MARK, cutMaskMaterial, flatArtMaskMaterial, isFlatArt, MODEL_MARK, TOP_MARK, type MaskCut } from "./screenFilters";
 import { SAMPLE_PARS, TERRAIN_VERTEX_MAIN, TERRAIN_VERTEX_PARS } from "./remaster/terrainMaterial";
@@ -356,17 +356,13 @@ export class UnderShadePass {
    * brightness along the ramp its tile's indices were drawn with, whatever the level filter does to
    * the screen's colours afterwards (CAMANIS, D193).
    */
-  private readonly rawPalette: THREE.DataTexture;
-  private readonly rawShades = new ShadeLut();
+  private readonly raw: RawShades;
   private readonly shared: { paletteMap: { value: THREE.Texture }; blendShadeLut: { value: THREE.Texture } };
 
-  constructor(private readonly palette: PaletteTexture) {
+  constructor(palette: PaletteTexture) {
     this.target.texture.name = "under-shade";
-    this.rawPalette = new THREE.DataTexture(palette.raw, 256, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
-    this.rawPalette.colorSpace = THREE.SRGBColorSpace;
-    this.rawPalette.magFilter = this.rawPalette.minFilter = THREE.NearestFilter;
-    this.rawPalette.generateMipmaps = false;
-    this.shared = { paletteMap: { value: this.rawPalette }, blendShadeLut: { value: this.rawShades.texture } };
+    this.raw = new RawShades(palette);
+    this.shared = { paletteMap: { value: this.raw.palette }, blendShadeLut: { value: this.raw.shades.texture } };
   }
 
   /**
@@ -433,7 +429,7 @@ export class UnderShadePass {
    */
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, area: NdcRect, rects?: ArrayLike<number>, marks = false): boolean {
     if (area.empty) return false;
-    if (this.rawShades.update(this.palette.raw, this.palette.version)) this.rawPalette.needsUpdate = true;
+    this.raw.update();
     const current = renderer.getRenderTarget();
     let w: number, h: number;
     if (current) {
@@ -585,8 +581,7 @@ export class UnderShadePass {
   dispose(): void {
     this.target.dispose();
     this.unknown.dispose();
-    this.rawPalette.dispose();
-    this.rawShades.texture.dispose();
+    this.raw.dispose();
     for (const m of this.palShades) m?.dispose();
   }
 }

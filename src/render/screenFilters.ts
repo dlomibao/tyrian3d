@@ -897,6 +897,13 @@ export function flatArtMaskMaterial(map: THREE.Texture, output?: string): THREE.
 
 /** The cover a texel needs to count in the mask: the blend sheets' alpha reaches one half there. */
 export const MASK_CUT_COVER = 0.5;
+/**
+ * The painted alpha from which an HD sheet's depth cover (sheetCoverMaterial) hides what the effects
+ * and flat art would draw under it (D224). The C's cloud edge is hard: whatever is under a cloud
+ * texel takes the cloud's bank. At MASK_CUT_COVER a painted cloud's soft rim (alpha 0.1-0.5) still
+ * let a glow under it through at full strength: NOSE DRIP's orange smear at a cloud's lower edge.
+ */
+export const SHEET_COVER_CUT = 0.1;
 
 const CUT_MASK_VERTEX: Record<MaskCut["kind"], string> = {
   tileIndex: /* glsl */ `
@@ -998,7 +1005,7 @@ varying float vHeight;
 varying float vMarkBank;
 void main() {
   vec2 t = clamp(vTileTexel, vRectOrigin + 0.5, vRectOrigin + rectSize - 0.5);
-  if (textureLod(terrainMap, t / vec2(textureSize(terrainMap, 0)), 0.0).a < ${MASK_CUT_COVER.toFixed(2)}) discard;
+  if (textureLod(terrainMap, t / vec2(textureSize(terrainMap, 0)), 0.0).a < CUT_AT) discard;
   float markHue = floor(vMarkBank / 16.0 + 0.5); // the tile's main bank (underShade.ts' sheet marks)
   gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);
 }`,
@@ -1011,10 +1018,12 @@ const CUT_MASK_OUTPUT = "gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);";
  * The mask material for a material with a `maskCut` (sharing its uniforms, so atlas swaps follow).
  * `output`: GLSL to run for a covered texel instead of writing its height (underShade.ts' marks).
  */
-export function cutMaskMaterial(cut: MaskCut, output?: string): THREE.ShaderMaterial {
+export function cutMaskMaterial(cut: MaskCut, output?: string, cutAt = MASK_CUT_COVER): THREE.ShaderMaterial {
+  const fragment = output === undefined ? CUT_MASK_FRAGMENT[cut.kind] : CUT_MASK_FRAGMENT[cut.kind].replace(CUT_MASK_OUTPUT, output);
   return new THREE.ShaderMaterial({
     vertexShader: CUT_MASK_VERTEX[cut.kind],
-    fragmentShader: output === undefined ? CUT_MASK_FRAGMENT[cut.kind] : CUT_MASK_FRAGMENT[cut.kind].replace(CUT_MASK_OUTPUT, output),
+    // The painted alpha a terrainAlpha texel needs to count.
+    fragmentShader: `#define CUT_AT ${cutAt.toFixed(3)}\n${fragment}`,
     uniforms: { ...cut.uniforms },
     side: THREE.DoubleSide,
   });
@@ -1025,7 +1034,7 @@ export function cutMaskMaterial(cut: MaskCut, output?: string): THREE.ShaderMate
  * (drawListRenderer's sheet covers). In the mask it draws as the sheet does.
  */
 export function sheetCoverMaterial(cut: MaskCut): THREE.ShaderMaterial {
-  const m = cutMaskMaterial(cut);
+  const m = cutMaskMaterial(cut, undefined, SHEET_COVER_CUT);
   m.name = "sheet_cover";
   m.side = THREE.FrontSide;
   m.transparent = true; // in the translucent list, where its renderOrder places it
