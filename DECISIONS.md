@@ -12559,3 +12559,109 @@ colour drift from the WebP re-encode mean 0.4-0.7 levels, 99th percentile 3-4. T
 parsing, its default, the instance attribute, the shipped manifest's gains on #10 only). tsc, vitest, build.
 
 **Cost:** one Opus agent, no workflow: no Gemini request, ~30 headless captures (two at a time).
+## D220 — The headlight quarters the palette shade within each pixel's bank, as the C does, not the brightness toward black: the shade pass gives every pixel its bank and shade, the effects are drawn over the frame and dimmed by a guess, the smoothies' hue sets the bank (E1 compare sweep H1; follows D31, D35, D174, D191, D193, D204, D205, D208)
+
+2026-11-17
+
+**Problem** (E1 compare sweep H1, `tyrian-scratch/qa-all/e1/REPORT.md`): on TYRIAN hard (1.15) and ASSASSIN (1.16)
+the headlight's shade was near-black. At 1.15 t6300 the original's shaded ice is (50,99,121) against lit
+(120,174,184), about 0.6x; ours was (2,28,32), about 0.17x, and the level brightness medians were 0.64-0.66.
+Explosions in the shade drew bright orange with sparkles where the C's are dark red. `showHeadlight` (backgrnd.c)
+keeps each pixel's bank and quarters its shade within it, `(p & 0xf0) | (((p & 0x0f) + light) >> 2)`, and a bank's
+low entries are not black (the ice's entry 2 is (56,105,125)). The present pass took the brightness to a quarter
+and scaled the colour by `(1/4)^2.2`, a ramp to black. It also measured the brightness clamped to 15 while scaling
+the real colour, so a glow brighter than white stayed bright.
+
+**Decision** (`src/render/screenFilters.ts`, `underShade.ts`, `drawListRenderer.ts`; tests in
+`tests/render/headlight.test.ts`):
+1. **The rule, on the displayed colour** (the present pass, after the tone mapping): outside the cone a pixel whose
+   shade `s` in bank `b` is known takes `headlightShade(s, light)`: `(s + light) >> 2` on a whole shade (a tile's, a
+   sprite's index), `(s + light) / 4 - 3/8` on a fractional one (a painting's: the floor's mean loss, so its
+   gradients don't band into four levels). Its luminance is scaled as bank `b`'s colour at the new shade is to the
+   one at `s`, and it takes the bank's hue as JE_filterScreen's does (`hueKeepingChroma`, D193). A pixel at palette
+   colour lands on the bank's entry; a lit model keeps its light and shade. `headlitInBank` is the TypeScript mirror.
+2. **The bank and shade per pixel come from the shade pass** (D204's `UnderShadePass`). On a headlight frame it
+   draws the whole view, every model, and two more marks. Its texels now carry the bank too:
+   - *A* packs two banks (`hue * 16 + hue2`), and *G* is the second one's weight (`1 - w * 127/255`: over one half,
+     so the blends' "known" test is unchanged). A painting writes its tile's two ramps (D204's pair, which it had
+     mixed the shade of) and a rock its two nearest ramps. A tile, MMPX and a pal_ model write one bank.
+   - *B* marks:
+     - 1, a lower background-2 sheet (as before);
+     - `TOP_MARK` 0.375, background2over 2's sheets (headlight only);
+     - `ART_MARK` 0.125, the flat art (headlight only);
+     - `MODEL_MARK` 0.0625, a model.
+
+     The three new marks are under one half, so `hbUnderShade` reads them as before. A sheet's mark writes its own
+     bank into A (alpha replaced, colour max-blended), and on headlight frames it is depth-tested, so rock drawn over
+     the ice cloud keeps its own bank (1.16's lower left had turned blue).
+   - *Per mark, in the present pass:*
+     - Ground: its shade and bank(s).
+     - A model: its bank(s), its shade read off its lit colour along the ramp. A model's lighting stands for the
+       sprite's per-pixel shades; its material's one index had made 1.15's dome a bright green.
+     - A sheet: its bank, the shade read off the ramp (its colour lies on it). Where the colour is far off that ramp
+       (a shot over the cloud), the guess.
+     - The flat art and anything unknown: the guess, the nearest palette colour's bank (`indexLut`) and the shade
+       along it.
+3. **The effects** (VFX_LAYER, and the shots' art again over their halos, D215) are drawn over a copy of the frame,
+   as under the smoothies (D35, D208), so the present pass has the frame without them too. Where they changed the
+   pixel (0.01-0.06 of a channel) it takes the guess on the composite: the explosions in the shade come out dark red
+   (1.15 t300, red median (74,0,0) against the original's (81,0,0); before (67,16,0) with bright sparkles).
+4. **The smoothies' hue sets the bank:** lava_filter writes 0x70 into the indices before the headlight reads them
+   (1.16 t1000 runs both). The filter pass writes the hue it gave a pixel into its output's alpha (`hue / 16`, 1 for
+   none; nothing read that alpha), and the present pass replaces the bank with it. Without it ASSASSIN's shaded lava
+   took the grey tiles' own bank and drew grey.
+
+**Options considered:**
+- *A per-pixel bank guess from the lit colour alone* (no shade pass): TYRIAN's ice is the background-2 cloud, and
+  its lit colours lie near banks 8, 13, 3 and 6, whose low entries differ (13's are near-black). One pixel in four
+  hopped to a darker bank: the shade drew as dark speckle, p5/p50 luminance 0.26 where the C's is 0.78 (the D203/D204
+  hopping, exposed by the quartering).
+- *The index arithmetic in every palette material* (as the smoothies' hue, `screenHueIndex`, with the cone worked out
+  per fragment): the exact rule on the classic tiles, but the models are coloured per material on the CPU, the HD
+  paintings and the effects have no index, and the post pass would still be needed for them. Two mechanisms for one
+  filter.
+- *A darker ramp* (the old rule with a floor): no ramp fits every bank. The ice needs 0.6x, the lava's red bank
+  goes to (32,0,0).
+
+**Checked** (`?debug=play&episode=E&main=M&difficulty=D&seed=1&skip=T&freezeAt=T&compare=1`, 1920x1080; before =
+origin/main 5f965b9a served from the main checkout, after = this; mean luma of the play areas as `qa-all/e1/bright.py`
+measures them, sRGB, original | before (ratio) | after (ratio)):
+
+| Capture | Original | Before | After |
+|---|---|---|---|
+| 1.15 TYRIAN hard t300 | 69.6 | 57.4 (0.82) | 74.6 (1.07) |
+| 1.15 t5550 | 52.2 | 24.6 (0.47) | 53.2 (1.02) |
+| 1.15 t6300 | 112.0 | 71.2 (0.64) | 110.6 (0.99) |
+| 1.16 ASSASSIN t300 | 42.0 | 33.8 (0.80) | 41.1 (0.98) |
+| 1.16 t1000 (lava + headlight) | 66.1 | 54.6 (0.83) | 68.2 (1.03) |
+| 4.12 LAVA RUN t1125 | 48.4 | 47.8 (0.99) | 47.8 (0.99) |
+| 3.10 SAVARA Y t1050 | 80.6 | 80.6 (1.00) | 80.6 (1.00) |
+| 3.1 CAMANIS t1900 | 102.7 | 104.0 (1.01) | 104.0 (1.01) |
+| 4.16 NOSE DRIP t2425 | 70.8 | 70.9 (1.00) | 70.9 (1.00) |
+
+- *1.15 t6300, the shaded ice:* the median goes from (3,30,33) to (52,101,122); the original's is (56,105,125). Lit
+  stays (116,173,182). The shade shows the ice's two-tone blobs as the original's does.
+- *1.16:* the shaded lava is the C's dark red, the rock dark brown, the ice the dark blue of the original.
+- *The filter levels* don't use the headlight. SAVARA Y, CAMANIS and NOSE DRIP are pixel-identical to before. LAVA
+  RUN differs on 1.3% of pixels, as two captures of the same build do (0.65-1.2%: the lava's history). One NOSE DRIP
+  capture under three parallel captures moved by sub-pixel edges; alone it is identical.
+- `tsc`; `vitest`: all pass, with `tests/render/headlight.test.ts` (the shade rule, the colour rule on TYRIAN's ice
+  bank, the frame's wiring, the shade pass's marks, the renderer's headlight pass) and `underShade.test.ts` updated
+  (the model's bank, the sheet mark's blending). `npm run build`.
+- Captures (not in git, D3): `tyrian-scratch/headlight-fix/{before2,final2}/`.
+
+**Cost:**
+- *Headlight frames only:* the shade pass draws the whole view (one more render of the scene in its simple
+  materials), the effects take a copy and a render of their own, and the present pass does about 50-150 palette
+  reads per shaded pixel.
+- *Other frames:* the shade pass writes the bank and the sheets' marks their bank, at no extra cost.
+- One Opus agent, about 40 headless captures.
+
+**Left:**
+- *The cone's gradient* raises a whole shade by up to 18 before quartering. A pixel brightened there keeps its own
+  saturation where it has more than the bank's (`hueKeepingChroma`), so the 5-pixel strip isn't exactly the entry.
+- *Effects over the frame:* on headlight frames they draw over everything (the depth is cleared), as under the
+  smoothies.
+- *`?filters=old`* draws the effects into the filters' output, whose alpha then isn't the hue: the headlight's
+  bank there can be wrong where effects drew (comparison mode only).
+- Not checked on a phone GPU.

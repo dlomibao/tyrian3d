@@ -138,7 +138,7 @@ export class View {
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     container.appendChild(this.renderer.domElement);
     this.outline = new OutlineEffect(this.renderer, OUTLINE);
-    this.screenFilters = new ScreenFilterPass(this.renderer, this.draws.palette);
+    this.screenFilters = new ScreenFilterPass(this.renderer, this.draws.palette, () => this.draws.headlightShadeMap);
     this.camera.layers.enable(VFX_LAYER); // [vfx] the remastered effects' particles (D35)
 
     // Image-based lighting so metal hulls pick up highlights like the sprites' shading. The ground

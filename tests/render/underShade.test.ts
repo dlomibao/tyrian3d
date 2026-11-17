@@ -162,13 +162,15 @@ describe("the terrain's own shade under the blends (D204)", () => {
     expect(by.get("model")!.name).toBe("under_shade_unknown");
     expect(by.get("child")).toBe(by.get("model"));
     expect(by.get("pal")!.name).toBe("under_shade_model");
-    expect((by.get("pal")! as THREE.MeshBasicMaterial).customProgramCacheKey()).toBe("under-shade-model-5"); // pal_117: 117 & 15
+    expect((by.get("pal")! as THREE.MeshBasicMaterial).customProgramCacheKey()).toBe("under-shade-model-5-7"); // pal_117: 117 & 15, bank 117 >> 4
     expect((by.get("rock")! as THREE.MeshBasicMaterial).map).toBe((rock.material as THREE.MeshStandardMaterial).map);
     const mark = by.get("sheet") as THREE.ShaderMaterial;
     expect(mark.name).toBe("under_shade_sheet");
-    expect(mark.blending).toBe(THREE.CustomBlending); // added: the shade under it stays
+    expect(mark.blending).toBe(THREE.CustomBlending); // max-blended: the shade under it stays
+    expect(mark.blendEquation).toBe(THREE.MaxEquation);
     expect(mark.depthTest).toBe(false);
-    expect(mark.fragmentShader).toContain(`if (vHeight > ${SHEET_MARK_MAX_HEIGHT.toFixed(3)}) discard;`);
+    // background2over 2's sheets mark only for the headlight (D220).
+    expect(mark.fragmentShader).toContain(`if (vHeight > ${SHEET_MARK_MAX_HEIGHT.toFixed(3)}) {\n    if (shadeMarksTop < 0.5) discard;`);
     // Everything as it was: materials, layers, visibility, the renderer's state.
     expect(ground.material).toBeInstanceOf(THREE.MeshStandardMaterial);
     expect((sheet.material as THREE.Material).userData.maskCut).toBeDefined();

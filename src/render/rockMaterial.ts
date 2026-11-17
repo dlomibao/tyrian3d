@@ -74,6 +74,11 @@ export function rockShadeMap(m: THREE.Material): THREE.Texture | undefined {
   return info.get(m)?.map;
 }
 
+/** A rock material's ramps (palette banks, `tyrian_rock_ramps`), which its palette data's G steps through. */
+export function rockRamps(m: THREE.Material): readonly number[] | undefined {
+  return info.get(m)?.ramps;
+}
+
 /** The sides of a tile, in the order of the `rockBands` instance attribute. */
 export const ROCK_SIDES = ["left", "right", "up", "down"] as const;
 

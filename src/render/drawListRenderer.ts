@@ -860,14 +860,29 @@ export class DrawListRenderer {
     const u = this.under.uniforms;
     const area = this.underShadeArea;
     area.clear();
-    area.union(this.grabSheets.area);
-    area.union(this.grabExplosions.area);
-    area.union(this.grabTop.area);
-    const drawn = this.underShade !== null && this.underShade.render(renderer, scene, camera, area, this.underShadeRects);
+    // The headlight (D220) reads every playfield pixel's shade and bank: the whole view, every
+    // model, and the marks of what covers the ground with no shade of its own.
+    const headlight = this.list?.screen?.showCode === 2;
+    if (headlight) {
+      area.add(-1, -1);
+      area.add(1, 1);
+    } else {
+      area.union(this.grabSheets.area);
+      area.union(this.grabExplosions.area);
+      area.union(this.grabTop.area);
+    }
+    const drawn = this.underShade !== null && this.underShade.render(renderer, scene, camera, area, headlight ? undefined : this.underShadeRects, headlight);
     u.blendShadeOn.value = drawn ? 1 : 0;
     u.blendShadeSheets.value = 1;
     if (drawn) u.blendShade.value = this.underShade!.target.texture;
+    this.headlightShadeMap = drawn && headlight ? this.underShade!.target.texture : null;
   }
+
+  /**
+   * The shades and banks of the frame's pixels (underShade.ts) when this frame has the headlight and
+   * renderUnderShade drew them, for the screen filters' present pass (D220); otherwise null.
+   */
+  headlightShadeMap: THREE.Texture | null = null;
 
   /** Build this frame's instances. alpha interpolates from the previous tick (0) to the current (1). */
   update(alpha: number, camera: THREE.Camera): void {

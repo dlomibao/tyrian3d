@@ -23,7 +23,7 @@ import { PLAYFIELD_H, PLAYFIELD_SCREEN_X, PLAYFIELD_SCREEN_Y, PLAYFIELD_W, PX_PE
 import { Pass, type DrawList } from "../sim/draw";
 import type { ScreenFilters, ScreenFilterStage } from "../sim/smoothies";
 import { PASS_HEIGHT } from "./passHeights";
-import type { PaletteTexture } from "./paletteTexture";
+import { PALETTE_LUT_SIZE, type PaletteTexture } from "./paletteTexture";
 import type { ScreenHue, ScreenHueStage } from "./screenHue";
 import { SHOT_ART_LAYER, VFX_LAYER } from "./vfx/vfxMode";
 import { addLightsToLayer, isLight, restoreLights } from "./passLights";
@@ -159,6 +159,43 @@ export function waveAt(w: Wave, diw: number): number {
 
 const glslWave = (w: Wave) => [w.mean, w.amplitude, w.period].map((v) => v.toFixed(1)).join(", ");
 
+/**
+ * showHeadlight's shade (D220): the C's (shade + light) >> 2 for a whole shade (within
+ * HEADLIGHT_WHOLE of one: a tile's or a sprite's index), and for a fractional one (a painting's)
+ * (shade + light) / 4 less the floor's mean loss over the 16 shades, 3/8, never under 0.
+ */
+export const HEADLIGHT_WHOLE = 0.02;
+export const HEADLIGHT_FLOOR_LOSS = 0.375;
+/** Keeps headlitKnown's luminance ratio finite on black (displayed luminance). */
+const HEADLIGHT_EPS = "0.002";
+/** The effects' share of a pixel (max channel step over the frame without them) from guess 0 to 1. */
+const HEADLIGHT_EFFECT = ["0.01", "0.06"] as const;
+/** Under a sheet's mark: how far off the sheet's ramp a colour goes from the sheet's bank to the guess. */
+const HEADLIGHT_OFF_RAMP = ["0.08", "0.2"] as const;
+
+/** The shade showHeadlight leaves a pixel of shade `s` (0..15) with, `light` the cone's (0 in the dark). */
+export function headlightShade(s: number, light: number): number {
+  const whole = Math.round(s);
+  if (Math.abs(s - whole) < HEADLIGHT_WHOLE) return Math.floor((whole + Math.round(light)) / 4);
+  return Math.max((s + light) / 4 - HEADLIGHT_FLOOR_LOSS, 0);
+}
+
+/**
+ * The shade pass's marks (B, underShade.ts) of what covers the ground in the frame with no shade of
+ * its own, besides a lower background-2 sheet's (1). Under one half, so the blends still read the
+ * shade under them (hbUnderShade); for the headlight (D220): TOP_MARK for background2over 2's
+ * sheets, ART_MARK for the flat art. A sheet's mark also writes its own bank in A, as its colour lies
+ * on that bank's ramp.
+ */
+export const TOP_MARK = 0.375;
+export const ART_MARK = 0.125;
+/**
+ * A model's texel (pal_<index>, rock): its bank is known, but its shade is its lighting's as much as
+ * its material's (the model's light and shade stand for the sprite's pixels), so the headlight reads
+ * it off the lit colour.
+ */
+export const MODEL_MARK = 0.0625;
+
 /** Rec. 709 luminance weights (linear RGB). */
 const LUMA = [0.2126, 0.7152, 0.0722] as const;
 type Rgb = readonly [number, number, number];
@@ -224,6 +261,39 @@ export function hueKeepingChroma(c: Rgb, bank: readonly Rgb[]): [number, number,
   }
   const s = Math.max(n, Math.min(own, limit));
   return [l + u[0] * s, l + u[1] * s, l + u[2] * s];
+}
+
+/**
+ * The displayed luminance at a fractional shade of a bank's run (the shader's bankLumaAt): bankAtLuma's
+ * segments, shades no brighter than the one before passed over.
+ */
+export function bankLumaAt(s: number, bank: readonly Rgb[]): number {
+  let llo = lumaOf(bank[0]);
+  if (s <= 0) return llo * Math.max(s + 1, 0);
+  let klo = 0;
+  for (let k = 1; k < 16; k++) {
+    const lhi = lumaOf(bank[k]);
+    if (lhi <= llo) continue;
+    if (s <= k) return llo + ((lhi - llo) * (s - klo)) / (k - klo);
+    klo = k;
+    llo = lhi;
+  }
+  return llo * (1 + s - klo);
+}
+
+/**
+ * showHeadlight on a displayed pixel `d` (linear RGB) whose palette shade `s` in `bank` (its 16
+ * colours as displayed) is known: the shader's headlitKnown (D220). The C keeps the bank and quarters
+ * the shade; the pixel's luminance is scaled as the bank's colour at the C's shade is to the one at
+ * `s` (so a lit model keeps its light and shade), then given the bank's hue as JE_filterScreen gives
+ * its own (hueKeepingChroma).
+ */
+export function headlitInBank(d: Rgb, s: number, bank: readonly Rgb[], light: number): [number, number, number] {
+  const eps = Number(HEADLIGHT_EPS);
+  const l = lumaOf(d);
+  const lt = (bankLumaAt(headlightShade(s, light), bank) * (l + eps)) / (bankLumaAt(s, bank) + eps);
+  const scaled: Rgb = l > 1e-5 ? [d[0] * (lt / l), d[1] * (lt / l), d[2] * (lt / l)] : [lt, lt, lt];
+  return hueKeepingChroma(scaled, bank);
 }
 
 /** three's NeutralToneMapping (Khronos PBR Neutral), the canvas's tone mapping (view.ts). */
@@ -477,6 +547,8 @@ void main() {
   vec4 c = texture2D(sceneMap, vUv);
   float h = heightAt(vUv);
   vec2 g = gameAt(vUv);
+  // The hue (0..15) the filters gave this pixel's index, or -1: the headlight's bank (D220).
+  float hue = -1.0;
   for (int i = 0; i < ${MAX_STAGES}; i++) {
     if (i >= stageCount) break;
     float ceiling = stageCeiling[i];
@@ -512,6 +584,7 @@ void main() {
       shade -= (a >= 0.0 ? 1.0 - a : 1.0) * lavaFloorLoss(shade);
       v = pow(bankLumaAt(shade, bank), 1.0 / 2.2);
       c.rgb = hueAt(v, bank);
+      hue = bank / 16.0;
     } else if (kind == 2) {
       // water_filter, bottom row up: dst = hue | (src value + dst[below, x + wave] value) / 2 for the
       // pixels it recoloured. The rows below are this frame's results, so the value is a running
@@ -540,16 +613,21 @@ void main() {
           acc = pow(bankLumaAt(shade - waterFloorLoss(shade), bank), 1.0 / 2.2);
         }
         c.rgb = hueAt(acc, bank); // the water's hue, also on an exempt speck (D191)
+        hue = bank / 16.0;
       }
     } else if (kind == 3 || kind == 4) {
       // iced_blur_filter and blur_filter: value = (src + dst) / 2, this pixel's hue: ice blue for
       // the iced one (its lighting too, through hueAt, D191), its own for the blur. In place they
       // change nothing more.
-      if (bank >= 0.0) c.rgb = hueAt(a >= 0.0 ? mix(shownLuma(c.rgb), shownLuma(previous(g)), a) : shownLuma(c.rgb), bank);
+      if (bank >= 0.0) {
+        c.rgb = hueAt(a >= 0.0 ? mix(shownLuma(c.rgb), shownLuma(previous(g)), a) : shownLuma(c.rgb), bank);
+        hue = bank / 16.0;
+      }
       else if (a >= 0.0) c.rgb = withValue(c.rgb, mix(valueOf(c.rgb), valueOf(previous(g)), a));
     }
   }
-  gl_FragColor = vec4(c.rgb, 1.0);
+  // A: the filters' hue / 16, or 1 (none); nothing reads the history's alpha otherwise.
+  gl_FragColor = vec4(c.rgb, hue >= 0.0 ? hue / 16.0 : 1.0);
 }
 `;
 
@@ -571,6 +649,11 @@ uniform vec2 player;
 uniform int barCount;
 uniform vec4 bars[${MAX_BARS}];
 uniform float levelBank; // JE_filterScreen's hue << 4, or -1
+uniform sampler2D baseMap; // the frame without the effects (a headlight frame), or sourceMap
+uniform float baseHue; // 1: baseMap is the filters' output, its A their hue (FILTER_FRAGMENT)
+uniform sampler2D shadeMap; // UnderShadePass (underShade.ts): r shade / 15, g known (and a second bank's weight), b marks, a banks
+uniform float shadeOn; // 1: shadeMap holds this frame's shades and banks
+uniform sampler2D paletteLut; // PaletteTexture.indexLut: sRGB cube cell -> nearest raw index
 varying vec2 vUv;
 
 // The playfield in game_screen pixels: what JE_filterScreen covers.
@@ -578,19 +661,107 @@ bool inPlayfield(vec2 g) {
   return g.x >= ${PLAYFIELD_SCREEN_X.toFixed(1)} && g.x < ${(PLAYFIELD_SCREEN_X + PLAYFIELD_W).toFixed(1)} && g.y >= ${PLAYFIELD_SCREEN_Y.toFixed(1)} && g.y < ${(PLAYFIELD_SCREEN_Y + PLAYFIELD_H).toFixed(1)};
 }
 
-// showHeadlight (backgrnd.c L855-988): a cone of light up from the ship, the rest at a quarter.
-float headlight(vec2 g, float v) {
+// showHeadlight (backgrnd.c L855-988): a cone of light up from the ship; outside it the C keeps each
+// pixel's bank and quarters its shade, (p & 0xf0) | (((p & 0x0f) + light) >> 2). The light this
+// returns: -1 in the cone (the pixel unchanged), 0 in the dark, 3..18 across the 5-pixel gradients.
+float headlightLight(vec2 g) {
   float col = g.x - 24.0;
   float row = g.y;
   float lx = (player.x - 17.0) - (player.y + 12.0) + 1.0 + row;
   float rx = (player.x - 17.0) + (player.y + 12.0) - row;
-  float dark = v / 4.0;
-  if (lx > rx + 1.0) return dark;
-  if (col < lx - 5.0) return dark;
-  if (col < lx) return (v + 3.0 * (6.0 - (lx - col))) / 4.0;
-  if (col < rx) return v;
-  if (col < rx + 5.0) return (v + 3.0 * (rx + 5.0 - col)) / 4.0;
-  return dark;
+  if (lx > rx + 1.0) return 0.0;
+  if (col < lx - 5.0) return 0.0;
+  if (col < lx) return 3.0 * (6.0 - (lx - col));
+  if (col < rx) return -1.0;
+  if (col < rx + 5.0) return 3.0 * (rx + 5.0 - col);
+  return 0.0;
+}
+
+// headlightShade in this file: (shade + light) >> 2 on a whole shade (a tile's or a sprite's index);
+// on a fractional one (a painting's, MMPX's edges) the mean of the floor, so gradients don't band.
+float headlightShade(float s, float light) {
+  float whole = floor(s + 0.5);
+  if (abs(s - whole) < ${HEADLIGHT_WHOLE.toFixed(2)}) return floor((whole + floor(light + 0.5)) / 4.0);
+  return max((s + light) / 4.0 - ${HEADLIGHT_FLOOR_LOSS.toFixed(3)}, 0.0);
+}
+
+// A displayed colour taken to displayed luminance lt in a bank (hue << 4), with the bank's hue as
+// JE_filterScreen gives its own (hueKeepingChroma, D193): the C's pixel is the bank's colour.
+vec3 inBank(vec3 d, float lt, float bank) {
+  float l = lumaOf(d);
+  return hueKeepingChroma(l > 1e-5 ? d * (lt / l) : vec3(lt), bank);
+}
+
+// A displayed colour whose shade s (0..15) in bank (hue << 4) is known: its luminance scaled as the
+// bank's colour at the C's shade is to the one at s, so its lighting stays (D220).
+vec3 headlitKnown(vec3 d, float s, float bank, float light) {
+  float l0 = bankLumaAt(s, bank);
+  float l1 = bankLumaAt(headlightShade(s, light), bank);
+  return inBank(d, l1 * (lumaOf(d) + ${HEADLIGHT_EPS}) / (l0 + ${HEADLIGHT_EPS}), bank);
+}
+
+// A displayed colour with no known shade (the effects, the flat art, a sheet's blend): its bank is
+// its nearest palette colour's, its shade its luminance along that bank (as the blends guess, D174).
+vec3 headlitGuess(vec3 d, float light, float hued) {
+  vec3 c = clamp(d, 0.0, 1.0);
+  if (hued >= 0.0) return headlitKnown(c, bankShadeAt(lumaOf(c), hued), hued, light);
+  vec3 srgb = mix(1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, c * 12.92, step(c, vec3(0.0031308)));
+  ivec3 q = clamp(ivec3(srgb * ${PALETTE_LUT_SIZE}.0), 0, ${PALETTE_LUT_SIZE - 1});
+  float index = floor(texelFetch(paletteLut, ivec2(q.r + ${PALETTE_LUT_SIZE} * (q.b & 7), q.g + ${PALETTE_LUT_SIZE} * (q.b >> 3)), 0).r * 255.0 + 0.5);
+  float bank = floor(index / 16.0) * 16.0;
+  return headlitKnown(c, bankShadeAt(lumaOf(c), bank), bank, light);
+}
+
+// How far a displayed colour is from its bank's ramp at its luminance (gamma-encoded, roughly sRGB).
+float offRamp(vec3 d, float bank) {
+  vec3 r = bankAtLuma(lumaOf(d), bank);
+  return length(pow(max(d, 0.0), vec3(1.0 / 2.2)) - pow(max(r, 0.0), vec3(1.0 / 2.2)));
+}
+
+// headlitKnown with the shade read off the bank's ramp at the colour's own luminance.
+vec3 headlitOnRamp(vec3 d, float bank, float light) {
+  return headlitKnown(d, bankShadeAt(lumaOf(d), bank), bank, light);
+}
+
+// showHeadlight on a displayed pixel d (base: the same pixel without the effects), D220. The shade
+// pass (underShade.ts) says what the frame shows there:
+// - the ground (classic, MMPX, HD terrain): its own palette shade and bank(s), the C's rule on them;
+// - a model: its bank(s), its shade off its lit colour (MODEL_MARK);
+// - a background-2 sheet: the sheet's colour, on its bank's ramp; where the colour is far off that
+//   ramp (a shot over it) the guess;
+// - nothing known (the flat art, or what writes no depth): the guess.
+// Where the effects drew (they're not in base), the guess, by their share.
+// hued: the smoothies' bank (hue << 4) on this pixel of the frame without the effects, or -1: it
+// replaces the bank of whatever the filters covered, as lava_filter's 0x70 does the indices'.
+vec3 headlit(vec3 d, vec3 base, float light, float hued) {
+  vec4 own = shadeOn > 0.5 ? texelFetch(shadeMap, ivec2(gl_FragCoord.xy), 0) : vec4(0.0);
+  vec3 e = abs(d - base);
+  float toGuess = smoothstep(${HEADLIGHT_EFFECT[0]}, ${HEADLIGHT_EFFECT[1]}, max(e.r, max(e.g, e.b))); // the effects' share
+  // SHADE_OUTPUT's packing: A holds two banks (a painting's or a rock's two ramps; a sheet's mark
+  // its own bank), G the second one's weight.
+  float banks = floor(own.a * 255.0 + 0.5);
+  float hue = floor(banks / 16.0);
+  float bank2 = (banks - hue * 16.0) * 16.0;
+  float weight = clamp((1.0 - own.g) * 255.0 / 127.0, 0.0, 1.0);
+  if (hued >= 0.0) {
+    hue = hued / 16.0;
+    bank2 = hued;
+  }
+  vec3 known;
+  if (own.b > ${((TOP_MARK + ART_MARK) / 2).toFixed(4)}) {
+    known = headlitOnRamp(base, hue * 16.0, light);
+    toGuess = max(toGuess, smoothstep(${HEADLIGHT_OFF_RAMP[0]}, ${HEADLIGHT_OFF_RAMP[1]}, offRamp(base, hue * 16.0)));
+  } else if (own.g < 0.5 || own.b > ${((ART_MARK + MODEL_MARK) / 2).toFixed(4)}) {
+    return headlitGuess(d, light, toGuess > 0.0 ? -1.0 : hued);
+  } else if (own.b > ${(MODEL_MARK / 2).toFixed(4)}) {
+    known = headlitOnRamp(base, hue * 16.0, light);
+    if (weight > 0.004) known = mix(known, headlitOnRamp(base, bank2, light), weight);
+  } else {
+    float s = own.r * 15.0;
+    known = headlitKnown(base, s, hue * 16.0, light);
+    if (weight > 0.004) known = mix(known, headlitKnown(base, s, bank2, light), weight);
+  }
+  return toGuess > 0.0 ? mix(known, headlitGuess(d, light, -1.0), toGuess) : known;
 }
 
 void main() {
@@ -603,6 +774,8 @@ void main() {
     uv = uvAt(src);
   }
   vec3 c = texture2D(sourceMap, uv).rgb;
+  vec4 baseTexel = texture2D(baseMap, uv);
+  vec3 base = baseTexel.rgb;
 
   // JE_barBright: +2 value per rectangle.
   float add = 0.0;
@@ -611,12 +784,21 @@ void main() {
     vec4 b = bars[i];
     if (src.x >= b.x && src.x < b.z + 1.0 && src.y >= b.y && src.y < b.w + 1.0) add += 2.0;
   }
-  if (add > 0.0) c = withValue(c, valueOf(c) + add);
-
-  if (showCode == 2) c = withValue(c, headlight(g, valueOf(c)));
+  if (add > 0.0) {
+    c = withValue(c, valueOf(c) + add);
+    base = withValue(base, valueOf(base) + add);
+  }
 
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>
+  // showHeadlight, on the playfield as displayed (D220): the C quarters the palette shade, not the
+  // light, so a shaded pixel is its bank's colour at that shade, not a ramp down to black.
+  if (showCode == 2 && inPlayfield(g)) {
+    float light = headlightLight(g);
+    // The smoothies' hue, which the C wrote into the indices before the headlight read them.
+    float hued = baseHue > 0.5 && baseTexel.a < 0.99 ? floor(baseTexel.a * 16.0 + 0.5) * 16.0 : -1.0;
+    if (light >= 0.0) gl_FragColor.rgb = headlit(gl_FragColor.rgb, displayed(base), light, hued);
+  }
   // JE_filterScreen's hue: every playfield pixel takes it, lighting and effects too (D191), after
   // the tone mapping (the palette texture already holds it for whatever looks colours up). A pixel
   // keeps its own saturation along the hue, so lit shades don't pale up the run (D193).
@@ -700,6 +882,19 @@ export type MaskCut =
   /** An HD terrain atlas (alpha): `terrainMap`, `rectSize`, per instance `instTile4` (terrainMaterial.ts). */
   | { kind: "terrainAlpha"; uniforms: { terrainMap: { value: THREE.Texture | null }; rectSize: { value: THREE.Vector2 } } };
 
+/**
+ * The mask material for the flat art of atlas `map`: its quads, its texels' cut-out. `output`: GLSL
+ * to run for a covered texel instead of writing its height (underShade.ts' marks).
+ */
+export function flatArtMaskMaterial(map: THREE.Texture, output?: string): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: ART_MASK_VERTEX,
+    fragmentShader: output === undefined ? ART_MASK_FRAGMENT : ART_MASK_FRAGMENT.replace(CUT_MASK_OUTPUT, output),
+    uniforms: { map: { value: map } },
+    side: THREE.DoubleSide,
+  });
+}
+
 /** The cover a texel needs to count in the mask: the blend sheets' alpha reaches one half there. */
 export const MASK_CUT_COVER = 0.5;
 
@@ -739,16 +934,19 @@ void main() {
   terrainAlpha: /* glsl */ `
 attribute vec2 tileUvIn;
 attribute vec4 instTile4;
+attribute vec2 instBank; // the original tile's main banks (a blend sheet's colour is on the first's ramp)
 uniform vec2 rectSize;
 varying vec2 vTileTexel;
 varying vec2 vRectOrigin;
 varying float vHeight;
+varying float vMarkBank;
 void main() {
   mat4 m = modelMatrix;
   #ifdef USE_INSTANCING
     m = m * instanceMatrix;
   #endif
   vHeight = m[3][1];
+  vMarkBank = instBank.x;
   vTileTexel = instTile4.xy + tileUvIn * rectSize;
   vRectOrigin = instTile4.xy;
   gl_Position = projectionMatrix * viewMatrix * m * vec4(position, 1.0);
@@ -766,7 +964,9 @@ varying float vHeight;
 void main() {
   vec2 halfTexel = vec2(0.5 / float(textureSize(atlasMap, 0).x));
   vec2 uv = clamp(vAtlasUv, vTileOrigin + halfTexel, vTileOrigin + tileUv - halfTexel);
-  if (texture2D(atlasMap, uv).r * 255.0 < 0.5) discard;
+  float index = floor(texture2D(atlasMap, uv).r * 255.0 + 0.5);
+  if (index < 0.5) discard;
+  float markHue = floor(index / 16.0); // the texel's bank (underShade.ts' sheet marks)
   gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);
 }`,
   // remasterGroundMaterial's cover: the four nearest texels' weights, index 0 counting none.
@@ -784,6 +984,8 @@ void main() {
     + (1.0 - f.x) * f.y * covered(t0 + ivec2(0, 1)) + f.x * f.y * covered(t0 + ivec2(1, 1));
   // The sheet's alpha is smoothstep(0.02, 0.6, cover): one half at cover 0.31.
   if (cover < 0.31) discard;
+  // The bank of the most-weighted texel (underShade.ts' sheet marks).
+  float markHue = floor(floor(texelFetch(atlasMap, t0 + ivec2(f.x > 0.5 ? 1 : 0, f.y > 0.5 ? 1 : 0), 0).r * 255.0 + 0.5) / 16.0);
   gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);
 }`,
   // terrainMaterial's read (terrainSample at mip 0, inside the tile's rect): the painting's alpha.
@@ -793,9 +995,11 @@ uniform vec2 rectSize;
 varying vec2 vTileTexel;
 varying vec2 vRectOrigin;
 varying float vHeight;
+varying float vMarkBank;
 void main() {
   vec2 t = clamp(vTileTexel, vRectOrigin + 0.5, vRectOrigin + rectSize - 0.5);
   if (textureLod(terrainMap, t / vec2(textureSize(terrainMap, 0)), 0.0).a < ${MASK_CUT_COVER.toFixed(2)}) discard;
+  float markHue = floor(vMarkBank / 16.0 + 0.5); // the tile's main bank (underShade.ts' sheet marks)
   gl_FragColor = vec4(vHeight, 0.0, 0.0, 1.0);
 }`,
 };
@@ -847,7 +1051,7 @@ function maskCutOf(o: THREE.Object3D): MaskCut | undefined {
 const ART_MASK_LAYER = 30;
 
 /** Whether an object is a batch of the flat sprite art (spriteArtLayer.ts). */
-function isFlatArt(o: THREE.Object3D): o is THREE.Mesh {
+export function isFlatArt(o: THREE.Object3D): o is THREE.Mesh {
   const m = o as THREE.Mesh;
   return m.isMesh === true && m.name === "sprite-art" && m.geometry.getAttribute("aOrigin") !== undefined && m.geometry.getAttribute("aUv") !== undefined;
 }
@@ -894,9 +1098,14 @@ export class ScreenFilterPass {
   private readonly viewProj = new THREE.Matrix4();
   private readonly invViewProj = new THREE.Matrix4();
 
+  /**
+   * `headlightShade`: this frame's shades and banks (underShade.ts) on a headlight frame, or null
+   * (DrawListRenderer.headlightShadeMap): the headlight's exact rule reads them (D220).
+   */
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
     palette: PaletteTexture,
+    private readonly headlightShade: () => THREE.Texture | null = () => null,
   ) {
     this.sceneTarget = renderTarget(Math.min(4, renderer.capabilities.maxSamples));
     this.screenHue = palette.screenHue;
@@ -937,6 +1146,11 @@ export class ScreenFilterPass {
         barCount: { value: 0 },
         bars: { value: Array.from({ length: MAX_BARS }, () => new THREE.Vector4()) },
         levelBank: { value: -1 },
+        baseMap: { value: null },
+        baseHue: { value: 0 },
+        shadeMap: { value: null },
+        shadeOn: { value: 0 },
+        paletteLut: { value: palette.indexLut ?? null },
       },
       depthTest: false,
       depthWrite: false,
@@ -1052,15 +1266,29 @@ export class ScreenFilterPass {
     // [vfx] The remastered effects' particles and glows (VFX_LAYER) stand for shots and
     // explosions, which the C draws after its filters: while a filter runs they're left out of the
     // scene and the mask, and drawn over the filtered image (before the flip and headlight, which
-    // the C applies to the whole screen). DECISIONS.md D35.
+    // the C applies to the whole screen). DECISIONS.md D35. Under the headlight alone they're drawn
+    // over the frame the same way, so the present pass sees the frame without them too (D220).
     const filtering = state.stages.length > 0;
+    const headlight = state.showCode === 2;
     const layers = camera.layers.mask;
-    if (filtering) camera.layers.disable(VFX_LAYER);
+    const lifted = !filtering && headlight && camera.layers.isEnabled(VFX_LAYER);
+    if (filtering || lifted) camera.layers.disable(VFX_LAYER);
     r.setRenderTarget(this.sceneTarget);
     drawScene();
 
     let source: THREE.Texture = this.sceneTarget.texture;
-    if (filtering) {
+    /** The frame without the effects: what the shade pass's shades describe (D220). */
+    let base: THREE.Texture = source;
+    if (lifted) {
+      camera.layers.mask = layers;
+      const over = this.maskTarget;
+      this.copyMaterial.uniforms.map.value = this.sceneTarget.texture;
+      this.quad.material = this.copyMaterial;
+      r.setRenderTarget(over);
+      r.render(this.quadScene, this.quadCamera);
+      this.renderOver(scene, camera, VFX_LAYER, SHOT_ART_LAYER);
+      source = over.texture;
+    } else if (filtering) {
       this.renderMask(scene, camera, root);
       const u = this.filterMaterial.uniforms;
       const stages = stageUniforms(state.stages, dt, this.historyValid);
@@ -1075,7 +1303,7 @@ export class ScreenFilterPass {
       this.quad.material = this.filterMaterial;
       r.setRenderTarget(this.history[0]);
       r.render(this.quadScene, this.quadCamera);
-      source = this.history[0].texture;
+      source = base = this.history[0].texture;
       camera.layers.mask = layers;
       if (camera.layers.isEnabled(VFX_LAYER)) {
         if (this.mode === "new") {
@@ -1110,6 +1338,11 @@ export class ScreenFilterPass {
     for (let i = 0; i < count; i++) bars[i].fromArray(state.bars, i * 4);
     p.barCount.value = count;
     p.levelBank.value = this.levelBank;
+    const shade = headlight ? this.headlightShade() : null;
+    p.baseMap.value = base;
+    p.baseHue.value = filtering && this.mode === "new" ? 1 : 0;
+    p.shadeMap.value = shade;
+    p.shadeOn.value = shade ? 1 : 0;
     this.quad.material = this.presentMaterial;
     r.setRenderTarget(previousTarget);
     r.render(this.quadScene, this.quadCamera);
@@ -1165,15 +1398,7 @@ export class ScreenFilterPass {
   private artMaskMaterial(material: THREE.ShaderMaterial): THREE.ShaderMaterial {
     const map = material.uniforms.map.value as THREE.Texture;
     let m = this.artMaskMaterials.get(map);
-    if (!m) {
-      m = new THREE.ShaderMaterial({
-        vertexShader: ART_MASK_VERTEX,
-        fragmentShader: ART_MASK_FRAGMENT,
-        uniforms: { map: { value: map } },
-        side: THREE.DoubleSide,
-      });
-      this.artMaskMaterials.set(map, m);
-    }
+    if (!m) this.artMaskMaterials.set(map, (m = flatArtMaskMaterial(map)));
     return m;
   }
 

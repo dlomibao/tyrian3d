@@ -37,12 +37,12 @@
 import * as THREE from "three";
 import { areaPixels, GRAB_MARGIN, HB_SHADE_PARS, ShadeLut, type NdcRect } from "./hueBlend";
 import type { PaletteTexture } from "./paletteTexture";
-import { cutMaskMaterial, type MaskCut } from "./screenFilters";
+import { ART_MARK, cutMaskMaterial, flatArtMaskMaterial, isFlatArt, MODEL_MARK, TOP_MARK, type MaskCut } from "./screenFilters";
 import { SAMPLE_PARS, TERRAIN_VERTEX_MAIN, TERRAIN_VERTEX_PARS } from "./remaster/terrainMaterial";
 import { passHeight } from "./passHeights";
 import { Pass } from "../sim/draw";
 import { PALETTE_MATERIAL } from "./modelFrames";
-import { rockShadeMap } from "./rockMaterial";
+import { rockRamps, rockShadeMap } from "./rockMaterial";
 import { addLightsToLayer, isLight, restoreLights } from "./passLights";
 
 /** How a ground material's own shade is drawn (`material.userData.shadeOut`). */
@@ -57,8 +57,23 @@ export type ShadeOut =
    */
   | { kind: "terrainHd"; cutout: boolean; uniforms: { terrainMap: { value: THREE.Texture | null }; rectSize: { value: THREE.Vector2 } } };
 
-/** A known texel's output for a shade `s` (0..15). */
-const SHADE_OUTPUT = "gl_FragColor = vec4(clamp(s, 0.0, 15.0) / 15.0, 1.0, 0.0, 1.0);";
+/**
+ * A known texel's output for a shade `s` (0..15) in bank `hue` (0..15, the index's high nibble), or
+ * mixed between banks `hue` and `hue2` with weight `tw` on the second (a painting's two ramps, a
+ * rock's two). A: hue * 16 + hue2; G: 1 - tw * 127 / 255, so it stays over one half (known) and a
+ * single bank (tw = 0) writes 1, as before. The headlight reads both (D220).
+ */
+const shadeOutput = (mark: string) =>
+  `gl_FragColor = vec4(clamp(s, 0.0, 15.0) / 15.0, 1.0 - clamp(tw, 0.0, 1.0) * 127.0 / 255.0, ${mark}, (clamp(hue, 0.0, 15.0) * 16.0 + clamp(hue2, 0.0, 15.0)) / 255.0);`;
+const SHADE_OUTPUT = shadeOutput("0.0");
+/** A model's: B is MODEL_MARK (the headlight reads its shade off its lit colour, D220). */
+const MODEL_SHADE_OUTPUT = shadeOutput(MODEL_MARK.toFixed(4));
+
+/** The two banks and weight of SHADE_OUTPUT, unpacked from a texel (for tests and the shaders' docs). */
+export function unpackShadeBanks(g: number, a: number): { hue: number; hue2: number; weight: number } {
+  const packed = Math.round(a * 255);
+  return { hue: packed >> 4, hue2: packed & 15, weight: Math.min(1, Math.max(0, ((1 - g) * 255) / 127)) };
+}
 
 const SHADE_VERTEX: Record<ShadeOut["kind"], string> = {
   tileIndex: /* glsl */ `
@@ -115,7 +130,10 @@ void main() {
   vec2 halfTexel = vec2(0.5 / float(textureSize(atlasMap, 0).x));
   vec2 uv = clamp(vAtlasUv, vTileOrigin + halfTexel, vTileOrigin + tileUv - halfTexel);
   float index = floor(texture2D(atlasMap, uv).r * 255.0 + 0.5);
-  float s = index - floor(index / 16.0) * 16.0;
+  float hue = floor(index / 16.0);
+  float s = index - hue * 16.0;
+  float hue2 = hue;
+  float tw = 0.0;
   ${SHADE_OUTPUT}
 }`,
   // remasterGroundMaterial's four texels and weights.
@@ -123,8 +141,9 @@ void main() {
 uniform sampler2D atlasMap;
 uniform float sharpness;
 varying vec2 vAtlasUv;
+float texelIndex(ivec2 p) { return floor(texelFetch(atlasMap, p, 0).r * 255.0 + 0.5); }
 float texelShade(ivec2 p) {
-  float index = floor(texelFetch(atlasMap, p, 0).r * 255.0 + 0.5);
+  float index = texelIndex(p);
   return index - floor(index / 16.0) * 16.0;
 }
 void main() {
@@ -132,6 +151,11 @@ void main() {
   ivec2 t0 = ivec2(floor(tp));
   vec2 f = clamp((fract(tp) - 0.5) * sharpness + 0.5, 0.0, 1.0);
   float s = mix(mix(texelShade(t0), texelShade(t0 + ivec2(1, 0)), f.x), mix(texelShade(t0 + ivec2(0, 1)), texelShade(t0 + ivec2(1, 1)), f.x), f.y);
+  // The bank: the most-weighted of the four texels' (a bank can't be mixed).
+  ivec2 near = t0 + ivec2(f.x > 0.5 ? 1 : 0, f.y > 0.5 ? 1 : 0);
+  float hue = floor(texelIndex(near) / 16.0);
+  float hue2 = hue;
+  float tw = 0.0;
   ${SHADE_OUTPUT}
 }`,
   // terrainMaterial's read (level-limited, inside the tile's rect, D138's tint added); the shade of
@@ -155,6 +179,9 @@ void main() {
   if (vTintOrigin.x >= 0.0) painted = shadeLinear(shadeSrgb(painted) + terrainTint());
   float lum = hbLum(painted);
   float s = hbShade(vBanks.x, lum);
+  float hue = floor(vBanks.x / 16.0 + 0.5);
+  float hue2 = floor(vBanks.y / 16.0 + 0.5);
+  float tw = 0.0;
   if (vBanks.y != vBanks.x) {
     // Two ramps: the one whose colour at this brightness is nearer the painting's (sRGB), mixed
     // over a small band where they're about as near, so a texel never hops between them.
@@ -162,7 +189,8 @@ void main() {
     vec3 p = shadeSrgb(painted);
     float d1 = distance(p, shadeSrgb(hbRamp(vBanks.x, s)));
     float d2 = distance(p, shadeSrgb(hbRamp(vBanks.y, s2)));
-    s = mix(s, s2, clamp(0.5 + (d1 - d2) * 8.0, 0.0, 1.0));
+    tw = clamp(0.5 + (d1 - d2) * 8.0, 0.0, 1.0);
+    s = mix(s, s2, tw);
   }
   ${SHADE_OUTPUT}
 }`,
@@ -188,8 +216,27 @@ export function shadeOutMaterial(out: ShadeOut, shared: { paletteMap: { value: T
  */
 export const SHEET_MARK_MAX_HEIGHT = passHeight(Pass.Background2Top) - 0.2;
 
-/** The mark a background-2 sheet's covered texel adds to the target (added: the shade under it stays). */
-const SHEET_MARK_OUTPUT = `if (vHeight > ${SHEET_MARK_MAX_HEIGHT.toFixed(3)}) discard;\n  gl_FragColor = vec4(0.0, 0.0, 1.0, 0.0);`;
+/**
+ * The mark a background-2 sheet's covered texel writes (max-blended, so the shade under it stays;
+ * its bank replaces A). background2over 2's sheets mark only for the headlight (`shadeMarksTop`).
+ */
+const SHEET_MARK_OUTPUT = `float markBanks = (markHue * 16.0 + markHue) / 255.0;
+  if (vHeight > ${SHEET_MARK_MAX_HEIGHT.toFixed(3)}) {
+    if (shadeMarksTop < 0.5) discard;
+    gl_FragColor = vec4(0.0, 0.0, ${TOP_MARK.toFixed(3)}, markBanks);
+  } else gl_FragColor = vec4(0.0, 0.0, 1.0, markBanks);`;
+
+/** A flat-art texel's mark (headlight frames only); A (0) leaves the bank under it. */
+const ART_MARK_OUTPUT = `gl_FragColor = vec4(0.0, 0.0, ${ART_MARK.toFixed(3)}, 0.0);`;
+
+/** Marks keep what is under them: each channel takes the larger of the two (B: the mark; R, G 0). */
+function markBlending(m: THREE.Material): void {
+  m.transparent = true;
+  m.depthWrite = false;
+  m.blending = THREE.CustomBlending;
+  m.blendSrc = m.blendDst = THREE.OneFactor;
+  m.blendEquation = THREE.MaxEquation;
+}
 
 /** The camera layer the pass's own draws use for a moment; nothing else is on it. */
 const SHADE_LAYER = 29;
@@ -200,17 +247,28 @@ function sheetCut(m: THREE.Material): MaskCut | undefined {
 }
 
 /**
- * A model material's own shade (the C's sprite pixel's): a flat `shade` for a pal_<index> material (index &
- * 15), or the R channel (shade / 15) of a rock material's palette data (rockMaterial.ts).
+ * A model material's own shade (the C's sprite pixel's) and bank: a flat `shade` in bank `hue` for a
+ * pal_<index> material (index & 15, index >> 4), or the R channel (shade / 15) of a rock material's
+ * palette data, in the ramp its G channel picks of `ramps` (rockMaterial.ts).
  */
-function modelShadeMaterial(shade: number | THREE.Texture): THREE.MeshBasicMaterial {
+function modelShadeMaterial(shade: number | THREE.Texture, hue = 0, ramps: readonly number[] = [0]): THREE.MeshBasicMaterial {
   const rock = typeof shade !== "number";
   const m = new THREE.MeshBasicMaterial({ name: "under_shade_model", fog: false, side: THREE.DoubleSide, map: rock ? shade : null });
   const value = rock ? "texture2D(map, vMapUv).r" : `${(Math.min(15, Math.max(0, shade)) / 15).toFixed(6)}`;
+  const n = Math.max(1, Math.min(4, ramps.length));
+  const list = Array.from({ length: 4 }, (_, i) => (ramps[Math.min(i, n - 1)] ?? 0) & 15);
+  // The rock's ramps: G steps through them (0..1), weights between the two nearest (rockMaterial.ts).
+  const ramp = (j: string) => `(${j} < 0.5 ? ${list[0].toFixed(1)} : ${j} < 1.5 ? ${list[1].toFixed(1)} : ${j} < 2.5 ? ${list[2].toFixed(1)} : ${list[3].toFixed(1)})`;
+  const banks = rock
+    ? `float rockCode = texture2D(map, vMapUv).g * ${(n - 1).toFixed(1)}; float rockJ = min(floor(rockCode), ${Math.max(0, n - 2).toFixed(1)}); float hue = ${ramp("rockJ")}; float hue2 = ${ramp("(rockJ + 1.0)")}; float tw = ${n > 1 ? "clamp(rockCode - rockJ, 0.0, 1.0)" : "0.0"};`
+    : `float hue = ${(hue & 15).toFixed(1)}; float hue2 = hue; float tw = 0.0;`;
   m.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace("#include <dithering_fragment>", `#include <dithering_fragment>\ngl_FragColor = vec4(${value}, 1.0, 0.0, 1.0);`);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <dithering_fragment>",
+      `#include <dithering_fragment>\n${banks}\nfloat s = ${value} * 15.0;\n${MODEL_SHADE_OUTPUT}`,
+    );
   };
-  m.customProgramCacheKey = () => (rock ? "under-shade-rock" : `under-shade-model-${shade}`);
+  m.customProgramCacheKey = () => (rock ? `under-shade-rock-${list.slice(0, n).join(",")}` : `under-shade-model-${shade}-${hue & 15}`);
   return m;
 }
 
@@ -269,6 +327,12 @@ export class UnderShadePass {
   private readonly unknown = new THREE.MeshBasicMaterial({ name: "under_shade_unknown", color: 0x000000, fog: false, side: THREE.DoubleSide });
   private readonly shadeMaterials = new WeakMap<THREE.Material, THREE.Material>();
   private readonly palShades: THREE.MeshBasicMaterial[] = [];
+  /** The flat art's marks, one per atlas (headlight frames). */
+  private readonly artMarks = new WeakMap<THREE.Texture, THREE.ShaderMaterial>();
+  /** 1 while a headlight frame's pass runs: background2over 2's sheets and the flat art mark too. */
+  private readonly marksTop = { value: 0 };
+  /** The sheets' mark materials, depth-tested on headlight frames. */
+  private readonly sheetMarks = new Set<THREE.Material>();
   private readonly size = new THREE.Vector2();
   private readonly clearColor = new THREE.Color();
   /**
@@ -322,23 +386,41 @@ export class UnderShadePass {
     else if (cut) {
       const mark = cutMaskMaterial(cut, SHEET_MARK_OUTPUT);
       mark.name = "under_shade_sheet";
-      mark.transparent = true;
+      mark.fragmentShader = `uniform float shadeMarksTop;\n${mark.fragmentShader}`;
+      mark.uniforms.shadeMarksTop = this.marksTop;
+      markBlending(mark);
+      // Its bank replaces the one under it (the frame shows the sheet's colour there).
+      mark.blendEquationAlpha = THREE.AddEquation;
+      mark.blendSrcAlpha = THREE.OneFactor;
+      mark.blendDstAlpha = THREE.ZeroFactor;
+      // Over everything for the blends' copies (D204); behind what covers the sheet in the frame for
+      // the headlight, whose shade it says (render() sets it per frame).
       mark.depthTest = false;
-      mark.depthWrite = false;
-      mark.blending = THREE.CustomBlending;
-      mark.blendSrc = mark.blendDst = THREE.OneFactor;
-      mark.blendEquation = THREE.AddEquation;
+      this.sheetMarks.add(mark);
       m = mark;
     } else {
       const rock = rockShadeMap(material);
       const pal = PALETTE_MATERIAL.exec(material.name);
-      if (rock) m = modelShadeMaterial(rock);
+      if (rock) m = modelShadeMaterial(rock, 0, rockRamps(material));
       else if (pal) {
-        const s = Number(pal[1]) & 15;
-        m = this.palShades[s] ??= modelShadeMaterial(s);
+        const index = Number(pal[1]) & 255;
+        m = this.palShades[index] ??= modelShadeMaterial(index & 15, index >> 4);
       } else m = this.unknown;
     }
     this.shadeMaterials.set(material, m);
+    return m;
+  }
+
+  /** The mark material for a flat-art batch drawn with `material` (one per atlas). */
+  private artMark(material: THREE.ShaderMaterial): THREE.ShaderMaterial {
+    const map = material.uniforms.map.value as THREE.Texture;
+    let m = this.artMarks.get(map);
+    if (!m) {
+      m = flatArtMaskMaterial(map, ART_MARK_OUTPUT);
+      m.name = "under_shade_art";
+      markBlending(m);
+      this.artMarks.set(map, m);
+    }
     return m;
   }
 
@@ -346,9 +428,10 @@ export class UnderShadePass {
    * Draw the terrain's shades over `area` of a target the size of the renderer's current one, for
    * the scene as `camera` sees it. Returns false (nothing drawn) when `area` is empty. `rects`: the
    * blended draws' own screen rectangles (NDC x0, y0, x1, y1 each) inside `area`; a model reaching
-   * none of them is left out (D207). Without them every model in `area` is drawn.
+   * none of them is left out (D207). Without them every model in `area` is drawn. `marks` (the
+   * headlight, D220): background2over 2's sheets and the flat art mark the texels they cover too.
    */
-  render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, area: NdcRect, rects?: ArrayLike<number>): boolean {
+  render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, area: NdcRect, rects?: ArrayLike<number>, marks = false): boolean {
     if (area.empty) return false;
     if (this.rawShades.update(this.palette.raw, this.palette.version)) this.rawPalette.needsUpdate = true;
     const current = renderer.getRenderTarget();
@@ -387,6 +470,10 @@ export class UnderShadePass {
       if (isLight(o)) lights.push(o);
       const r = o as THREE.Mesh;
       if (!r.isMesh || !o.layers.test(camera.layers) || !r.material) return;
+      if (isFlatArt(o)) {
+        if (marks) drawn.push({ object: r, material: this.artMark(r.material as THREE.ShaderMaterial), layers: o.layers.mask });
+        return;
+      }
       if (cull && !this.reachesCover(r)) {
         this.culled++;
         return;
@@ -420,6 +507,8 @@ export class UnderShadePass {
     renderer.autoClear = true;
     renderer.setClearColor(0x000000, 0);
     renderer.setRenderTarget(this.target);
+    this.marksTop.value = marks ? 1 : 0;
+    for (const m of this.sheetMarks) m.depthTest = marks;
     try {
       for (const d of drawn) {
         d.object.material = d.material;
