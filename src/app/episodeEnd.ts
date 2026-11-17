@@ -2,8 +2,9 @@
 // JE_loadMap (src/sim/tyrian2.ts) pauses for each one (LoadMapPause) and the host runs it with
 // episodeEndScreens():
 //
-// - "anim": playAnim("tyrend.anm", 0, 7) (animlib.c L152-278), episode 3's `]A[`: the original
-//   frames, scaled up on the stage.
+// - "anim": playAnim("tyrend.anm", 0, 7) (animlib.c L152-278), episode 3's `]A[`: the remastered
+//   3D re-creation (animArt.ts, D219), a video at the original's timing, or in the original look
+//   (or if the video can't play) the original frames, scaled up on the stage.
 // - "displayText": JE_displayText (tyrian2.c L3709-3760) with JE_outCharGlow (mainint.c L85-170):
 //   the final score and a secret hint, `]Q[`, glowing in on the story screens' text panel over
 //   the script's picture 5.
@@ -23,6 +24,7 @@
 // sequence afterwards is the C's for the same key presses.
 
 import { animFrames, parseAnim } from "../data/anim";
+import { animArtMode, playAnimVideo } from "./animArt";
 import { parseCredits } from "../data/credits";
 import { parseSpriteTable, type TableSprite } from "../data";
 import type { MusicPlayer } from "../audio/remaster";
@@ -108,7 +110,10 @@ export function episodeEndScreens(host: EpisodeEndHost): (pause: Exclude<LoadMap
   };
 }
 
-/** playAnim(filename, startingFrame, speed) (animlib.c L152-278), each frame scaled up on the stage. */
+/**
+ * playAnim(filename, startingFrame, speed) (animlib.c L152-278): the remastered video (D219), else
+ * each original frame scaled up on the stage. Any key ends either.
+ */
 async function playAnim(stage: Cinema, files: TyrianFiles): Promise<void> {
   const { filename, startingFrame, speed } = TYREND_ANIM;
 
@@ -127,6 +132,18 @@ async function playAnim(stage: Cinema, files: TyrianFiles): Promise<void> {
 
   v.clr256();
   v.showVGA();
+
+  if (animArtMode() === "remastered") {
+    const played = await playAnimVideo({
+      draw: (video) => {
+        stage.ctx.imageSmoothingEnabled = true;
+        stage.ctx.drawImage(video, 0, 0, STAGE_W, STAGE_H);
+        stage.present();
+      },
+      getInput: () => stage.getInput(),
+    });
+    if (played !== "failed") return;
+  }
 
   const data = files.get(filename);
   if (!data) {

@@ -11885,3 +11885,74 @@ original | atlas per object: `.../summary.png`.
 **Cost:** one Opus agent, no workflow: 5 Gemini requests, ~25 headless captures, one inventory run (~1 min).
 
 Sheets, answers, prompts, cut log and captures: `tyrian-scratch/shot-art/` (not in git, D3).
+## D219 — Episode 3's ending animation (`tyrend.anm`, `]A[`) is re-created as a 3D scene in Blender, with two ships built for it from the original's frames, and shipped as a 3.5 MB VP9 video at the original's timing; the original frames stay the fallback and the `?sprites=original` look (follows D19, D42, D210)
+
+2026-11-17
+
+**What it was:** `tyrend.anm`, the one animation the game plays (episode 3's `]A[`, after FLEET, under `]M 009[`):
+a Deluxe Paint LPF file of 111 shown frames at 320x200, a pre-rendered CG sequence, played by `playAnim("tyrend.anm",
+0, 7)` at seven 14.375 ms periods a frame (~9.94 fps, 11.17 s). animlib.c plays no sound of its own; the music is the
+script's. The frames, studied one by one (dumped to scratch only, art rule 6), make five shots:
+
+| Original frames | Shot |
+|---|---|
+| 0-31 | Still camera on stars and a mint-green planet top left; a large smooth olive-brown hull with a pale lavender window band and a row of portholes sweeps in from the right, passes just under the camera and leaves bottom left |
+| 32-55 | A slim grey-green fighter (needle nose, long swept wings, dark engine block) dives in from the top right and levels out mid-frame, nose left, its port wing hanging toward the camera |
+| 55-81 | The camera chases it: the stars streak, the planet slides behind the hull and out; the camera closes along the port side (green and red running lights) to the engine |
+| 81-95 | The four nozzles light as a 2x2 cluster; the camera falls back to the rear quarter, a red glow at the nose |
+| 95-111 | The stars are still again; the ship shrinks into the distance at the centre, a white-hot engine in an orange halo |
+
+**Decision:** a Blender scene, `assets/blender/cutscenes/tyrend.py` (EEVEE, headless, a few minutes on this
+machine), follows the original shot for shot in the original's frame numbers, three video frames to each (29.81 fps,
+333 frames, exactly the original's 11.17 s), at 1600x1000 (the 8:5 stage). Every moving thing is keyed on every
+video frame from Catmull-Rom paths through control points tuned against the original frames, side by side.
+- **Subjects, built for the scene** (`assets/blender/cutscenes/tyrend_models.py`; art rule 1, the original wins):
+  - *The fighter* (shots B-E; the player's ship by the story text that follows, section 13's `]Wn 03[`: "your ship
+    streams from the incandescent glow ... hunts down the final escape pod"): a 2.2-unit needle-nosed fuselage, a
+    long low dark canopy, blocky grey-green camouflage panels (Chebychev Voronoi cells in four shades), a dark
+    rounded engine block over the rear half with four nozzles in a 2x2 cluster, a rail along its top and a gun rod
+    under the nose, and two long slender wings swept ~40 degrees with tip pods.
+  - *The hull* (shot A, read as the escape pod the text names): a smooth olive-brown lens (9.2 x 3.6 x 2.6 units)
+    with plating streaked along its length, a long faceted pale-lavender window band on the port upper flank over
+    the front half and a row of six round porthole domes behind it.
+  - *Not the game's models:* a first pass used the USP Talon for the hull and the MicroCorp Stalker for the
+    fighter; the review found neither reads as the original's ship (the Talon is a wide ovoid with side pods and no
+    needle nose or long wings; the Stalker is short, boxy, white-grey with red pods). Nothing in the game is either
+    ship, so they are cutscene-only models.
+- **Sky:** two star populations on a sphere that follows the camera, like the original's field: 22k specks
+  (0.07-0.14 degrees, white, lavender, pink) over 60k dim ones (the original's dithered haze), on its near-black
+  navy. The streaks of shots C-D are the sky turning about the vertical under motion blur, brightened as they
+  spread. The planet is a mottled mint-green sphere at the original's place and size (~8.6 degrees), lit from the
+  upper right; the chase turns the ship left so the planet passes behind it as in the original.
+- **Glows:** camera-facing additive quads with a radial falloff: one white-hot disc per nozzle (merging into one
+  core as the ship recedes), the orange halo (growing on screen as the ship shrinks), the red nose light and its
+  glow, the green starboard wing-tip light.
+- **Video:** `public/art/cutscenes/tyrend.webm`, VP9 CRF 44, 3,502,844 bytes (CRF 40 is 4.6 MB: the denser star field costs bits; no visible gain at the stage's size). `--encode` in the script runs the
+  same ffmpeg command.
+- **Playback** (`src/app/animArt.ts`, `episodeEnd.ts` `playAnim`): in the remastered look the stage draws the video
+  each animation frame until it ends or any key is pressed (as the C's waitUntilGetInputOrElapsed loop), then the
+  script goes on. The original frames play instead in the original look (D42's switch, as the shop icons, D210:
+  `?sprites=`, else `?vfx=`), when the browser can't play WebM VP9, or when the video isn't ready within 8 s or
+  fails to start. Muted, so autoplay is allowed; the episode's music plays on as before.
+
+**Options considered:**
+- *Pre-rendered video (chosen):* playback is trivially at the original's timing, the look (motion-blurred streaks,
+  glows) is Blender's, and the scene script rebuilds it; a few MB once, fetched only at the ending.
+- *Real time in three.js:* no download and any resolution, but the streaks, glows and per-frame camera would be new
+  renderer code for one 11-second scene, and two new models would have to be built for the game's palette
+  materials anyway; more to go wrong for the same picture.
+- *The game's own models (first pass):* rejected at review, above.
+- *AV1:* smaller, but Safari decodes it only on recent hardware; VP9 WebM plays in current Chrome, Firefox and
+  Safari, and anything else falls back to the original frames.
+
+**Review:** `tyrianConsole.run('level 3 s13')` from the title jumps to section 13 (`]@[ ]M 009[ ]A[ ...`) and plays
+it. Captures in the app, original | 3D at 21 matching frames: `tyrian-scratch/ending-anim/summary.png`; the
+original look and the fallback with the video blocked (CDP `Network.setBlockedURLs`) both play the original
+frames; a key press during the video ends it and the story text follows. In DEV the playing element is
+`window.tyrianAnimVideo`, for scripted captures.
+
+**Open:** the fighter's camouflage is a procedural pattern, not the CG's exact panels; the engine block is a plain
+rounded box (the CG's has a scooped front); the far wing doesn't rise as steeply as the CG's in shot C; the hull's
+window is one band where the CG's has a few facets of different shades.
+
+**Cost:** one Opus agent.
