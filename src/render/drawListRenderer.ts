@@ -814,7 +814,8 @@ export class DrawListRenderer {
     for (let i = 0; i < PRELOAD_CONCURRENCY; i++) void worker();
 
     const waits = [...[...finished.values()].map((f) => f.promise), this.artLoading];
-    // The HD terrain of its tileset (D57), so the ground doesn't change look once it's playing.
+    // The HD terrain of its tileset (D57), so the ground doesn't change look once it's playing: the
+    // atlases the level's map can draw from (D234).
     const tileset = info.tileShapes ? parseTileId(`${info.tileShapes}:0`)?.[0] : undefined;
     this.levelMaps = tileset && info.maps ? { tileset, maps: info.maps } : null;
     if (tileset && this.background === "remaster") waits.push(this.requestTerrain(tileset).then(() => undefined));
@@ -1584,12 +1585,17 @@ export class DrawListRenderer {
   /**
    * Send the flat sprite art's atlases (shots, pickups, explosions: D42) to the GPU now. Uploaded on
    * their first draw instead, mid-level, each cost a frame 18-30 ms (newsh6's 832x4096 at the first
-   * explosion; decode, upload, mipmaps). The same atlases serve every level, so after the first
-   * level's preload this does nothing (initTexture skips an uploaded texture).
+   * explosion; decode, upload, mipmaps). The same atlases serve every level. The boot uploads them
+   * as they arrive, one per animation frame (`nextFrame`, D234), so a level's preload finds them on
+   * the GPU and this does nothing then (initTexture skips an uploaded texture).
    */
-  uploadSpriteArt(renderer: THREE.WebGLRenderer): void {
+  async uploadSpriteArt(renderer: THREE.WebGLRenderer, nextFrame?: () => Promise<unknown>): Promise<void> {
     if (!this.spriteArt) return;
-    for (const sheet of this.spriteArt.sheets.values()) if (sheet.texture) renderer.initTexture(sheet.texture);
+    for (const sheet of this.spriteArt.sheets.values()) {
+      if (!sheet.texture) continue;
+      if (nextFrame) await nextFrame();
+      renderer.initTexture(sheet.texture);
+    }
   }
 
   /**
@@ -1612,7 +1618,8 @@ export class DrawListRenderer {
 
   /** Load a tileset's HD terrain art (once), and give it the level's maps for its variants. */
   private requestTerrain(name: string): Promise<TerrainTileset<THREE.Texture> | null> {
-    return this.terrainArt.request(name).then((t) => {
+    // The level's map picks the atlases to load; others load if a tile asks for them (D234).
+    return this.terrainArt.request(name, this.levelMaps?.tileset === name ? this.levelMaps.maps : undefined).then((t) => {
       if (t) {
         const maps = this.levelMaps?.tileset === name ? this.levelMaps.maps : undefined;
         for (const layer of [0, 1, 2] as const) t.setMap(layer, maps ? { width: MAP_SIZES[layer].width, tiles: maps[layer] } : undefined);

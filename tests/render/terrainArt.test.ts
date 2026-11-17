@@ -277,6 +277,67 @@ describe("loading", () => {
     const failing = new TerrainArtSet(() => Promise.reject(new Error("boom")));
     expect(await failing.request("x")).toBeNull();
   });
+
+  // D234: a level loads the atlases its map can draw from, any other when a tile asks for it.
+  const perLevel = {
+    scale: 8,
+    layers: {
+      "0": {
+        image: "0.webp",
+        tiles: { "1": rect(16, 16), "2": { ...rect(16, 16), image: "0-2.webp" }, "3": { ...rect(16, 16), image: "0-3.webp" } },
+        variants: { "1": [{ n: { right: 3 }, ...rect(240, 16), image: "0-v.webp" }] },
+        fields: { "4": { cols: 1, rows: 2, image: "0-fields.webp", rects: [rect(16, 16), rect(16, 256)] } },
+        covered: { "1": { ...rect(16, 16), image: "0-covered.webp" } },
+      },
+      "2": { image: "2.webp", tiles: { "7": rect(16, 16) } },
+    },
+  };
+  const url = (image: string) => `/art/terrain/shapesz/${image}`;
+
+  test("the atlases a map can draw from: each tile's plain rect, variants, field and covered painting", () => {
+    const t = new TerrainTileset("shapesz", parseTerrainManifest(perLevel, quiet)!);
+    expect(t.imagesFor([Int16Array.from([1, -1]), undefined, Int16Array.from([-1])])).toEqual(new Set(["0.webp", "0-v.webp", "0-covered.webp"]));
+    expect(t.imagesFor([Int16Array.from([2, 4]), undefined, Int16Array.from([7])])).toEqual(new Set(["0-2.webp", "0-fields.webp", "2.webp"]));
+    // Layer 1 has no art; tiles without art add nothing.
+    expect(t.imagesFor([Int16Array.from([9]), Int16Array.from([1]), undefined])).toEqual(new Set());
+  });
+
+  test("a level's request loads only its map's atlases; another level's adds its own; a tile asks for one off the map", async () => {
+    const f = io({ "/art/terrain/shapesz/manifest.json": perLevel });
+    const set = new TerrainArtSet((name, images) => loadTerrainTileset(name, "/", f, "art/terrain/", images));
+    const t = (await set.request("shapesz", [Int16Array.from([1]), undefined, undefined]))!;
+    expect(f.asked).toEqual(["/art/terrain/shapesz/manifest.json", url("0.webp"), url("0-v.webp"), url("0-covered.webp")]);
+    expect(t.tile(0, 1, 0)).toMatchObject({ x: 16, y: 16 });
+    expect(set.get("shapesz")).toBe(t);
+    // A request without maps (a tile drawn before any level's) doesn't load the rest.
+    await set.request("shapesz");
+    expect(f.asked).toHaveLength(4);
+    // The next level of the same tileset: only what it adds.
+    await set.request("shapesz", [Int16Array.from([1, 2]), undefined, Int16Array.from([7])]);
+    expect(f.asked.slice(4).sort()).toEqual([url("0-2.webp"), url("2.webp")]);
+    // A tile the map didn't predict: undefined (drawn as before) while its atlas loads, then its art.
+    expect(t.tile(0, 3, 5)).toBeUndefined();
+    expect(f.asked.at(-1)).toBe(url("0-3.webp"));
+    await t.loadImages(["0-3.webp"]);
+    expect(t.tile(0, 3, 5)).toMatchObject({ x: 16, y: 16 });
+    expect(f.asked.filter((u) => u === url("0-3.webp"))).toHaveLength(1);
+  });
+
+  test("a tileset first asked for without a map loads every atlas, as before", async () => {
+    const f = io({ "/art/terrain/shapesz/manifest.json": perLevel });
+    const set = new TerrainArtSet((name, images) => loadTerrainTileset(name, "/", f, "art/terrain/", images));
+    await set.request("shapesz");
+    expect(f.asked).toHaveLength(1 + 7);
+  });
+
+  test("a failed atlas isn't asked for again when its tiles are drawn", async () => {
+    const f = io({ "/art/terrain/shapesz/manifest.json": perLevel }, ["0-2.webp"]);
+    const t = (await loadTerrainTileset("shapesz", "/", f, "art/terrain/", (ts) => ts.imagesFor([Int16Array.from([2])])))!;
+    expect(t.tile(0, 2, 0)).toBeUndefined();
+    expect(t.tile(0, 2, 1)).toBeUndefined();
+    await t.loadImages(["0-2.webp"]);
+    expect(f.asked.filter((u) => u === url("0-2.webp"))).toHaveLength(1);
+  });
 });
 
 // --- Seam-free sampling, on a CPU model of the GPU ---

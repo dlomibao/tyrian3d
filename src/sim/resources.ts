@@ -16,6 +16,8 @@ import type { Resources } from "./state";
 export interface TyrianFiles {
   /** The file's bytes, or undefined if it's missing. Names are lowercase, e.g. "tyrian.shp". */
   get(name: string): Uint8Array | undefined;
+  /** The file, fetched first if the host left it out of the boot (tyrend.anm, D234); else get's answer. */
+  load?(name: string): Promise<Uint8Array | undefined>;
 }
 
 export function requireFile(files: TyrianFiles, name: string): Uint8Array {

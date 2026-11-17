@@ -282,8 +282,43 @@ export class TerrainTileset<T = unknown> {
     }
   }
 
+  /**
+   * Fetches an atlas (set by terrainLoader.ts, which loads each once): a rect whose atlas hasn't
+   * been loaded asks for it, so an atlas the level's map didn't predict still arrives (D234).
+   */
+  loadImage?: (image: string) => Promise<void>;
+
   get scale(): number {
     return this.manifest.scale;
+  }
+
+  /** Load these atlases (loadImage); settles when each has loaded or failed. */
+  async loadImages(images: Iterable<string>): Promise<void> {
+    await Promise.all([...images].map((image) => this.loadImage?.(image)));
+  }
+
+  /**
+   * The atlases a level with these maps (per layer, tile numbers as levelTileMaps gives them, -1:
+   * none) can draw from: those of each tile on the map's plain rect, variants, field and covered
+   * painting (D234).
+   */
+  imagesFor(maps: readonly (ArrayLike<number> | undefined)[]): Set<string> {
+    const out = new Set<string>();
+    for (const [layer, art] of this.manifest.layers) {
+      const map = maps[layer];
+      if (!map) continue;
+      const tiles = new Set<number>();
+      for (let i = 0; i < map.length; i++) tiles.add(map[i]);
+      const add = (r: TerrainRect | undefined) => r && out.add(r.image ?? art.image);
+      for (const t of tiles) {
+        if (t < 0) continue;
+        add(art.tiles.get(t));
+        for (const v of art.variants.get(t) ?? []) add(v);
+        for (const r of art.fields.get(t)?.rects ?? []) add(r);
+        add(art.covered.get(t));
+      }
+    }
+    return out;
   }
 
   /** An atlas has loaded (or failed: null). */
@@ -355,7 +390,9 @@ export class TerrainTileset<T = unknown> {
   }
 
   private ready(art: TerrainLayerArt, r: TerrainRect): ReadyTerrainTile<T> | undefined {
-    const img = this.images.get(r.image ?? art.image);
+    const image = r.image ?? art.image;
+    const img = this.images.get(image);
+    if (img === null) void this.loadImage?.(image); // not loaded (or failed: loadImage won't retry)
     if (!img || r.x + r.w > img.width || r.y + r.h > img.height) return undefined;
     return { texture: img.texture, x: r.x, y: r.y };
   }
