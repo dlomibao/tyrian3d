@@ -15,7 +15,7 @@ import { SCREEN_HUE_PARS } from "./screenHue";
 import { HUE_BLEND_PARS, type UnderGrab } from "./hueBlend";
 import type { ShadeOut } from "./underShade";
 import type { MaskCut } from "./screenFilters";
-import { patchGroundLight } from "./lighting";
+import { groundLightCacheKey, patchGroundLight } from "./lighting";
 
 export const enum FxMode {
   None = 0,
@@ -73,12 +73,18 @@ if (vScreenWater > 0.5) gl_FragColor.a = 0.5;
  * environment's specular by it. A black albedo has no diffuse light, so index 0 comes out as its palette
  * colour (black) instead of the grey sheen of a dielectric under the room environment; models keep theirs.
  * The rest of the ground's specular is the rig's `groundSpecular` (lighting.ts; none since D205); needs
- * patchGroundLight.
+ * patchGroundLight. With none, patchGroundLight defines GROUND_NO_SPECULAR and groundSheen goes unused
+ * (D233): the compiler drops it.
  */
 export const GROUND_SHEEN = /* glsl */ `
 #include <aomap_fragment>
+#ifdef GROUND_NO_SPECULAR
+reflectedLight.directSpecular = vec3(0.0);
+reflectedLight.indirectSpecular = vec3(0.0);
+#else
 reflectedLight.directSpecular *= groundSheen * groundSpecular;
 reflectedLight.indirectSpecular *= groundSheen * groundSpecular;
+#endif
 `;
 
 const PAL_FRAGMENT = /* glsl */ `
@@ -192,6 +198,6 @@ export function groundTileMaterial(palette: PaletteTexture, atlas: TileAtlas, un
       patchGroundLight(shader); // the ground's share of the lights (D205)
     }
   };
-  material.customProgramCacheKey = () => (blend ? "palette-ground-tiles-blend" : "palette-ground-tiles");
+  material.customProgramCacheKey = () => (blend ? "palette-ground-tiles-blend" : `palette-ground-tiles${groundLightCacheKey()}`);
   return material;
 }

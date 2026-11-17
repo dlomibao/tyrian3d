@@ -28,7 +28,7 @@
 
 import * as THREE from "three";
 import { GROUND_SHEEN, WATER_ALPHA } from "../paletteMaterial";
-import { CUTOUT_SPECULAR, patchGroundLight } from "../lighting";
+import { CUTOUT_SPECULAR, groundLightCacheKey, patchGroundLight } from "../lighting";
 import { PALETTE_LUT_SIZE, type PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
 import { TILE_HEIGHT, TILE_WIDTH } from "../../data/levels";
@@ -130,22 +130,25 @@ vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   // bank's entries: bank 13 sits between the water's and the ice's, about three shades lower at the
   // same brightness, so CAMANIS's water and SAVARA IV's mud drew contour lines. The nearest index
   // still picks the bank, which says whether a hue applies (the exempt banks).
-  vec3 srgb = terrainSrgb(rgb);
-  float chroma = max(srgb.r, max(srgb.g, srgb.b)) - min(srgb.r, min(srgb.g, srgb.b));
-  float nearest = terrainNearest(srgb);
-  float nearBank = floor(nearest / 16.0) * 16.0;
-  float bank = chroma < 0.04 ? 0.0 : nearBank;
-  float lumShade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
-  float index = bank + lumShade;
-  // The hues change only the bank, so whether one applies doesn't depend on the shade.
-  float hued = screenHueIndex(index, height, water);
-  if (hued != index || levelFilter > -98.5) {
-    float shade = terrainBankShade(srgb, lum);
-    float lo = min(floor(shade), 14.0);
-    float hueBank = floor(hued / 16.0) * 16.0;
-    // The palette texture already holds the level filter and brightness (paletteTexture.ts).
-    return mix(texture2D(paletteMap, vec2((hueBank + lo + 0.5) / 256.0, 0.5)).rgb,
-      texture2D(paletteMap, vec2((hueBank + lo + 1.5) / 256.0, 0.5)).rgb, shade - lo);
+  // No smoothie hue and no level filter (most frames): no texel changes bank, so skip finding them (D233).
+  if (screenHueCount > 0 || levelFilter > -98.5) {
+    vec3 srgb = terrainSrgb(rgb);
+    float chroma = max(srgb.r, max(srgb.g, srgb.b)) - min(srgb.r, min(srgb.g, srgb.b));
+    float nearest = terrainNearest(srgb);
+    float nearBank = floor(nearest / 16.0) * 16.0;
+    float bank = chroma < 0.04 ? 0.0 : nearBank;
+    float lumShade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
+    float index = bank + lumShade;
+    // The hues change only the bank, so whether one applies doesn't depend on the shade.
+    float hued = screenHueIndex(index, height, water);
+    if (hued != index || levelFilter > -98.5) {
+      float shade = terrainBankShade(srgb, lum);
+      float lo = min(floor(shade), 14.0);
+      float hueBank = floor(hued / 16.0) * 16.0;
+      // The palette texture already holds the level filter and brightness (paletteTexture.ts).
+      return mix(texture2D(paletteMap, vec2((hueBank + lo + 0.5) / 256.0, 0.5)).rgb,
+        texture2D(paletteMap, vec2((hueBank + lo + 1.5) / 256.0, 0.5)).rgb, shade - lo);
+    }
   }
   if (levelBrightness > -98.5 && levelBrightness != 0.0) {
     float s = lum * 15.0;
@@ -312,7 +315,7 @@ if (vTintOrigin.x >= 0.0) painted = terrainLinear(terrainSrgb(painted) + terrain
 ${kind === "cutout" ? `if (cover < 0.004) discard;\ndiffuseColor.a = cover;` : ""}
 ${blended ? `if (cover < 0.004) discard;\ndiffuseColor.a = cover;` : ""}
 diffuseColor.rgb *= terrainPalette(painted, vPassY, vScreenWater);
-${kind === "ground" ? "float groundSheen = smoothstep(BLACK_LO, BLACK_HI, terrainMax(painted)); // painted black space: no sheen (D188)" : ""}
+${kind === "ground" ? "#ifdef GROUND_NO_SPECULAR\nfloat groundSheen = 0.0; // no ground specular to scale (D233)\n#else\nfloat groundSheen = smoothstep(BLACK_LO, BLACK_HI, terrainMax(painted)); // painted black space: no sheen (D188)\n#endif" : ""}
 ${blended ? "vec3 hueBlended = hbColor(vBank, hbShade(vBank, hbLum(painted)), hbUnderShade(), vPassY, vScreenWater);" : ""}
 vec2 reliefSlope = vec2(0.0);
 if (relief > 0.0) {
@@ -338,7 +341,7 @@ normal = normalize((viewMatrix * vec4(normalize(vec3(-reliefSlope.x, 1.0, -relie
     // The C's blend replaces the lit colour: the bank's ramp at the mean shade (hueBlend.ts, D174).
     if (blended) shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", "#include <opaque_fragment>\ngl_FragColor.rgb = hueBlended;");
   };
-  material.customProgramCacheKey = () => `terrain-hd-${kind}`;
+  material.customProgramCacheKey = () => `terrain-hd-${kind}${blended ? "" : groundLightCacheKey()}`;
   return material;
 }
 

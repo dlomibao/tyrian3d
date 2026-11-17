@@ -24,7 +24,7 @@
 // without the mark (the TORM waterfall, toned for the models' light, D212) keeps the models' light.
 
 import * as THREE from "three";
-import { CUTOUT_SPECULAR, patchGroundLight } from "./lighting";
+import { CUTOUT_SPECULAR, groundLightCacheKey, patchGroundLight } from "./lighting";
 import type { PaletteTexture } from "./paletteTexture";
 
 /** Texels per 2x pixel of the original art in the rock textures (lib_rock_hd.TEX / 2). */
@@ -284,7 +284,7 @@ function makeRock(i: RockInfo): THREE.MeshStandardMaterial {
     m.defines = { ...m.defines, ROCK_FADE: "" };
     m.transparent = true;
   }
-  m.customProgramCacheKey = () => `rock-hd${i.bands ? "-bands" : ""}${i.fade ? "-fade" : ""}${i.ground ? "-ground" : ""}`;
+  m.customProgramCacheKey = () => `rock-hd${i.bands ? "-bands" : ""}${i.fade ? "-fade" : ""}${i.ground ? `-ground${groundLightCacheKey()}` : ""}`;
   info.set(m, { ...i, hue });
   return m;
 }
