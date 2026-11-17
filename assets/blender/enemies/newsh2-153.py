@@ -23,7 +23,10 @@ relief (lib_tiles.sprite_rock, DECISIONS.md D66), a separate object with no outl
 The machine stands in a pit cut into that rock (the title-demo review, demo 1: it read as a
 rectangular ink-framed box bolted on the rock): the rock is cut away over the sprite's palette 1-2
 pit mask (pit_mask) so its soft rounded edge is the pit's ragged rim, and a black floor PIT px below
-the rock follows that mask; the swept-wing and under-wing plates are gone (they are the pit), the
+the rock follows that mask. The mask is kept inside a rounded window (PIT_WINDOW, the 2026-11-17
+comparison sweep: where the sprite's dark reaches the rectangle's edge, the pit ran to the edge and
+read as a black rectangle with square corners): outside it the sprite's dark pixels are rock, filled
+from the stones round them (rock_pixels), so the island closes round a round, ragged hollow; the swept-wing and under-wing plates are gone (they are the pit), the
 rear housings, wing studs, cable boxes and bay machinery stand low on the pit floor, and the side
 beams are pulled in to short rails on the machine's own flank pixels (the sprite's grey strips at
 the rectangle's edge are the island's stones in game).
@@ -71,6 +74,10 @@ PX = 1 / 12
 PIT = 1.2
 #: Palette indices of the sprite's pit (the black hollow the machine stands in).
 PIT_INDICES = (1, 2)
+#: The pit's rounded window (sprite px: centre column, centre row, half width, half height, the
+#: superellipse exponent): the pit stays two pixels clear of the sprite's sides and top, its corners
+#: well rounded, so the rock rings it all round instead of the hollow running out of the rectangle.
+PIT_WINDOW = (12.0, 13.4, 10.4, 11.6, 2.3)
 
 
 # ---- palette slots: name -> (palette index, metallic, roughness, emission, frames) ----------------
@@ -370,9 +377,11 @@ def build_beams(b):
 def build_rear(b):
     # Rear housings (the concept's dark cylinders behind the wings; sprite cols 5-9 / 13-18 rows
     # 1-4, dark 1-5): a block with a round-ended barrel pointing up-screen, a dark port in its end.
+    # Both end a pixel short of the sprite's row 1, inside the pit's rounded window (PIT_WINDOW), so
+    # no square block stands out of the hollow onto the rock at the top edge.
     for cx, w in ((7.4, 1.35), (16.0, 1.45)):
-        box(b, S["dark1"], cx - w - 0.3, 1.6, cx + w + 0.3, 4.5, 0, 1.2, bev=0.25)
-        y0, y1 = Y(4.3), Y(1.0)
+        box(b, S["dark1"], cx - w - 0.3, 2.6, cx + w + 0.3, 4.6, 0, 1.2, bev=0.25)
+        y0, y1 = Y(4.4), Y(2.2)
         n = 12
         rings_ = []
         for y in (y0, y1 + 0.35, y1):
@@ -392,8 +401,8 @@ def build_rear(b):
         loft(b, [inner, deep], S["throat"], cap0=False, cap1=True, smooth=True)
         # a band ring round the barrel
         loft(b, [[(X(cx) + w * 1.06 * math.cos(2 * math.pi * (i + 0.5) / n), Y(r), 1.25 + w * 1.06 * 0.85 * math.sin(2 * math.pi * (i + 0.5) / n)) for i in range(n)]
-                 for r in (2.6, 3.0)], S["gun4"], smooth=True)
-        rivet(b, S["grey5"], cx, 3.7, 1.25 + w * 0.85, 0.2)
+                 for r in (3.2, 3.6)], S["gun4"], smooth=True)
+        rivet(b, S["grey5"], cx, 4.0, 1.25 + w * 0.85, 0.2)
 
 
 def build_wings(b):
@@ -689,6 +698,36 @@ def pit_mask(sprite):
     return m
 
 
+def pit_window():
+    """PIT_WINDOW as a bool (28, 24) mask of the pixels whose centres lie inside it."""
+    cx, cy, a, b, n = PIT_WINDOW
+    rr, cc = np.mgrid[0:28, 0:24] + 0.5
+    return (np.abs((cc - cx) / a) ** n + np.abs((rr - cy) / b) ** n) <= 1
+
+
+def rock_pixels(pix, dark):
+    """The sprite's pixels with `dark` (its pit pixels left outside the pit window) repainted as the
+    stones round them: each takes the most common index among its 8 neighbours that are rock
+    already (never darker than grey 4), filling inward from the stones."""
+    pix = np.array(pix, dtype=np.int32)
+    todo = dark.copy()
+    h, w = pix.shape
+    while todo.any():
+        fill = {}
+        for y, x in zip(*np.nonzero(todo)):
+            vals = [int(pix[yy, xx]) for yy in range(max(0, y - 1), min(h, y + 2)) for xx in range(max(0, x - 1), min(w, x + 2))
+                    if not todo[yy, xx] and pix[yy, xx] >= 0]
+            if vals:
+                v = max(set(vals), key=lambda k: (vals.count(k), k))
+                fill[(y, x)] = max(v, 4) if v < 16 else v
+        if not fill:
+            break
+        for (y, x), v in fill.items():
+            pix[y, x] = v
+            todo[y, x] = False
+    return pix
+
+
 PIT_MASK = None  # set in main (pit_mask), read by build_pit_floor
 
 
@@ -703,6 +742,9 @@ def build_pit_floor(b):
     for dy in (-1, 0, 1):
         for dx in (-1, 0, 1):
             grown |= p[1 + dy:1 + dy + h, 1 + dx:1 + dx + w]
+    # never out to the sprite's edge, where the rock fades into the island (no straight black edge)
+    grown[[0, -1], :] = False
+    grown[:, [0, -1]] = False
     top, bot = {}, {}
 
     def vt(d, c, r, z):
@@ -932,7 +974,8 @@ def main():
     coll = common.reset_collection(NAME)
     mats = make_materials(sprite)
     global PIT_MASK
-    PIT_MASK = pit_mask(sprite)
+    raw_pit = pit_mask(sprite)
+    PIT_MASK = raw_pit & pit_window()
     b = B()
     build(b)
     obj = to_object(b, NAME, mats, coll)
@@ -941,6 +984,7 @@ def main():
     # ragged rim. Under the parts standing outside the pit it is level and dark as before. There
     # for the bake as an occluder.
     pix, colors = lt.sprite_grid(ROOT, [(NAME, 0, 0)], 24, 28)
+    pix = rock_pixels(pix, raw_pit & ~PIT_MASK)
     pix = np.where(PIT_MASK, -1, pix)
     pit2 = np.repeat(np.repeat(PIT_MASK, 2, axis=0), 2, axis=1)
     machine = lt.machine_footprint([obj], 24, 28) & ~pit2

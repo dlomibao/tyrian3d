@@ -449,7 +449,7 @@ def build(coll, sprite):
     hot = M(118, emit=1.0, **GLOW)
     band = M(112, metallic=0.8, roughness=0.45)
     rim = M(7, **STEEL)
-    dish = M(3, metallic=0.85, roughness=0.3)
+    dish = M(3, **BODY)  # a flat dark-grey panel (satin): a glossy metal bowl read as a black ball in game
     vent = M(3, metallic=0.4, roughness=0.6)
     slat = M(6, **STEEL)
     nose = M(2, metallic=0.7, roughness=0.5)
@@ -584,15 +584,14 @@ def build(coll, sprite):
              verts(hb, [P(c, r, zr - 0.3) for c, r in outer]),
              verts(hb, [P(c, r, zr) for c, r in upper])]
     loft(hb, rows_, lambda i, k: rim, smooth=False, cap0=True, cap1=True, cap_mat=rim)
-    # the dark disc: a round recessed dish, 7.2 px across (rows 35-44, cols 21-27), sloped walls and a
-    # shallow bowl floor, in the square-cornered housing
-    DC, DR = (AX, 39.4), 3.6
+    # the dark panel (the sprite's flat pal-3 block, rows 35-44, cols 21-28, lit rim on its left and top
+    # edges): a shallow rounded-square recess with chamfered walls and a flat floor, not a bowl (a
+    # concave metal bowl mirrored the dark environment and read as a black ball in game)
     def dish_cut(cb):
-        prof = [(DR + 0.3, zr + 1.0), (DR, zr), (DR - 0.35, zr - 0.3), (DR - 1.0, zr - 0.6), (DR - 2.2, zr - 0.75),
-                (0.6, zr - 0.8)]
-        rings = [verts(cb, [P(DC[0] + rr * math.cos(2 * math.pi * k / 32), DC[1] + rr * math.sin(2 * math.pi * k / 32),
-                              zz) for k in range(32)]) for rr, zz in prof]
-        loft(cb, list(reversed(rings)), 0, smooth=True)
+        prof = [(-0.3, zr + 1.0), (0.0, zr), (0.3, zr - 0.25), (0.45, zr - 0.35)]
+        rings = [verts(cb, [P(c, r, zz) for c, r in rrect(21.0 + d, 35.0 + d, 28.0 - d, 44.3 - d, 1.0 - d * 0.8,
+                                                           seg=4)]) for d, zz in prof]
+        loft(cb, list(reversed(rings)), 0, smooth=False)
     cut_into(hb, dish_cut, dish, len(M.list) + 12)
     merge(bm, hb)
     # rear lip of the housing (rows 46-47)

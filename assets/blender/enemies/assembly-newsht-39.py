@@ -2,7 +2,7 @@
 
 Seen in levels 1.5 DELIANI (1.19 in the catalogue), 3.11 New Deli and 4.1 HARVEST. Twelve 2x2 enemies
 side by side make one machine: a red body with two big dark glass eyes cradled in its U-shaped hull,
-a dark block and a cannon between them, two exhausts with flames on its back, and two arms that reach out on a beam,
+a tall grey H block between them, two exhausts with flames on its back, and two arms that reach out on a beam,
 drop as thick round upper arms through an elbow drum into a claw pod with a glowing red eye
 (newsht-39 / -49: frames 39 -> 77 -> 79 and 49 -> 87 -> 85 only brighten the eye, so the eye's
 materials carry per-frame palette indices, D17).
@@ -24,6 +24,14 @@ is its sheen) over a matte black front slope. The flames are a glow heat field o
 fire pixels (metallic 1 / rough, strength 1, D126/D173), the yellow streaks standing up as tongues
 above the housing.
 
+QA fix 2026-11-17 (comparison walkthrough, New Deli t5550): the eyes still read as goggles (round
+balls ringed by recess floor in the U) and the centre was a dark block over a small grey cylinder.
+Each eye is now a dark glass egg filling the whole U (rows 17-34), its sides and foot sunk under the
+hull, so the sprite's black lower half is the egg's own shadowed underside. The centre is the
+sprite's tall grey 'H' block: a light steel pillar (head 8.6 px, foot 7) whose head is a crossbar
+with flanges down its sides round a dark slot (rows 15-25) and whose foot is a grey block between the
+U's inner legs (rows 29-35), on one low dark web; the invented cannon is gone.
+
 Design B leads with silhouette and readability from the small tilted game camera: big simple
 volumes first (the round arms and claws, the orbs, the U frames, the raised spine and shoulders),
 then machined detail on what the camera sees (panel gaps cut through the plates, collars and
@@ -38,7 +46,7 @@ width through pchip stations, hoses follow their region's distance field. Each s
 its own half of the sprite (the right as the left on the mirrored pixels, then flipped).
 Heights follow the blueprint (px, 12 px = 1 unit): arms 11.6, canister 11.4, elbow drum 10, hoses
 10, spine 9, claws 9, shoulders 7.4 (+1 brace), housings 8.2, flames 7.6-11.8, eyes 7, cheeks 6.4,
-central block 5.9, U hull 4.4, cannon 7.4, recess floor 2.
+H block head 8.6 / foot 7, U hull 4.4, recess floor 2.
 
 Colours: palette materials (pal_<index>), each the blueprint's median sprite index of the part
 (darkest shading and brightest sheen trimmed); satin painted metal for the red, satin steel for
@@ -813,16 +821,18 @@ SLOTS = [
     ("FL122", 122, 1.0, 0.9, 1.0),
     ("FL124", 124, 1.0, 0.9, 1.0),
     ("FL126", 126, 1.0, 0.9, 1.0),
-    ("BLOCK", 3, 0.35, 0.22, 0),     # the dark central block between the eyes (glossy: its lit edges are sheen)
-    ("SOCKETWALL", 2, 0.0, 0.8, 0),  # the central block's dark front slope
+    ("BLOCK", 3, 0.35, 0.22, 0),     # (unused since the 2026-11-17 H block; kept so slot numbers hold)
+    ("SOCKETWALL", 2, 0.0, 0.8, 0),  # the H block's dark slot, web and groove
+    ("HEAD", 8, 0.3, 0.3, 0),        # the H block's head: light steel (glossy: its lit edges are sheen)
+    ("FOOT", 7, 0.3, 0.32, 0),       # the H block's foot
 ]
 SLOT_NAMES = [s[0] for s in SLOTS]
 (RED71, RED70, RED69, RED67, FLOOR, INK, GREY5, GREY4, GREY3, STEM, ORB, BED, VANE, VANEHOT, GLOW, HOT,
- SOCKET, RIM, FL114, FL117, FL119, FL122, FL124, FL126, BLOCK, SOCKETWALL) = range(len(SLOTS))
+ SOCKET, RIM, FL114, FL117, FL119, FL122, FL124, FL126, BLOCK, SOCKETWALL, HEAD, FOOT) = range(len(SLOTS))
 FLAMES = [(114, FL114), (117, FL117), (119, FL119), (122, FL122), (124, FL124), (126, FL126)]
 # F0 raised through Specular IOR Level (D176: the exporter keeps it as KHR_materials_specular) on the
 # glossy dark surfaces whose white spots in the sprite are sheen: the eye domes and the central block.
-SPEC = {"ORB": 1.0, "BLOCK": 0.8}
+SPEC = {"ORB": 1.0, "HEAD": 0.7, "FOOT": 0.7}
 
 
 def materials(sprite):
@@ -1031,8 +1041,10 @@ def build_side(P):
     # the sheen spot high on it (57, 21) and the lit crescent low on its rim (rows 30-33), its sides
     # sinking under the U's lip. Glossy with its F0 raised (D176), so the game light makes the spot and
     # the rim; nothing painted, no bezel.
-    ox, oy, orad = 57.4, 24.4, 7.2
-    ellipsoid(P, ox, oy, -0.2, orad, orad, orad, ORB, seg=40, rings=20, zfloor=0.4)
+    # QA 2026-11-17: an egg filling the whole U (rows 17-34, cols 51-63), not a round lens ringed by
+    # floor, so no goggle ring shows between the glass and the hull: the sprite's black lower half
+    # (rows 28-34) is the egg's shadowed underside.
+    ellipsoid(P, 57.6, 25.6, 0.0, 6.9, 9.3, 8.2, ORB, seg=40, rings=24, zfloor=0.4)
 
     # --- exhaust on the back: a red housing round the outlet, and the flames streaming out of it ---
     hs = pix("exhaust-housing")
@@ -1121,41 +1133,60 @@ def build_centre(P):
     # dark slot under the spine's front edge
     sl = cpix("slot")
     plates(P, sl, 0.5, 3.0, INK, r=0.3, chb=0.15, min_px=1)
-    # the dark central block between the eyes (the sprite's visor and stem pixels, cols 66-76, rows
-    # 16-24): a dark glossy housing sunk in the recess, below the hull round it. Its top runs flat from
-    # the slot, rolls over a rounded front edge (the sprite's white bar on row 17 is that edge's sheen)
-    # and slopes down to the jaw slot; its rounded side edges are the lit columns 66 and 76.
-    x0, x1, ch = 65.8, 77.2, 0.55
-    prof = [(15.4, 0.5), (15.4, 5.4), (15.8, 5.9)]
-    ry, rz, rr = 17.4, 5.0, 0.9          # the rounded front edge: centre and radius
-    for a in range(0, 91, 15):            # from the flat top round to the front slope's normal
-        t = math.radians(90 - a * 0.62)
+    # the tall grey 'H' block between the eyes (cols 66-76, rows 15-35; QA 2026-11-17): a steel pillar
+    # standing above the hull and the eyes. Its head (rows 15-25) is a grey Pi: a crossbar whose
+    # rounded front edge is the sprite's white bar on row 17, and two flanges down its sides (the lit
+    # columns 66 and 76, rows 16-23) round a dark slot (the sprite's black inside, rows 19-24). Its foot
+    # (rows 29-35, between the U's inner legs) is a grey block whose rounded front edge is the sprite's
+    # lit bottom row (34). The two stand on one grey web down the dark gap between them (rows 24-29),
+    # sunk low so the sprite's black reads there. Light steel (D201: lighter index, lower metallic, so
+    # it reads grey, not charcoal), its edges glossy so the lighting makes the sprite's bright bars.
+    x0, x1, ch = 65.8, 77.2, 0.6
+    zt = 8.6                                   # head height (above cheeks 6.4, U 4.4, eyes 8.2)
+    # web: the pillar's core, low and dark, from the head to the foot
+    hull(P, cbox(x0 + 1.4, x1 - 1.4, 18.0, 30.5, 0.4, 3.0, 0.3), SOCKETWALL)
+    # crossbar (rows 15.4-18.6): flat top rolling over a rounded front edge
+    prof = [(15.4, 0.5), (15.4, zt - 0.5), (15.9, zt)]
+    ry, rz, rr = 17.6, zt - 1.0, 1.0
+    for a in range(0, 91, 15):
+        t = math.radians(90 - a)
         prof.append((ry + rr * math.cos(t), rz + rr * math.sin(t)))
-    prof += [(24.2, 3.0), (24.6, 2.4), (24.6, 0.5)]
+    prof += [(18.8, 3.0), (18.8, 0.5)]
     pts = []
     for y, z in prof:
         for x in (x0 + ch, x1 - ch):
             pts.append((x, y, z))
         for x in (x0, x1):
             pts.append((x, y, z - ch if z > 2.0 else z))
-    before = set(P.bm.faces)
-    hull(P, pts, BLOCK)
-    # its long front slope (the sprite's black face, rows 19-24) is rough dark metal: only the top and
-    # the rounded edges stay glossy, so the sheen lands on the edges as in the sprite
-    cy = sum(p[1] for p in pts) / len(pts)
-    cz = sum(p[2] for p in pts) / len(pts)
-    for f in set(P.bm.faces) - before:
-        f.normal_update()
-        c = f.calc_center_median()
-        nz, ny = f.normal.z, f.normal.y
-        if (c.y - cy) * ny + (c.z - cz) * nz < 0:   # inward-facing: judge the outward normal
-            nz, ny = -nz, -ny
-        if c.y > 18.6 and nz > 0.5 and ny > 0.15:
-            f.material_index = SOCKETWALL
-    # the cannon pointing down the screen, a steel muzzle ring and a dark bore
-    cn = cpix("cannon")
-    tube(P, cn, "y", 4.0, 3.4, GREY5, n=16, p=2.0, zfloor=0.5, end_k=(0.9, 0.95), cap_ch=0.3,
-         bands=[(29.6, 30.4, -0.3), (33.4, 34.6, 0.3)], band_mat=RIM, bore=(INK, 0.55, 1.2))
+    hull(P, pts, HEAD)
+    # flanges down both sides of the head (cols 65.8-67.6 and 75.4-77.2), rounded front ends
+    for fx0, fx1 in ((x0, x0 + 1.9), (x1 - 1.9, x1)):
+        pts = []
+        for y, z in [(16.0, zt - 0.4), (23.4, zt - 0.6), (24.2, zt - 1.0), (24.7, zt - 2.0), (24.8, 3.0),
+                     (24.8, 0.5), (16.0, 0.5)]:
+            pts += [(fx0 + 0.45, y, z), (fx1 - 0.45, y, z), (fx0, y, z - 0.45 if z > 2 else z),
+                    (fx1, y, z - 0.45 if z > 2 else z)]
+        hull(P, pts, HEAD)
+    # the dark slot between the flanges: a matte black floor sunk in the head
+    hull(P, cbox(x0 + 1.7, x1 - 1.7, 18.4, 24.6, 0.5, 4.2, 0.2), SOCKETWALL)
+    # foot (rows 29.4-35.0, cols 66.8-75.2): a grey block with a sloped top and a rounded front edge
+    fx0, fx1, fch = 66.7, 75.3, 0.5
+    zf = 7.0
+    prof = [(29.4, 0.5), (29.4, zf - 1.6), (30.0, zf - 1.0), (32.6, zf - 0.4)]
+    ry, rz, rr = 33.6, zf - 1.4, 1.2
+    for a in range(0, 91, 15):
+        t = math.radians(90 - a)
+        prof.append((ry + rr * math.cos(t), rz + rr * math.sin(t)))
+    prof += [(35.0, 3.0), (35.0, 0.5)]
+    pts = []
+    for y, z in prof:
+        for x in (fx0 + fch, fx1 - fch):
+            pts.append((x, y, z))
+        for x in (fx0, fx1):
+            pts.append((x, y, z - fch if z > 2.0 else z))
+    hull(P, pts, FOOT)
+    # a dark groove across the foot's top (the sprite's darker rows 30-31 over its lit rows 32-34)
+    hull(P, cbox(fx0 + 0.6, fx1 - 0.6, 30.7, 31.5, zf - 1.6, zf - 0.55, 0.15), SOCKETWALL)
 
 
 def build(sprite, coll):

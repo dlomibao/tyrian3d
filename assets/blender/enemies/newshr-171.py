@@ -42,7 +42,10 @@ SPEC = {
     "mid": 165,             # trimmed median of the rock pixels (162-171 ramp)
     # the facet ramp leans more on the sprite's brightness under each facet (0.6 default), so the
     # central lobe's 171 highlight lands there and not all on the upper-left lobe
-    "ramp": {"sprite": 0.8},
+    # bias < 0 matches the facets a step paler (QA 2026-11-17: the pebble read 75,54,36 in game where the
+    # sprite averages 89,68,50): the sprite's dark limb pixels are its lighting, and the game's sun
+    # already darkens the facets turned away, so matching them dark as well shaded the limb twice
+    "ramp": {"sprite": 0.8, "bias": -0.1},
     "h_top": 0.36,          # about 4.3 px above the waist (9 px wide rock)
     "h_bot": 0.30,
     "rise": 0.7,
@@ -101,6 +104,30 @@ TIP = (2.5, 2.4)
 TIP_R = 0.85   # sprite px
 
 
+#: How far the outline shell is set in from the rock (units; 12 sprite px = 1), along its smooth
+#: normals. The sprite draws its rim in dark browns (162/163), ink on only 31% of it, so a 9 px pebble
+#: read heavily inked with the game's full ink ring (QA 2026-11-17); set in, the ring shows about half
+#: as wide past the rock's silhouette and stays on the silhouette only.
+SHELL_INSET = 0.045
+
+
+def _inset_shell(outline_shell):
+    """common.outline_shell, then every shell vertex moved SHELL_INSET in along its normal (the
+    shell is a smooth closed blob, so this is a uniform inset). Used for this model's build only."""
+    def wrapped(obj, coll, **kw):
+        shell = outline_shell(obj, coll, **kw)
+        bm = bmesh.new()
+        bm.from_mesh(shell.data)
+        bm.normal_update()
+        for v in bm.verts:
+            v.co -= v.normal * SHELL_INSET
+        bm.to_mesh(shell.data)
+        bm.free()
+        shell.data.shade_smooth()
+        return shell
+    return wrapped
+
+
 def paint(sprite, g, obj):
     """The tip's chip in pal_67 (kept out of the facet ramp, which shades only material 0)."""
     me = obj.data
@@ -117,4 +144,5 @@ def paint(sprite, g, obj):
 
 
 if __name__ == "__main__":
+    common.outline_shell = _inset_shell(common.outline_shell)
     lib.main(NAME, SPEC, paint=paint)

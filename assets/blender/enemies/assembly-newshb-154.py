@@ -78,15 +78,18 @@ TOPM, RIM, SLAT, GROOVE, DARK, PIPE, BRIGHT, FRAME, RED, HOT = range(10)
 
 def materials(sprite):
     pal = lambda i, **kw: common.palette_material(sprite, i, "nshb154", **kw)  # noqa: E731
+    # D201: the sprite's own indices (6 plateau, 5 shoulder, 7 slats, 4 floors) at metallic 0.55 rendered
+    # charcoal under D205's lighting (lower hull median 44 vs the sprite's 52, light areas 70 vs 93): each
+    # region goes one shade up and to a mostly dielectric finish, so it reads mid-grey in game.
     mats = [
-        pal(6, metallic=0.55, roughness=0.45),   # TOPM plateau, centre block (6)
-        pal(5, metallic=0.55, roughness=0.48),   # RIM faired shoulder (lit 7-9 left, 3-4 right: lighting)
-        pal(7, metallic=0.55, roughness=0.42),   # SLAT louvre slats, lip, rails (7)
-        pal(4, metallic=0.5, roughness=0.55),    # GROOVE panel floors, seams (4)
-        pal(3, metallic=0.45, roughness=0.6),    # DARK channel floors (3)
-        common.palette_material(sprite, 6, "nshb154-pipe", metallic=0.65, roughness=0.32),  # PIPE (6), polished
-        pal(10, metallic=0.65, roughness=0.3),   # BRIGHT flanged pipe ends, rolled edge, screws (10)
-        pal(8, metallic=0.55, roughness=0.4),    # FRAME lamp housings (8)
+        pal(7, metallic=0.25, roughness=0.5),    # TOPM plateau, centre block (sprite 6)
+        common.palette_material(sprite, 6, "nshb154-rim", metallic=0.25, roughness=0.52),  # RIM shoulder (5; lighting)
+        common.palette_material(sprite, 8, "nshb154-slat", metallic=0.3, roughness=0.45),  # SLAT slats, lip, rails (7)
+        pal(5, metallic=0.25, roughness=0.55),   # GROOVE panel floors, seams (4)
+        pal(4, metallic=0.25, roughness=0.6),    # DARK channel floors (3)
+        common.palette_material(sprite, 7, "nshb154-pipe", metallic=0.45, roughness=0.35),  # PIPE (6), polished
+        pal(10, metallic=0.5, roughness=0.32),   # BRIGHT flanged pipe ends, rolled edge, screws (10)
+        common.palette_material(sprite, 8, "nshb154-frame", metallic=0.3, roughness=0.42),  # FRAME lamp housings (8)
         common.palette_material(sprite, 117, "nshb154-light", metallic=1.0, roughness=0.9, emission_strength=2.6,
                                 frames={f: 117 + d for f, d in FLICKER.items()}),   # RED lens (D126/D173)
         common.palette_material(sprite, 119, "nshb154-core", metallic=1.0, roughness=0.9, emission_strength=3.2,

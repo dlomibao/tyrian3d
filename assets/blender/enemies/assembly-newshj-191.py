@@ -8,13 +8,15 @@ and cut into the pieces with common.split_assembly.
 
 The model leads with cross sections (blueprint.json heights, re-fitted to the ground-pass height budget
 of D120 / D153: belly -5, crown <= 31.5 px):
-- the pod: a loft of soft superellipse sections, one per sprite row, its half width the sprite's inner
-  mask row by row (axis at column edge 48.5); the equator at z 4, a shallow elliptic belly to -5;
-- the south end splits into two lobes (the 267 row): their own lofts, each ending in a V tip, the
-  centre gap open from row 81. Each lobe starts inside the pod's section at row 64 (narrower, lower)
-  and swells out of the shell by row 77, while the pod's own south end sinks inside the lobes, so
-  the side shows one surface, no end walls; the V edges are smoothed lines, not the pixel staircase;
-- the flank half widths are a smoothed curve ([1 2 3 2 1] moving average, twice);
+- the shield: ONE loft of soft superellipse sections from the crown to the two tails' blunt ends at
+  row 102, its half width the sprite's inner mask row by row (axis at column edge 48.5); the equator
+  at z 4, a shallow elliptic belly to -5; the top a round dome over the crown and shoulders (power 1.9
+  to row 30, 2.3 from row 44: a flatter top read as a squared plateau under the tilted camera);
+- the south slit (the 267 row) is cut through that one shell (exact boolean, dark walls): the
+  sprite's see-through gap between the tails, its half width a pchip of the inner mask (2.5 px to row
+  93, opening to 7.6 at row 101), a rounded head under the muzzle housing. The tails are the shield's
+  two halves, not separate pods (the 2026-11-17 review: two pointed lobes read as a split body);
+- the flank half widths are a smoothed curve ([1 2 3 2 1] moving average, six passes, rows 15-99);
 - ribs: the sprite's green columns traced per band of rows and chained down the body, then each run
   straightened to one centreline (least squares) with one constant width; stubs under 6 rows are
   dropped. A half-round strip (4 arc segments) laid along the (smoothed) shell normal, clipped to the
@@ -23,8 +25,8 @@ of D120 / D153: belly -5, crown <= 31.5 px):
   clip are dropped, so the flank below the pods is bare shell; the seams are the dark shell showing;
 - the hull's sections are packed toward the equator (short facets on the steep flank), its lighter
   north cap (rows < 19) is on the top only, and the shoulder step (rows 11-14) is eased;
-- the 267 row's light strips: one continuous strip per sprite run (a bar on the left lobe, a U on
-  the right), dark pure green 194 / 195 with a low glow, laid on the ribs;
+- the 267 row's light strips: one continuous strip per sprite run (a bar on the left tail, a U on
+  the right one), dark pure green 194 / 195 with a low glow, laid on the ribs;
 - the sprite's see-through slits (left and right of the eye housing, round the mechanism under it)
   are designed vents: pchip centrelines traced from the hole pixels, a constant 1.4-2.2 px width, the
   rim chamfered, cut (exact boolean) through the hull and the housing parts only; the closed-eye -f3
@@ -207,8 +209,13 @@ class Mats:
 
 
 M = Mats()
-SHELL = M.get("shell", 35, 0.15, 0.55)
-SHELL_HI = M.get("shell_hi", 37, 0.15, 0.5)
+# The shell (seen between the ribs): 36; the ribs 38-41 (the sprite: ribs 38-40, seams 1 / 32-34, median 38); 35
+# with ribs from 36 rendered near black-green in game (the 2026-11-17 review). The crown cap 40, a glossier
+# satin (the sprite's crown, rows 3-17, is its brightest green: ribs 40-44 with sheen; the re-review
+# found a crown in the hull's flat mid-green reading darker and plainer than the original).
+SHELL = M.get("shell", 36, 0.15, 0.45)
+SHELL_HI = M.get("shell_hi", 40, 0.15, 0.22)
+CROWN_ROW = 19  # rows above this are the crown: brighter ribs and cap
 SEAM = M.get("seam", 1, 0.0, 0.9)
 SOCKET = M.get("socket", 5, 0.25, 0.45)
 BROW = M.get("brow", 5, 0.25, 0.45)
@@ -238,7 +245,7 @@ def hw_row(r):
     return ((AXIS - lo) + (hi - AXIS)) / 2
 
 
-HW = {r: hw_row(r) for r in range(3, 81)}
+HW = {r: hw_row(r) for r in range(3, 102)}
 # The shoulder step (row 13 is the ear tips; the sprite's half width jumps 30.5 -> 39.5 over rows
 # 11-13): eased over rows 11-14, so the ear's north face is a sloped, rounded shoulder (a 6-9 px jump
 # between two stations made a flat wall facing north that read as a strip in the side view).
@@ -248,10 +255,20 @@ HW[11], HW[12], HW[13], HW[14] = 31.0, 33.4, 36.8, 39.8
 # and fewer passes left waves down the steep flank; ~23 px more off the mask edge, IoU -0.003).
 for _pass in range(6):
     _raw = dict(HW)
-    for _r in range(15, 80):
-        _w = [(_raw.get(_r + d, _raw[min(max(_r + d, 3), 80)]), k) for d, k in ((-2, 1), (-1, 2), (0, 3), (1, 2), (2, 1))]
+    for _r in range(15, 100):
+        _w = [(_raw.get(_r + d, _raw[min(max(_r + d, 3), 101)]), k) for d, k in ((-2, 1), (-1, 2), (0, 3), (1, 2), (2, 1))]
         HW[_r] = sum(v * k for v, k in _w) / 9
-CROWN = T.pchip([2.6, 5, 10, 16, 30, 45, 60, 72, 82, 94, 102.5], [2.5, 8.5, 13.5, 17, 19, 19, 17.5, 15, 12, 7, 2])
+# The crown (rows 3-17) carried higher toward its north rim than a plain dome (5 / 12 / 16 at rows 2.6 /
+# 5 / 10, was 2.5 / 8.5 / 13.5): the tilted game camera sees that slope from behind and squeezed the
+# crown to two thirds of the sprite's height on screen (the 2026-11-17 re-review: "at game scale the
+# change from main is small"); still a round dome across, and it falls away at the very nose.
+CROWN = T.pchip([2.6, 5, 10, 16, 30, 45, 60, 72, 82, 94, 102.5], [5.0, 12.0, 16.0, 18.2, 19, 19, 17.5, 15, 12, 7, 2])
+# The rim raised over the crown and the shoulders (the ears, rows 12-30), the crown height above it
+# lowered by as much, so the top stays where it was: under the tilted game camera a part below the
+# shared anchor (D181 / D185, 24 px) is drawn further down the screen, and with the rim at z 4 the ears'
+# corners dropped below the posts and the crown (the "squared crown with two posts" of the 2026-11-17
+# review); at z 10 the shoulders hold the sprite's square corners. Back to z 4 by row 62.
+EQ_LIFT = T.pchip([2.6, 5, 10, 14, 30, 46, 62, 120], [0.8, 2.5, 5.0, 6.0, 6.0, 3.5, 0.0, 0.0])
 BELLYF = T.pchip([2.6, 6, 14, 26, 70, 82, 94, 102.5], [2.0, 5.5, 8.0, 9.0, 9.0, 7.5, 5, 2])
 
 
@@ -259,34 +276,23 @@ def hw_at(y):
     """Half width of the main pod at row coordinate y (row r spans y r..r+1, sampled at r + 0.5)."""
     r = y - 0.5
     r0 = int(math.floor(r))
-    r0 = max(3, min(r0, 80))
-    r1 = max(3, min(r0 + 1, 80))
+    r0 = max(3, min(r0, 101))
+    r1 = max(3, min(r0 + 1, 101))
     t = max(0.0, min(1.0, r - r0))
     return HW[r0] * (1 - t) + HW[r1] * t
 
 
-def lobe_edges():
-    """Rows 81-101: (outer, inner) edge x of the left lobe, the left run averaged with the mirrored
-    right run (column edges), then smoothed ([1 2 1] / 4, twice) so the V's edges are straight lines
-    rather than the pixel staircase."""
-    raw = {}
-    for r in range(81, 102):
-        rs = inner_runs(r)
-        lo, hi = rs[0][0], rs[0][1] + 1
-        ro, ri = rs[-1][1] + 1, rs[-1][0]
-        raw[r] = [((lo - AXIS) + (AXIS - ro)) / 2, ((hi - AXIS) + (AXIS - ri)) / 2 if len(rs) > 1 else -0.7]
-    for _ in range(2):
-        prev = {r: list(v) for r, v in raw.items()}
-        for r in range(82, 101):
-            for k in (0, 1):
-                raw[r][k] = (prev[r - 1][k] + 2 * prev[r][k] + prev[r + 1][k]) / 4
-    return {r: tuple(v) for r, v in raw.items()}
+# The south slit (the 267 row): the sprite's see-through gap between the two tails of the shield,
+# rows 81-101, its half width at the inner mask (cols 46-50 down to row 93, then opening 1 px a row
+# either side to 41-55 at row 101), a pchip so its walls are straight lines with a rounded head.
+# The re-review: at hw 2.5 the game's ink outline closed it to a seam (the sprite shows a clearly open gap,
+# the level's background seen through it): the walls 0.7 px further out, the chamfered rim wider and dark.
+SLIT_HW = T.pchip([80.7, 81.0, 81.6, 82.6, 93.4, 95.0, 97.0, 99.5, 101.5, 104.0],
+                  [0.0, 1.3, 2.3, 3.15, 3.25, 3.8, 4.8, 6.9, 7.7, 8.3])
+SLIT_RIM = 0.9  # the south slit's chamfer (px each side), seam-dark: the sprite's ink edge
 
 
-LOBE_EDGES = lobe_edges()
-
-
-def section(hw, crown, belly, n=36, pt=2.3, pb=2.0, xc=0.0, dense=0.0):
+def section(hw, crown, belly, n=36, pt=2.3, pb=2.0, xc=0.0, dense=0.0, eq=EQ):
     """Closed section points (x, z): a soft superellipse top (2/3 of the points), an elliptic belly,
     equator at EQ. `dense` (0..0.8) packs the points toward the equator, where the superellipse turns
     fastest (short facets on the steep flank, so things sitting on it meet a smooth surface)."""
@@ -301,12 +307,12 @@ def section(hw, crown, belly, n=36, pt=2.3, pb=2.0, xc=0.0, dense=0.0):
         c, s = math.cos(t), math.sin(t)
         if s >= 0:
             x = hw * math.copysign(abs(c) ** (2 / pt), c)
-            z = EQ + crown * abs(s) ** (2 / pt)
+            z = eq + crown * abs(s) ** (2 / pt)
         else:
             x = hw * math.copysign(abs(c) ** (2 / pb), c)
-            z = EQ - belly * abs(s) ** (2 / pb)
+            z = eq - belly * abs(s) ** (2 / pb)
         pts.append((xc + x, z))
-    return pts, (xc, EQ)
+    return pts, (xc, eq)
 
 
 # --- geometry helpers (sprite px: x = col - AXIS, y = row, z up) -------------------------------------
@@ -471,33 +477,34 @@ HULL_DENSE = 0.45  # their packing toward the equator
 SHOULDER_DP = 0.45  # the superellipse power taken off at the shoulder step (a rounder, thinner rim)
 
 def build_body():
-    """Pod hull, the two south lobes and the shoulder pads (one Part, sprite px)."""
+    """The shield hull (one loft from the crown to the two tails, the south slit cut later) and the
+    shoulder pads (sprite px)."""
     P = T.Part("body", smooth_angle=40)
-    # Main hull: a station per row, rows 3..80, closing at row 82.
-    # a station per row through the shoulder step (rows 4-16), every 1.5 rows down the smoothed flanks
-    ys = [2.7, 3.0, 3.5] + [r + 0.5 for r in range(4, 17)] + T.frange(17.5, 76.5, 1.5) + [77.5, 78.5, 79.4, 80.2, 80.7]
+    # Main hull: a station per row through the shoulder step (rows 4-16), every 1.5 rows down the
+    # smoothed flanks, then on down the 267 row to the tails' blunt ends at row 102 (one shell: the
+    # sprite's tails are the shield's two halves either side of the slit, not separate pods).
+    ys = [2.7, 3.0, 3.5] + [r + 0.5 for r in range(4, 17)] + T.frange(17.5, 100.0, 1.5) \
+        + [100.75, 101.5, 101.95, 102.25, 102.45]
     st = []
     for y in ys:
         if y <= 3.0:
             hw = 8.0 + (y - 2.7) / 0.3 * 4.0
-        elif y >= 77.5:
-            hw = hw_at(77.0) * (1 - ((y - 77.0) / 5.4) ** 2) + 2.0
         else:
-            hw = hw_at(y)
-        crown = CROWN(y) if y < 77.5 else CROWN(y) * (1 - 0.6 * ((y - 77.0) / 5.0) ** 2)
-        belly = BELLYF(y) if y < 77.5 else BELLYF(y) * (1 - 0.5 * ((y - 77.0) / 5.0) ** 2)
-        # rows 72+: the pod's south end sinks inside the two lobes, which carry the side profile from
-        # row 77 (no end wall of the pod showing between them in the side view)
-        k = min(1.0, max(0.0, (y - 72.0) / 8.7))
-        k = k * k * (3 - 2 * k)
-        hw *= 1 - 0.3 * k
-        crown *= 1 - 0.45 * k
-        belly *= 1 - 0.45 * k
+            hw = hw_at(min(y, 101.5))
+        lift = EQ_LIFT(y)
+        crown, belly = CROWN(y) - lift, BELLYF(y) + 0.5 * lift
+        # the blunt tail ends (sprite row 102 is their ink): the last stations round the end off
+        e = max(0.0, (y - 101.5) / 1.0)
+        if e > 0:
+            f = math.sqrt(max(0.0, 1 - e * e))
+            hw -= 0.6 * (1 - f)
+            crown *= 0.25 + 0.75 * f
+            belly *= 0.25 + 0.75 * f
         # the shoulder step (rows 11-14, the ear tips): there the half width grows 9 px in four rows, so
         # the rim is a little thinner (a lower superellipse power), easing back by row 18
         sw = shoulder_thin(y)
-        pts, c = section(hw, crown, belly, n=HULL_N, dense=HULL_DENSE, pt=2.3 - SHOULDER_DP * sw,
-                         pb=2.0 - SHOULDER_DP * 0.6 * sw)
+        pts, c = section(hw, crown, belly, n=HULL_N, dense=HULL_DENSE, pt=top_pt(y) - SHOULDER_DP * sw,
+                         pb=2.0 - SHOULDER_DP * 0.6 * sw, eq=EQ + lift)
         st.append((y, pts, c))
     # The lighter north cap (rows < 19) only on the top, the flanks one colour all the way along (a
     # colour change down the steep side read as a wall in the side view).
@@ -507,35 +514,6 @@ def build_body():
     loft_stations(P, st, lambda y: SHELL, n=HULL_N,
                   mat_of_yi=lambda y, i: SHELL_HI if y < 19 and i in top else SHELL)
     H = P
-    P = T.Part("lobes", smooth_angle=40)
-
-    # South lobes (the 267 row), mirrored: from row 64 to the V tips at row 102.
-    for side in (-1, 1):
-        st = []
-        ys = T.frange(64.0, 80.5, 1.5) + [r + 0.5 for r in range(81, 102)] + [102.2]
-        for y in ys:
-            r = int(math.floor(y))
-            # Junction rows 64-77: the lobe starts inside the pod's section (narrower, lower crown and
-            # belly) and swells out of the shell, so it grows out of the pod instead of a flat end wall.
-            t = min(1.0, max(0.0, (y - 64.0) / 13.0))
-            t = t * t * (3 - 2 * t)
-            if y < 81:
-                xo, xi = -hw_at(y) * (0.70 + 0.30 * t), -0.7 - 6.0 * (1 - t)
-            else:
-                xo, xi = LOBE_EDGES[min(r, 101)]
-                if y > 101.5:
-                    xo, xi = -11.6, -8.6
-            w = (xi - xo) / 2
-            xc = (xo + xi) / 2
-            crown = CROWN(y) * (0.97 if y < 81 else 1.0) * (0.55 + 0.45 * t)
-            belly = BELLYF(y) * (1 - 0.5 * min(1.0, max(0.0, (y - 72) / 14))) * (0.45 + 0.55 * t)
-            pts, c = section(w, crown, belly, n=24, pt=2.2, xc=xc)
-            if side > 0:
-                pts = [(-x, z) for x, z in reversed(pts)]
-                c = (-c[0], c[1])
-            st.append((y, pts, c))
-        loft_stations(P, st, lambda y: SHELL, n=24)
-    L = P
     P = T.Part("pads", smooth_angle=40)
 
     # Shoulder pads under the posts (rows 16-34): raised humps, kept >= 2.5 px inside the rim (a pad
@@ -543,7 +521,7 @@ def build_body():
     for side in (-1, 1):
         dome(P, side * 37.4, 25.0, 4.6, 9.0, 0, 3.0, SHELL, seg=20, rings=4, p=2.4,
              zf=lambda x, y: surface_guess(x, y) - 1.0)
-    return H, L, P
+    return H, P
 
 
 def shoulder_thin(y):
@@ -552,12 +530,21 @@ def shoulder_thin(y):
     return sw * sw * (3 - 2 * sw)
 
 
+def top_pt(y):
+    """The hull section's superellipse power on top: a round dome over the crown and the shoulders
+    (rows < 30, 1.9: the sprite's crown arcs down to the ears, a flatter top read as a squared plateau
+    under the tilted camera), the fuller 2.3 from row 44 down."""
+    t = min(1.0, max(0.0, (y - 30.0) / 14.0))
+    return 1.9 + 0.4 * t * t * (3 - 2 * t)
+
+
 def surface_guess(x, y):
     """Analytic top of the main hull (before the BVH exists)."""
-    hw = hw_at(max(3.0, min(y, 77.0)))
+    hw = hw_at(max(3.0, min(y, 101.5)))
     u = min(abs(x) / max(hw, 1e-3), 1.0)
-    pt = 2.3 - SHOULDER_DP * shoulder_thin(y)
-    return EQ + CROWN(y) * max(0.0, 1 - u ** pt) ** (1 / pt)
+    pt = top_pt(y) - SHOULDER_DP * shoulder_thin(y)
+    lift = EQ_LIFT(y)
+    return EQ + lift + (CROWN(y) - lift) * max(0.0, 1 - u ** pt) ** (1 / pt)
 
 
 class Surface:
@@ -707,8 +694,18 @@ def rib_columns():
                 continue
             q = int(len(v) * 0.15)
             t = v[q:len(v) - q] or v
-            idx = min(max(t[len(t) // 2], 36), 40)
-            cols.append((grp[0][0] + 0.2, grp[-1][0] + 0.8, cm, k, ym, w / 2 - 0.25, idx))
+            idx = min(max(t[len(t) // 2], 38), 41)
+            # the crown part of the rib (rows < CROWN_ROW): the upper quartile of its crown pixels (the
+            # rib's lit top, not its shaded flank), 40-44
+            cidx = idx
+            if grp[0][0] < CROWN_ROW:
+                vc = sorted(GRID[r][c] for r, a_, bb in grp if r < CROWN_ROW
+                            for c in range(int(a_), int(math.ceil(bb))) if 35 <= GRID[r][c] <= 47)
+                if vc:
+                    qc = int(len(vc) * 0.15)
+                    tc = vc[qc:len(vc) - qc] or vc
+                    cidx = min(max(tc[int(len(tc) * 0.75)], 40), 44)
+            cols.append((grp[0][0] + 0.2, grp[-1][0] + 0.8, cm, k, ym, w / 2 - 0.25, idx, cidx))
     return cols
 
 
@@ -718,8 +715,9 @@ def build_ribs(S):
     P = T.Part("ribs", smooth_angle=50)
     n = 0
     ARC = 4
-    for y0, y1, cm, k, ym, hw0, idx in rib_columns():
+    for y0, y1, cm, k, ym, hw0, idx, cidx in rib_columns():
         base = M.get(f"rib{idx}", idx, 0.15, 0.45)
+        crown_mat = M.get(f"crib{cidx}", cidx, 0.15, 0.22)
         mid = cm + k * ((y0 + y1) / 2 - ym)
         glow = any(lo <= mid <= hi for lo, hi in GLOW_RIB_COLS) and y1 >= 60
         # Sample every half row: the rib stands where it fits the inner mask, both its edges are on
@@ -729,6 +727,14 @@ def build_ribs(S):
         for y in T.frange(y0, y1, 0.5):
             c = cm + k * (y - ym)
             cl = row_clip(min(int(y), 111), c - hw0, c + hw0)
+            if cl is not None and y > 80.1:  # off the south slit and its chamfered rim
+                g = max(0.0, SLIT_HW(min(y + 0.6, 104.0))) + SLIT_RIM + 0.25
+                lo_, hi_ = cl
+                if c < AXIS:
+                    hi_ = min(hi_, AXIS - g)
+                else:
+                    lo_ = max(lo_, AXIS + g)
+                cl = (lo_, hi_) if hi_ > lo_ else None
             ok = cl is not None and cl[1] - cl[0] >= 1.2
             if ok:
                 hs = [S.hit(x - AXIS, y) for x in (cl[0] + 0.15, (cl[0] + cl[1]) / 2, cl[1] - 0.15)]
@@ -791,6 +797,8 @@ def build_ribs(S):
                 rr = (seq[kk][0] + seq[kk + 1][0]) / 2
                 if glow and rr >= 56:
                     mats.append(M.get("stripe", idx, 0.15, 0.45))
+                elif rr < CROWN_ROW:
+                    mats.append(crown_mat)
                 else:
                     mats.append(base)
             m_ = len(rings[0])
@@ -1194,6 +1202,33 @@ def cutter_object(coll, S):
         levels = [(lambda x, y: -30.0, 0.0), (lambda x, y: S.z(x, y, EQ) - 1.1, 0.0),
                   (lambda x, y: S.z(x, y, EQ) + 0.2, 0.6), (lambda x, y: 60.0, 0.6)]
         ribbon_solid(P, pts, nrm, hws, levels, 0)
+    # the south slit between the tails, through the whole shell (rim chamfered SLIT_RIM px)
+    ys = T.frange(80.7, 104.0, 0.5)
+    pts = [(0.0, y) for y in ys]
+    levels = [(lambda x, y: -30.0, 0.0), (lambda x, y: S.z(x, y, EQ) - 1.1, 0.0),
+              (lambda x, y: S.z(x, y, EQ) + 0.2, SLIT_RIM), (lambda x, y: 60.0, SLIT_RIM)]
+    ribbon_solid(P, pts, [(-1.0, 0.0)] * len(pts), [max(0.05, SLIT_HW(y)) for y in ys], levels, 0)
+    # Its head undercut along the game camera's ray (the re-review: from the tilted camera a view down the
+    # slit landed on the head's dark wall under the muzzle housing, so its upper half read as a closed
+    # seam). Inside the shell the slit runs on north under the housing, its roof sloping down 1.8 px
+    # per row (the camera's rays drop about 1.6), so the level shows through all its length, as through
+    # the sprite's see-through gap; the top surface north of the head is not cut (the top view holds).
+    zh = S.z(0.0, 81.2, EQ)
+    ys2 = T.frange(60.0, 82.0, 0.5)
+    hw2 = max(0.05, SLIT_HW(83.0))
+
+    def roof(x, y):
+        return min(zh - 0.4 - 1.8 * max(0.0, 81.2 - y), S.z(x, y, EQ) - 1.6)
+    ribbon_solid(P, [(0.0, y) for y in ys2], [(-1.0, 0.0)] * len(ys2),
+                 [hw2 * min(1.0, 0.35 + 0.65 * (y - 60.0) / 6.0) for y in ys2],
+                 [(lambda x, y: -30.0, 0.0), (roof, 0.0)], 0)
+    # ... and its walls undercut: 2.2 px under the rim they flare out (5 px wider at the bottom), so the
+    # dark wall seen from a camera off to one side is the thin rim, not the shell's full 19 px depth
+    # (the boss flies right of the screen centre in BOTANY: the left wall filled the gap).
+    ys3 = T.frange(81.6, 97.5, 0.5)
+    ribbon_solid(P, [(0.0, y) for y in ys3], [(-1.0, 0.0)] * len(ys3),
+                 [max(0.05, SLIT_HW(y)) * min(1.0, (y - 81.6) / 1.5 + 0.3, (97.5 - y) / 2.0 + 0.3) for y in ys3],
+                 [(lambda x, y: -30.0, 5.0), (lambda x, y: S.z(x, y, EQ) - 2.2, 0.3)], 0)
     P.bm.normal_update()
     bmesh.ops.recalc_face_normals(P.bm, faces=P.bm.faces)
     P.hints = []
@@ -1203,7 +1238,7 @@ def cutter_object(coll, S):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(obj.data)
     bm.free()
-    print(f"slit cutter: {len(rib)} ribbons")
+    print(f"slit cutter: {len(rib)} ribbons and the south slit")
     return obj
 
 
@@ -1371,20 +1406,20 @@ def main():
     views = Path(argv[argv.index("--views") + 1]) if "--views" in argv else None
     coll = common.reset_collection(NAME)
 
-    hull, lobes, pads = build_body()
-    S = Surface((hull, lobes, pads))
+    hull, pads = build_body()
+    S = Surface((hull, pads))
     ribs = build_ribs(S)
     mach, housing = build_machinery(S)
-    glow = build_glow(Surface((hull, lobes, pads, ribs)))
+    glow = build_glow(Surface((hull, pads, ribs)))
     base_mats = M.build()
     nslots = len(base_mats)
-    objs = [part_object(P, base_mats, coll) for P in (hull, lobes, pads, ribs, mach, housing, glow)]
+    objs = [part_object(P, base_mats, coll) for P in (hull, pads, ribs, mach, housing, glow)]
     for o in objs:
         print(f"  part {o.name}: {tris(o)} triangles")
     cutter = cutter_object(coll, S)
     cut_mat = common.palette_material(SPRITE, 1, TAG + "cut", metallic=0.0, roughness=0.9)
     cutter.data.materials.append(cut_mat)
-    for o in (objs[0], objs[5]):
+    for o in (objs[0], objs[4]):
         before = tris(o)
         apply_boolean(o, cutter)
         print(f"  boolean {o.name}: {before} -> {tris(o)} triangles")

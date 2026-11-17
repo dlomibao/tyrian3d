@@ -932,14 +932,90 @@ def sink_shell(shell, model, margin, reach):
 
 # --- split ------------------------------------------------------------------------------------------
 
+# The cuts between the rows (grid rows 28 and 56) lean back under the rock: each is a plane through
+# the core's top edge at that row, tilted CUT_SLANT from the vertical so the upper piece's cut face
+# looks down and forward (an undercut) and the lower piece's looks up and back under the upper's
+# overhang. From the game camera (D61 tilted: over game y 163.5, 233.6 px up, so its rays lean at
+# most about 35 degrees from the vertical anywhere on screen) the upper piece's cut face is never
+# seen, and the lower piece's is behind the upper piece, raised or not (D181 raises scaling about the
+# camera, so what hid it still does). IXMUCANE (E3 QA 2026-11-17 M2): the turret (newsh8-191/153,
+# top 1.31) is drawn before the fortress's top row, so D181 raised newsh8-167/165 over it and their
+# vertical filled cut faces at row 28 drew a grey-blue bar across the middle of the fortress.
+# The columns' cuts stay vertical: the pieces are reused at several columns, and the rows are what
+# D181 stacks (the C draws the fortress bottom row first).
+CUT_SLANT = math.radians(38.0)
+ROW_CUTS = (28, 56)
+
+
+def cut_planes(x0, y0):
+    """A piece's four cut planes (co, outward normal) in Blender units (x0, y0: its centre)."""
+    hw, hh = 1.0, 14 / 12
+    out = [((x0 - hw, 0, 0), Vector((-1, 0, 0))), ((x0 + hw, 0, 0), Vector((1, 0, 0)))]
+    s, c = math.sin(CUT_SLANT), math.cos(CUT_SLANT)
+    for ye, sgn in ((y0 - hh, -1), (y0 + hh, 1)):
+        r = round(R_of(ye))
+        if r in ROW_CUTS:
+            # sgn -1: this piece's bottom cut (it is the upper piece): normal down and forward
+            out.append(((0, ye, zprof(r)), Vector((0, sgn * c, sgn * s))))
+        else:
+            out.append(((0, ye, 0), Vector((0, sgn, 0))))
+    return out
+
+
+def split_pieces(obj, layout, coll):
+    """common.split_assembly with cut_planes: each cut filled, the fill taking the material and
+    texture coordinates of the surface it closes (not the atlas corner)."""
+    result = {}
+    for name, cx, cy in layout:
+        x0, y0 = cx / 12, -cy / 12
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        planes = cut_planes(x0, y0)
+        for co, no in planes:
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            cut = bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_outer=True)
+            edges = [e for e in cut["geom_cut"] if isinstance(e, bmesh.types.BMEdge) and e.is_valid]
+            if edges:
+                bmesh.ops.holes_fill(bm, edges=edges, sides=0)
+        uv = bm.loops.layers.uv.active
+
+        def on_cut(f):
+            return any(all(abs(no.dot(v.co - Vector(co))) < 1e-4 for v in f.verts) for co, no in planes)
+        caps = [f for f in bm.faces if on_cut(f)]
+        capset = set(caps)
+        for f in caps:
+            votes = {}
+            for e in f.edges:
+                for g in e.link_faces:
+                    if g not in capset:
+                        votes[g.material_index] = votes.get(g.material_index, 0) + 1
+            if votes:
+                f.material_index = max(votes.items(), key=lambda kv: kv[1])[0]
+            if uv is not None:
+                for lp in f.loops:
+                    src = next((l2 for l2 in lp.vert.link_loops if l2.face not in capset), None)
+                    if src is not None:
+                        lp[uv].uv = src[uv].uv.copy()
+        print(f"{name}: {len(caps)} cut faces")
+        bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+        for mat in obj.data.materials:
+            mesh.materials.append(mat)
+        piece = bpy.data.objects.new(name, mesh)
+        coll.objects.link(piece)
+        result[name] = piece
+    return result
+
+
 def split_open(obj, layout, coll):
     out = {}
     for name, cx, cy in layout:
         x0, y0 = cx / 12, -cy / 12
         bm = bmesh.new()
         bm.from_mesh(obj.data)
-        for co, no in (((x0 - 1, 0, 0), (-1, 0, 0)), ((x0 + 1, 0, 0), (1, 0, 0)),
-                       ((0, y0 - 14 / 12, 0), (0, -1, 0)), ((0, y0 + 14 / 12, 0), (0, 1, 0))):
+        for co, no in cut_planes(x0, y0):
             bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=co,
                                    plane_no=no, clear_outer=True)
         bmesh.ops.translate(bm, vec=(-x0, -y0, 0), verts=bm.verts)
@@ -1064,7 +1140,7 @@ def main():
         for k, n in enumerate(PIECES[key]):
             export_at[n] = (c + 12 - 20 - CX0, [-17, 11, 39][k] - CY0)
     exp_layout = [(n, cx, cy) for n, (cx, cy) in export_at.items()]
-    pieces = common.split_assembly(whole, exp_layout)
+    pieces = split_pieces(whole, exp_layout, coll)
     shells = split_open(shell, exp_layout, coll)
     for q in pieces.values():
         q.data.set_sharp_from_angle(angle=math.radians(14))

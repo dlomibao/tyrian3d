@@ -8,13 +8,13 @@ nine pieces. EYESPY shows its screen flipped, so there the eye is at the top and
 The grey shield ship that once shared this builder stays in lib_b019.py (assembly-newsh9-92).
 
 Cross-sections (sprite px; 1 unit = 12 px):
-  - BALL: faired ellipsoid on the inner-mask rim (per-degree fit, 16 Fourier terms), crown 24 px,
-    plain closed underside 20 px; armour plates parted by modelled seam grooves (the accepted armour,
+  - BALL: faired ellipsoid on the inner-mask rim (per-degree fit, 16 Fourier terms), crown 17 px,
+    plain closed underside 14 px, pal 7 at a low metallic (mid grey, not charcoal, D201); armour plates parted by modelled seam grooves (the accepted armour,
     as lib_b019 built it).
   - SWIRL (yin-yang armour boss, upper left): two interlocking crowned plates on one elliptical
-    plan, the light head lobe A (pal 11) and lobe B (pal 9), each rolling over a fillet onto the
+    plan, the light head lobe A (pal 11) and lobe B (pal 11, a little more metal), each rolling over a fillet onto the
     ball; the S-shaped parting line between them is a real groove (exact boolean, dark pal 2) that
-    runs out through the rim at both ends; a rounded tail rib (pal 10) runs from the light bar's
+    runs out through the rim at both ends; a rounded tail rib (pal 11) runs from the light bar's
     foot down and left under the boss towards the lens rim, as the sprite's light arc (rows 26-37).
   - LIGHT BAR: glowing crescent (pal 132, metallic 1 / rough, D126/D173) in a dark recessed bezel.
   - EYE: a socket plane fitted (least squares) through the ball round the lens ellipse (centre
@@ -108,8 +108,11 @@ def sphere_grid():
 # --- sphere coordinates ------------------------------------------------------------------------
 
 OU, OV = 36.0, 35.0
-HT, HB = 24 * PX, 20 * PX
-SPHERE_ANCHOR = 12 * PX
+HT, HB = 17 * PX, 14 * PX
+# 2026-11-17 QA: anchor 0 (the base on the camera ray, D6): with the old 1-unit anchor under a 24 px crown the
+# rim drew ~10% under the sprite's size in game, so the ball read narrow and taller than round, and the
+# arms showed round its flanks. A lower crown (17 px) keeps the lens near its sprite size at the same time.
+SPHERE_ANCHOR = 0.0
 
 
 def X(u):
@@ -458,14 +461,14 @@ def build_sphere(sprite, coll):
             mats.append(common.palette_material(sprite, i, f"{tag}{key}", **kw))
         return slots[key]
 
-    BALL = M("ball", 6, metallic=0.4, roughness=0.45)
+    BALL = M("ball", 7, metallic=0.22, roughness=0.5)
     SEAM = M("seam", 2, metallic=0.3, roughness=0.65)
-    # the light head lobe: pal 12 (the sprite's lobe runs 10-15, brighter than the ball), glossy so
-    # the game light rolls a sheen over its crown rather than a flat paint
-    LOBEA = M("lobea", 12, metallic=0.45, roughness=0.3)
-    LOBEB = M("lobeb", 9, metallic=0.55, roughness=0.45)
+    # the swirl: both lobes light (the sprite's swirl runs 9-15, brighter than the ball) and nearly
+    # dielectric, so in game they read as the broad light lobe, not a dark metal plate with a pale rim
+    LOBEA = M("lobea", 11, metallic=0.15, roughness=0.36)
+    LOBEB = M("lobeb", 11, metallic=0.3, roughness=0.42)
     SGROOVE = M("sgroove", 2, metallic=0.3, roughness=0.7)
-    TAIL = M("tail", 10, metallic=0.7, roughness=0.32)
+    TAIL = M("tail", 11, metallic=0.2, roughness=0.4)
     BEZEL = M("bezel", 3, metallic=0.45, roughness=0.55)
     STRIP = M("strip", 132, metallic=1.0, roughness=0.55, emission_strength=0.8)
     ROD = M("rod", 12, metallic=0.85, roughness=0.28)
@@ -738,9 +741,10 @@ def build_sphere(sprite, coll):
     patch_mesh = _bm_to_mesh(bpt)
 
     # the pupil: a solid black cap, lens-shaped, its edge tucked into the lens
-    # larger than before (the sprite's pal-1 pupil runs cols 29-38, rows 46-57), tapering a little
+    # off centre as the sprite's pal-1 pupil sits (cols 29-35, rows 48-57: west of the vertical bar and
+    # south of the horizontal one, so upper left on EYESPY's flipped screen), tapering a little
     # out along the four cross arms as the sprite's black runs into them
-    PU, PV, PRU, PRV = 34.4, 51.9, 5.5, 5.9
+    PU, PV, PRU, PRV = 32.7, 52.9, 4.6, 5.4
     arms = [math.atan2(v - PV, u - PU) for u, v in ((36.5, 43.5), (36.5, 60.5), (43.5, 50.6), (26.5, 51.5))]
 
     def prad(g):

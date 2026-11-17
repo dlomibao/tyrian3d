@@ -287,19 +287,61 @@ def build_massif(coll):
     return massif
 
 
+def merlon(b, lip, seed, top=23.4, lip_h=22.5, lift=0):
+    """A crest merlon: a rock slab whose front lip follows `lip` [(c, art row s)], bowed into an arch.
+    Hull of, per lip station: the back top edge (art row 0), the top's front edge, the chamfered lip
+    and the undercut; faces take their colour from their slope (top pal 4/5, chamfer pal 9 facing the
+    sun's side / pal 7 the other, undercut and back pal 3/4). The top rises from the back edge to a
+    crown, so its back half (pal 4) turns a little from the sun and its front (pal 5) is level: the
+    sprite's ramp from row 0 to the lip (pal 4-7 there; the game's sun lifts an up-facing pal 5 to
+    about the sprite's pal 6-7). `lift` raises the top's indices (the knob's is the sprite's pal 8-10)."""
+    rnd = random.Random(seed)
+    pts = []
+    for c, sl in lip:
+        j = lambda k=0.15: rnd.uniform(-k, k)  # noqa: E731
+        ht = top - 0.3 - 0.02 * sl
+        vf = sl - 0.9 + ht  # the top's front edge (v)
+        vb = top - 0.5  # back top edge, art row ~0
+        pts += [(c + j(), vb, top - 0.5 + j(0.08)),
+                (c + j(0.1), vb + 0.6 * (vf - vb), top + j(0.05)),  # the top's crown: back of it slopes north
+                (c + j(0.1), top - 1.7, TOPH - 0.4),  # back foot on the massif top (row >= 0.5)
+                (c + j(0.1), sl - 0.9 + ht + j(0.1), ht),  # the top's front edge
+                (c, sl + lip_h, lip_h),  # the lip
+                (c + j(0.1), sl + lip_h - 0.9, TOPH - 0.6)]  # the undercut's foot
+    faces = b.hull(pts, b.M(6))
+    for f in faces:
+        n = f.normal  # Blender: +X east, +Y north, +Z up
+        if n.z > 0.86:
+            f.material_index = b.M((4 if n.y > 0.06 else 5) + lift)  # the crown's back half turns from the sun
+        elif n.z > 0.25 and n.y < 0:
+            f.material_index = b.M(9 if n.x < 0.2 else 7)
+        elif n.y > 0:
+            f.material_index = b.M(4)
+        else:
+            f.material_index = b.M(3)
+    return faces
+
+
 def build_static(coll):
     b = Builder("static")
     M = b.M
-    # ---- the crest: boulders on the cliff top (art rows 0-8), sheen is lighting, not paint ----
-    b.rock((7.0, 26.4, 21.4), (5.9, 4.0, 3.6), 11, M(6), n=34)  # big left boulder
-    b.rock((2.0, 25.2, 21.0), (2.4, 3.2, 3.0), 12, M(5), n=22)  # small one at the west end
-    b.rock((14.6, 24.8, 21.8), (1.9, 2.4, 2.6), 13, M(6), n=20)  # the knob over the crevice
-    b.rock((21.0, 26.4, 21.3), (3.4, 3.9, 3.2), 14, M(6), n=28)  # right boulder
-    b.rock((10.5, 23.2, 21.0), (3.4, 2.0, 2.0), 15, M(6), n=18)  # back stone between them
-    b.rock((22.9, 24.6, 22.2), (1.5, 1.9, 1.7), 16, M(6), n=14)  # stones raising the crest's ends
-    b.rock((1.0, 23.8, 21.8), (1.3, 1.7, 1.7), 17, M(5), n=14)
-    b.rock((18.6, 25.2, 21.6), (2.0, 2.6, 2.4), 18, M(5), n=20)  # extra crest boulders (graft from A)
-    b.rock((4.6, 24.4, 22.2), (2.2, 2.6, 2.2), 19, M(6), n=20)
+    # ---- the crest: notched, arched crenellations (art rows 0-7) ----
+    # The sprite's crest is a row of dressed rock merlons, each a lobe whose front lip bows down in an
+    # arch (a U in the art view), split by dark V notches that open downward (cols 2-3, 12-13 and the
+    # crevice). Each merlon is a slab: a top with a crown (pal 4 behind it, pal 5 before it, the
+    # sprite's rows 1-5), a steep chamfer along the bowed lip that faces the game's south-west sun (the
+    # sprite's bright pal 9-11 edge, D175's facet ramp: a lit face, not paint) and an undercut below
+    # it (pal 3). The east merlon wraps across the tile seam: the units stand 24 px apart, so its west
+    # end is drawn again at cols 0-2 (the sprite's bright lip there), and the art clip trims both.
+    merlon(b, [(3.7, 3.4), (4.5, 4.4), (5.5, 5.4), (6.6, 6.3), (8.5, 6.5), (10.4, 6.2), (11.4, 5.4),
+               (12.3, 4.0)], 11)
+    merlon(b, [(13.2, 2.0), (13.9, 3.0), (15.0, 3.6), (16.0, 3.4), (16.7, 2.4)], 13, top=23.6, lift=2)  # knob
+    for dc in (0.0, -24.0):
+        merlon(b, [(17.7 + dc, 3.6), (18.5 + dc, 4.8), (19.5 + dc, 6.0), (20.6 + dc, 7.0), (23.0 + dc, 7.4),
+                   (24.6 + dc, 6.9), (25.6 + dc, 5.9), (26.4 + dc, 4.7), (27.1 + dc, 3.4)], 14)
+    # the notches' floors: dark rock (the sprite's pal 2-3 wedges) on the massif top between merlons
+    for c0, c1 in ((2.6, 4.4), (11.8, 13.6)):
+        b.chbox(c0, c1, TOPH + 0.5, FACE - 0.3, TOPH - 0.3, TOPH + 0.25, M(2))
     # ---- the cliff face, rough blocks proud of the face plane (art rows 8-17) ----
     # Each block is broken into leaning chunks with a ridge (facets), so the face reads as lit rock,
     # not flat slabs; the colours stay the blocks' own (pal 3/4/5).
@@ -309,10 +351,6 @@ def build_static(coll):
     b.facets(12.7, 15.8, FACE - 0.6, FACE + 0.5, 14.2, 22.2, 24, M(3), nc=1, nh=3, lean=1.3)  # crevice slope
     b.facets(17.4, 20.6, FACE - 0.4, FACE + 0.8, 13.6, 22.4, 25, M(4), nc=1, nh=3)  # east of the crevice
     b.facets(20.3, 24.0, FACE - 0.4, FACE + 0.5, 13.4, 22.2, 26, M(4), nc=2, nh=3, lean=0.8)  # east face
-    # loose angular stones on the massif top between the crest boulders (break up its flat top)
-    for k, (c, v, r) in enumerate(((12.2, 27.2, 1.2), (9.0, 28.2, 1.1), (3.2, 28.0, 1.0),
-                                   (19.8, 28.4, 1.0), (23.0, 27.6, 0.9))):
-        b.rock((c, v, TOPH + r * 0.25), (r * 1.3, r, r * 0.8), 81 + k, M(5 if k % 2 else 6), n=10, jitter=0.3)
     # ---- the back of the outcrop: scree slabs on the 45-degree back slope ----
     # Strata stepping down the north side: rough slabs, each tread under the art's top row
     # (v - h >= 0.5), narrower and lower toward the back, with loose rocks on the treads.
@@ -471,8 +509,8 @@ SHELL_INSIDE = 0.01  # the shell held this far inside the rock (units), D90/D118
 SEAL = [
     (0.0, 24.0, BAY[2], FACE + 2.2, 0.0, 13.2),
     # (split at the crevice: a plug bridging its open slot would show its underside's ink in it)
-    (1.0, NOTCH[0] - 0.2, TOPH + 1.0, FACE - 0.5, TOPH - 1.0, TOPH + 1.6),
-    (NOTCH[1] + 0.2, 23.0, TOPH + 1.0, FACE - 0.5, TOPH - 1.0, TOPH + 1.6),
+    (1.0, NOTCH[0] - 0.2, TOPH + 1.0, FACE - 0.5, TOPH - 1.0, TOPH + 0.1),
+    (NOTCH[1] + 0.2, 23.0, TOPH + 1.0, FACE - 0.5, TOPH - 1.0, TOPH + 0.1),
     (NOTCH[0] - 0.2, NOTCH[1] + 0.2, NOTCH[2], FACE + 0.5, NOTCH[4], TOPH + 1.0),
 ]
 

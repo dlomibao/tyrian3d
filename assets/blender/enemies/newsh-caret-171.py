@@ -16,7 +16,9 @@ only in the band's colour):
 
 Design: a small air-dropped dart (a sensor/mine dart) lying flat on its fins, the rod on the
 ground. One lathed body: a machined nozzle collar at the back (a recessed bore), a seam groove, the
-round body with a seam groove between the fin sets, the glowing band set between two raised rims,
+round body with a shallow seam between the fin sets (the rod is a clean faired surface: the
+access panels, bolts and black seam grooves of the first build read as dark stripes in game and
+are gone, 2026-11-17), the glowing band set between two raised rims,
 a closed, blunt rounded nose. Horizontal fins as chamfered tapered plates at the rod's
 axis height: the tail fins with a separate trailing flap (a real hinge gap), the mid fins plain,
 both with chamfered root fairings. Two upright blades on top (a cruciform set seen from above as
@@ -52,14 +54,24 @@ YC = 7.0                # the sprite centre row edge
 R = 1.46                # rod radius (the rod's inner mask is 3 px wide)
 ZA = R                  # the axis height (the rod lies on the ground)
 SEG = 20                # segments round the rod
+# The whole dart is built round, then pressed to this share of its height: an oval rod whose broad
+# top faces the light reads as the sprite's light rod (10 with a 13 sheen line) from the game
+# camera, where a round one turned its flanks away into near-black stripes (2026-11-17 walkthrough).
+SQUASH = 0.62
 
 # Material slots.
 ROD, BACK, FIN, BLADE, DEEP, LAMP, RIM, EDGE = range(8)
-PAL_OF = {ROD: 10, BACK: 8, FIN: 14, BLADE: 13, DEEP: 32, LAMP: 120, RIM: 116, EDGE: 11}
+# The rod takes 11, a step above the sprite's 10: the sprite's rod is 10 flanks round a 13 sheen
+# line, and a rod of 10 lit by the game rendered charcoal flanks beside the white fins (D201; the
+# 2026-11-17 walkthrough: "thin dark grey with white edges"); 13 washed it into the fins.
+PAL_OF = {ROD: 11, BACK: 8, FIN: 14, BLADE: 13, DEEP: 32, LAMP: 120, RIM: 116, EDGE: 11}
 LAMP_FRAMES = {190: 122, 209: 126}   # the band's centre pixel per frame (120 on both 171s)
 RIM_FRAMES = {190: 118, 209: 122}    # its dark ends
-METAL = 0.3
+# Low metallic: the dart is the sprite's light greys (rod 10 with a 13 sheen line, fins 14), and
+# mid-grey steel at more metallic renders charcoal under the game's light (D201).
+METAL = 0.12
 TINT = (0.95, 0.97, 1.0)
+AO_KEEP = 0.5
 
 
 def materials(sprite):
@@ -93,14 +105,14 @@ PROFILE = [
     (1.06, 0.96, BACK),   # lip chamfer
     (1.06, 1.16, BACK),   # collar back face
     (1.24, R, BACK),      # collar chamfer
-    (1.80, R, DEEP),      # collar | seam groove
-    (1.80, R - 0.17, DEEP),
-    (1.93, R - 0.17, DEEP),
-    (1.93, R, ROD),
-    (4.40, R, DEEP),      # seam groove between the fin sets
-    (4.40, R - 0.14, DEEP),
-    (4.52, R - 0.14, DEEP),
-    (4.52, R, ROD),
+    (1.80, R, ROD),       # collar | a shallow seam (no black groove: at 12 px a dark seam read
+    (1.84, R - 0.06, ROD),  # as a stripe across the light rod)
+    (1.90, R - 0.06, ROD),
+    (1.94, R, ROD),
+    (4.40, R, ROD),       # shallow seam between the fin sets
+    (4.44, R - 0.05, ROD),
+    (4.50, R - 0.05, ROD),
+    (4.54, R, ROD),
     (9.62, R, ROD),
     (9.62, 1.36, RIM),    # step down into the band's seat
     (9.70, 1.36, RIM),
@@ -224,60 +236,6 @@ def build_fins(P):
             hull(P, pts, ROD)
 
 
-def arc_plate(P, y0, y1, a0, a1, d, c, mat, depth=0.12, n=4):
-    """A curved access panel on the rod from y0 to y1 and angle a0 to a1 (degrees, 90 = top):
-    standing d proud with 45-degree chamfered edges c wide and a skirt sunk `depth` into the rod."""
-    def P3(a, y, r):
-        t = math.radians(a)
-        return (r * math.cos(t), y, ZA + r * math.sin(t))
-    ca = math.degrees(c / R)
-    angs = [a0, a0 + ca] + [a0 + ca + (a1 - a0 - 2 * ca) * i / n for i in range(1, n)] + [a1 - ca, a1]
-    ys = [y0, y0 + c, y1 - c, y1]
-    grid = []
-    for yi, y in enumerate(ys):
-        row = []
-        for ai, a in enumerate(angs):
-            edge = yi in (0, 3) or ai in (0, len(angs) - 1)
-            row.append(P.v(P3(a, y, R + (d - c if edge else d))))
-        grid.append(row)
-    away = (0.0, (y0 + y1) / 2, ZA)
-    for yi in range(3):
-        for ai in range(len(angs) - 1):
-            P.f((grid[yi][ai], grid[yi][ai + 1], grid[yi + 1][ai + 1], grid[yi + 1][ai]), mat, away=away)
-    low = [[P.v(P3(a, y, R - depth)) for a in angs] for y in ys]
-    for ai in range(len(angs) - 1):   # skirts front and back
-        P.f((grid[0][ai], grid[0][ai + 1], low[0][ai + 1], low[0][ai]), mat, out=(0, -1, 0))
-        P.f((grid[3][ai], grid[3][ai + 1], low[3][ai + 1], low[3][ai]), mat, out=(0, 1, 0))
-    for yi in range(3):               # skirts at the two long edges
-        for ai, sgn in ((0, -1), (len(angs) - 1, 1)):
-            t = math.radians(angs[ai])
-            out = (-math.sin(t) * sgn, 0, math.cos(t) * sgn)
-            P.f((grid[yi][ai], grid[yi + 1][ai], low[yi + 1][ai], low[yi][ai]), mat, out=out)
-
-
-def build_panels(P):
-    """Access panels on the rod's upper flanks, either side of the blades (the game camera sees
-    them), and a belt panel ring at the collar."""
-    for s in (1, -1):
-        for y0, y1 in ((2.12, 4.22), (4.72, 9.42)):
-            a0, a1 = (22, 74) if s > 0 else (106, 158)
-            arc_plate(P, y0, y1, a0, a1, 0.07, 0.05, ROD)
-        # small bolt heads at the panel corners
-        for y in (2.32, 4.02, 4.92, 9.22):
-            for a in ((30, 66) if s > 0 else (114, 150)):
-                t = math.radians(a)
-                c = Vector((math.cos(t) * (R + 0.07), y, ZA + math.sin(t) * (R + 0.07)))
-                nrm = Vector((math.cos(t), 0, math.sin(t)))
-                u = Vector((0, 1, 0))
-                v = nrm.cross(u)
-                pts = []
-                for k in range(6):
-                    q = 2 * math.pi * k / 6
-                    for h, rr in ((-0.05, 0.11), (0.05, 0.11), (0.09, 0.06)):
-                        pts.append(tuple(c + nrm * h + u * (rr * math.cos(q)) + v * (rr * math.sin(q))))
-                hull(P, pts, EDGE)
-
-
 def blade(P, prof, t, ch, mat):
     """An upright blade in the plane x = 0: prof is (y, z) points (convex), t thick, edges chamfered."""
     pts = []
@@ -300,7 +258,7 @@ def finish(part, mats, coll):
     part.orient()
     bm = part.bm
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
-    m = Matrix(((PX, 0, 0, XA * PX), (0, -PX, 0, YC * PX), (0, 0, PX, 0), (0, 0, 0, 1)))
+    m = Matrix(((PX, 0, 0, XA * PX), (0, -PX, 0, YC * PX), (0, 0, PX * SQUASH, 0), (0, 0, 0, 1)))
     bmesh.ops.transform(bm, matrix=m, verts=bm.verts)
     bmesh.ops.reverse_faces(bm, faces=bm.faces)
     me = bpy.data.meshes.new(part.name)
@@ -323,9 +281,55 @@ def build(coll, sprite):
     build_fins(fins)
     blades = Part("dart_blades", smooth_angle=30)
     build_blades(blades)
-    panels = Part("dart_panels", smooth_angle=35)
-    build_panels(panels)
-    return [finish(p, mats, coll) for p in (body, fins, blades, panels)]
+    return [finish(p, mats, coll) for p in (body, fins, blades)]
+
+
+# The outline shell's source: one convex hull per section of the dart (tail fins, mid fins, nose),
+# rod and fins together, upright blades left out. The game's ink is an inverted hull pushed out along
+# the shell's normals, and in a concave crease that push folds over itself and shows its back faces:
+# a shell traced on the model drew a black bar down each fin root (2026-11-17 walkthrough). Each hull
+# is convex, so only the notches between the sections (where the sprite has ink) are creases; its
+# top view is the model's own but for slivers well under a pixel where a fin edge meets the rod.
+SECTIONS = ((0.0, 4.55), (4.55, 9.45), (9.45, 12.5))
+
+
+def rod_radius(y):
+    """The body's outer radius at row edge y (PROFILE past the nozzle bore, interpolated)."""
+    outer = [(py, r) for py, r, _ in PROFILE[5:]]
+    for (ya, ra), (yb, rb) in zip(outer, outer[1:]):
+        if ya <= y <= yb and yb > ya:
+            return ra + (rb - ra) * (y - ya) / (yb - ya)
+    return outer[0][1] if y < outer[0][0] else 0.0
+
+
+def shell_source(parts, coll):
+    """A closed mesh (the union of the sections' hulls) from the body and fin parts' vertices."""
+    bm = bmesh.new()
+    for y0, y1 in SECTIONS:
+        pts = []
+        for obj in parts:
+            for v in obj.data.vertices:
+                co = obj.matrix_world @ v.co
+                y = YC - co.y / PX   # back to the sprite's row edges
+                if y0 - 1e-4 <= y <= y1 + 1e-4:
+                    pts.append(co.copy())
+        # The rod's own ring at each end of the section (its vertices sit only at profile steps).
+        for y in (max(y0, 1.06), min(y1, 12.0)):
+            r = rod_radius(y)
+            for k in range(SEG):
+                a = 2 * math.pi * (k + 0.5) / SEG
+                pts.append(Vector(((r * math.cos(a) + XA) * PX, -(y - YC) * PX,
+                                   (ZA + r * math.sin(a)) * PX * SQUASH)))
+        verts = [bm.verts.new(p) for p in pts]
+        res = bmesh.ops.convex_hull(bm, input=verts)
+        drop = {g for g in res["geom_interior"] + res["geom_unused"] if isinstance(g, bmesh.types.BMVert)}
+        bmesh.ops.delete(bm, geom=list(drop), context="VERTS")
+    me = bpy.data.meshes.new(f"{NAME}_shellsrc")
+    bm.to_mesh(me)
+    bm.free()
+    src = bpy.data.objects.new(f"{NAME}_shellsrc", me)
+    coll.objects.link(src)
+    return src
 
 
 def bake_maps(obj, out_dir, size=512, samples=64):
@@ -337,18 +341,52 @@ def bake_maps(obj, out_dir, size=512, samples=64):
         T.TINT, T.TEXTURED = tint, textured
     for img in bpy.data.images:
         if img.name in ("talon_colour", "talon_rm"):
+            fill_background(img)
             img.name = img.name.replace("talon", "dart171")
+
+
+def fill_background(img):
+    """The bake clears to black and leaves it between the UV islands. At the game's size the
+    texture is sampled from its small mip levels (and the compressed UVs land a texel off), so
+    that black bleeds into the dart as dark streaks and a charcoal cast (the 2026-11-17 walkthrough:
+    a thin dark dart where the sprite is solid white). Fill every unbaked texel with the mean of the
+    baked ones: the islands' borders and mips then keep the dart's own value."""
+    import numpy as np
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(px)
+    px = px.reshape(-1, 4)
+    # Colour map: baked texels are >= 0.48 x tint; rm map: R is always 1 where baked.
+    empty = (px[:, 0] < 0.2) if "rm" not in img.name else (px[:, 0] < 0.5)
+    if empty.all() or not empty.any():
+        return
+    px[empty, :3] = px[~empty, :3].mean(axis=0)
+    if "rm" not in img.name:
+        # Keep half the occlusion: at 12 px the full AO drew every seam and panel skirt as a black
+        # stripe down the rod; the shading of the forms themselves is the game's lighting.
+        tint = np.array(TINT, dtype=np.float32)
+        px[:, :3] = tint - (tint - px[:, :3]) * AO_KEEP
+    px[:, 3] = 1.0
+    img.pixels.foreach_set(px.ravel())
+    img.update()
+    if img.filepath_raw:
+        img.save()
 
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     sprite = common.load_sprite(WT, NAME)
     coll = common.reset_collection(NAME)
-    obj = T.join(build(coll, sprite), NAME)
-    # The outline shell from the whole model before hidden faces are culled: the voxel remesh needs
-    # the parts closed (culled, they are open shells and the remesh keeps only a fragment).
-    shell = common.outline_shell(obj, coll, voxel=0.007, faces=1400, smooth=8, inside=0.004)
+    parts = build(coll, sprite)
+    # The outline shell from sealed section hulls of the body and fins (SECTIONS), before the
+    # parts are joined and their hidden faces culled.
+    src = shell_source(parts[:2], coll)
+    shell = common.outline_shell(src, coll, voxel=0.007, faces=1400, smooth=8, inside=0.004)
     shell.name = shell.data.name = f"{NAME}_outline"
+    src_me = src.data
+    bpy.data.objects.remove(src, do_unlink=True)
+    bpy.data.meshes.remove(src_me)
+    obj = T.join(parts, NAME)
     T.cull_hidden(obj)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"{NAME}: {len(obj.data.polygons)} faces, {tris} triangles")

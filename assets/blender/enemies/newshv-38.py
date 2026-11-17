@@ -14,7 +14,9 @@ Reading the sprite (row/col = sprite pixel, edges in px, z up):
   row edge 7.5, one px per row each side (row widths 2 4 6 8 10 8 6 4 2). A faceted cut stone: the
   bright cross just right of centre (47 down col 6 and along row 7) is the sheen on the crown's
   ridges and table under a light from the upper right, the dark 40 ring is the shaded girdle edge,
-  so neither is paint. The whole crown takes the gem's mid-tone 44 (trimmed median of its pixels).
+  so neither is paint. Each crown facet takes the sprite's index under its centre, held to 42-46
+  (girdle + 2..6; see build()): a 12 px stone under the game's sun can't shade itself the sprite's
+  way, so one crown tone read as a flat pastel diamond (QA 2026-11-17). The white 47 stays sheen.
 - The mount: a 2 px stalk under the gem's south point (cols 5-6): a dark neck 39 (row 12) and a
   lighter ball foot 42 (row 13). In 3D a short collet clasps the south point and an inclined stem
   drops 2.6 px to the ball, which sits on the host's drum.
@@ -77,6 +79,22 @@ Y_FOOT, Z_FOOT = 13.42, ZG - 2.75   # ball foot centre
 R_STEM = 0.74
 R_FOOT = (1.0, 0.72, 0.8)
 
+# Glossy cut stone with a wide sheen (D176): a 4% F0 left the game's sun and environment panels
+# dim on the crown, so F0 goes to about 0.17 (that of IOR 2.4, a gem's) through Specular IOR Level
+# (exported as KHR_materials_specular) and the crown is a little rough, so the sun's lobe spreads
+# over a few facets as one sheen rather than a pin-point.
+GEM_SPEC = 0.5 * ((1.4 / 3.4) ** 2 / 0.04)
+CROWN_ROUGH, PAV_ROUGH = 0.22, 0.3
+FACET_RANGE = (0, 6)   # crown facet indices, as steps above the girdle's index
+
+
+def gem_material(sprite, index, tag, roughness):
+    m = common.palette_material(sprite, index, tag, metallic=0.0, roughness=roughness)
+    bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Specular IOR Level"].default_value = GEM_SPEC
+    return m
+
+
 def bl(x, y, z):
     """Sprite px (column edge, row edge, height) to Blender units."""
     return Vector(((x - W / 2) * PX, (H / 2 - y) * PX, z * PX))
@@ -107,7 +125,7 @@ def band(bm, lo, hi, mat):
             bm.faces.new(t).material_index = mat
 
 
-def gem(mats, coll, name=NAME):
+def gem(mats, coll, name=NAME, facet_slot=None):
     bm = bmesh.new()
     g_up = ring(bm, (1, 1), ZG + GIRDLE)
     g_lo = ring(bm, (1, 1), ZG - GIRDLE)
@@ -127,6 +145,11 @@ def gem(mats, coll, name=NAME):
         j = (i + 1) % n
         bm.faces.new((brk[j], brk[i], culet)).material_index = 1
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if facet_slot:  # each crown facet takes the sprite's index under it (see FACET_RANGE)
+        for f in bm.faces:
+            if f.material_index == 0:
+                c = f.calc_center_median()
+                f.material_index = facet_slot(c.x / PX + W / 2, H / 2 - c.y / PX)
     # Merge the coplanar girdle quads per side, then chamfer every facet edge a hair.
     bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(0.5), verts=bm.verts, edges=bm.edges,
                              delimit={"MATERIAL"})
@@ -218,17 +241,33 @@ def build(colour="green"):
     name, crown, pav, gird, neck, foot = RAMPS[colour]
     sprite = common.load_sprite(WT, name)
     coll = common.reset_collection(name)
-    # Glossy crown (roughness ~0.06) so the game sun makes the sprite's cross-shaped sparkle on
-    # the crown ridges; the pavilion a touch softer.
-    crown_glass = dict(metallic=0.0, roughness=0.06)
-    gem_glass = dict(metallic=0.0, roughness=0.12)
     metal = dict(metallic=0.3, roughness=0.42)
-    mats = [common.palette_material(sprite, crown, name, **crown_glass),
-            common.palette_material(sprite, pav, f"{name}_pav", **gem_glass),
-            common.palette_material(sprite, gird, name, metallic=0.0, roughness=0.2),
+    mats = [gem_material(sprite, crown, name, CROWN_ROUGH),
+            gem_material(sprite, pav, f"{name}_pav", PAV_ROUGH),
+            gem_material(sprite, gird, name, PAV_ROUGH),
             common.palette_material(sprite, neck, f"{name}_metal", **metal),
             common.palette_material(sprite, foot, f"{name}_metal", **metal)]
-    parts = [gem(mats, coll, name), mount(mats, coll, name)]
+    # Facet shading (QA 2026-11-17, GEM WAR t7050: "a flat pastel diamond"): one crown index on a
+    # 12 px stone gave one flat tone in game, because the sun (from the upper left) lights the
+    # sprite's dark west facets and the tilt hides the rest. So, as D176 does where a surface can't
+    # shade itself the sprite's way, each crown facet takes the sprite's own index under its centre,
+    # held to the girdle+2 .. girdle+6 ramp: the rim ring the second ring's tone, the west facets
+    # mid, the east facets and table light. The top step (girdle+7, the white cross) stays sheen.
+    lo, hi = gird + FACET_RANGE[0], gird + FACET_RANGE[1]
+    px = sprite["frames"][0]["pixels"]
+    slots = {crown: 0}
+
+    def facet_slot(col, row):
+        r, c = min(max(int(row), 0), H - 1), min(max(int(col), 0), W - 1)
+        idx = min(max(px[r][c], lo), hi)
+        if str(idx) not in sprite["colors"]:
+            idx = crown
+        if idx not in slots:
+            slots[idx] = len(mats)
+            mats.append(gem_material(sprite, idx, name, CROWN_ROUGH))
+        return slots[idx]
+
+    parts = [gem(mats, coll, name, facet_slot), mount(mats, coll, name)]
     seal = sealed_copy(parts, coll, name)
     bpy.context.view_layer.update()
     shell = common.outline_shell(seal, coll, voxel=0.01, faces=1200, smooth=5, inside=0.003)
