@@ -14129,3 +14129,111 @@ break depth ties by, not verified.
 **Review:** `tests/render/structurePreload.test.ts` (modelsOnMaps against match() on every window of random maps; every
 structure the bot sees in episode 1 is preloaded); fallback: drop the `releaseModels` call, or `drawnMaps` from
 `levelModelInfo`.
+## D237 — The U-Ship is a modelled ship again: slim finned guns, a bevelled brass yoke, a low pointed pod with a glass nose, each part in the sprite's index and its light and dark sides left to the game's lights; supersedes D228's painted tone bands (follows D50-D53, D74, D90, D93, D118, D228)
+
+2026-11-17
+
+**Problem:** D228 rebuilt `ships/ship-u-ship` (item 10) to match the sprite's pixel brightness, and got there by
+painting the sprite's tone bands onto flat geometry: the brass band painted per stretch (left limb, right limb,
+bottom, lips, clamp), the blade arms cut into painted bands with flanks coloured by the side they face, the pod a
+capsule with two painted stripes, the baked map scaled to 0.66. The user's verdict: the ship "regressed in feel".
+In `?viewer=ship-u-ship` it lost the modelled shape and reads as a flat, stripe-painted cut-out fitted to the sprite
+(`tyrian-scratch/ship-feel-uship/old-vs-new-free.png`). It also breaks art rule 2: the sprite's shading is lighting,
+never paint. A player ship is seen turning, in the hangar, in the viewer and banking, where painted light stays put
+(D228's own Open said so).
+
+**Decision:** D228's painted bands are taken back. `assets/blender/ships/ship-u-ship.py` goes back to the script
+before D228 (`c33301ad`, the Talon's helpers and standard, D50-D53) and is reworked with the corrections of D228's
+diagnosis that are about the object, not about pixel luma:
+- **Guns** (were 1.7 px tubes, 1.9 tall): 1.5 px wide (D74's rule 3) and 2 px deep, as a gun is. Their section has a
+  narrow flat on top and steep shoulders, so the bright line seen from above is about 1 px and the shoulders fall
+  away darker under the sun: the slim read is form. Along them: a bored muzzle brake, a dark jacket under six
+  cooling fins (9), a breech ring (11), a sunk neck (5), a receiver (10) with a sight rail and a vented flank, a
+  second ring, the socket the yoke runs into; a plain magazine underneath.
+- **Yoke** (was a 1.7 px rounded tube): 1.5 px wide, 1.56 tall, brass sleeves (25) on a dark core. Its section has
+  a narrow top flat and a broad bevel on the outer shoulder, which looks left on the left limb and right on the
+  right one, so the sun (from the left, `sun.ts`) lights the limbs differently by itself. A dark clamp (21)
+  between two flanges (28) in the middle of the bottom run (the sprite's 28 21 28), thin clamps on the corners.
+- **Pod** (was a barrel 4.4 px tall): 2.9 px tall on the same 5 px plan, an ogive nose down on the roll axis, the
+  tail drawn in to a short stern. Dark glass over the nose (163, the sprite's dark rows 13-15) in a brass hoop
+  (21); tan plates (24) on a dark core (162) with real seams; a polished cream spine panel (28) flush with the
+  shell, on the centre line; louvres on the shoulders; a brown tail collar (22) round a dark, unlit exhaust.
+  **No emission anywhere** (the sprite has no orange pixel); `tyrian_engines` still places the menus' glow.
+- **Struts** as before: a hub (4) on each gun's inner flank, a pylon (6), a dark saddle on the pod.
+- **Colour:** one `pal_` material per part, the sprite's index for the region the part covers (20 materials).
+  Nothing is cut into tone bands and no face is coloured by the side it faces. The baked map is occlusion and
+  edge lift only, unscaled (`"bake": "model"`), a touch cool on the brass (0.9 / 0.94 / 1.0, milder than the
+  0.76 / 0.86 / 1.0 before D228: the yoke's bottom measures (159, 133, 91) in game for the sprite's (145, 120, 78),
+  where it was (154, 134, 97)) and warm on the steel, as before D228.
+- **Outline shell:** from a closed copy taken before the cull (D118), with D90's settings (0.03 voxels, held 0.004
+  inside). In the viewer with Outline on, the ink is on the silhouette and where one part overlaps another.
+- **Banking** (`tools/bank_roll.py --fit`, D93): roll 40° / 52.5°, bankShift's shift (D228's `bank.shift` goes).
+
+**Result.**
+- *Top view* (`tools/bank_roll.py`, `iou_rule_grid`; the two middle columns are D228's own table: before D228 at
+  40° / 55°, D228 at 40° / 60° with its shift; not measured again here):
+
+  | Frame | Bar | Before D228 | D228 | This |
+  |---|---|---|---|---|
+  | 267 (full left) | 0.70 | 0.781 | 0.924 | 0.716 |
+  | 269 (half left) | 0.80 | 0.873 | 0.908 | 0.853 |
+  | 271 (level) | 0.95 | 1.000 | 1.000 | 1.000 |
+  | 273 (half right) | 0.80 | 0.876 | 0.847 | 0.808 |
+  | 275 (full right) | 0.70 | 0.776 | 0.924 | 0.741 |
+
+  The full banks pass by 0.02-0.04: the art draws the arms 3 px wide there, and nothing is shaped for a bank (D93).
+- *Level frame, in game* (`?debug=play&ship=10&compare=1&solid=1` at 3840x2160, rectified to the sprite's grid;
+  mean luma, original | before D228 | D228 | this). A check of the major colours, not a target:
+
+  | Region (sprite px) | Original | Before D228 | D228 | This |
+  |---|---|---|---|---|
+  | Gun barrel, rows 8-12 | 121 | 121 | 125 | 130 |
+  | Gun rings, rows 13 and 18 | 181 | 193 | 185 | 218 |
+  | Gun necks, rows 14 and 19 | 71 | 99 | 83 | 97 |
+  | Gun receiver, rows 15-17 | 150 | 186 | 158 | 169 |
+  | Yoke, left limb | 151 | 136 | 151 | 140 |
+  | Yoke, right limb | 72 | 134 | 81 | 131 |
+  | Yoke, bottom | 122 | 135 | 125 | 135 |
+  | Pod nose, rows 13-15 | 53 | 65 | 46 | 46 |
+  | Pod body, rows 16-19 | 103 | 88 | 108 | 128 |
+  | Pod's bright column (column 10; this model's is 11) | 187 | 68 | 188 | 195 |
+
+  The limbs differ 140 to 131 where the sprite has 151 to 72: that much is the lights' (D228 measured the same
+  rig), and the rest of the sprite's left light is not put back with paint.
+- *Weight:* 16,366 triangles (before D228 17,343; D228 1,570), glb 573 KB with meshopt.
+- *Looked at:* `?viewer=ship-u-ship` Free (four angles and close-ups, the underside), Game angle and Top, beside
+  the model before D228 and D228's; in game the five frames mid-field, `&camera=overhead|steep`; the shop (the
+  ship added with the console's `shop add ships 10`): the simulator and the hangar ship behind the menu, with the
+  engine glow behind the pod; the hit flash in the viewer. The shop's icon is re-rendered
+  (`tools/shop_icons.py models`, D226: model against the inner mask 1.000). `tsc --noEmit` is clean; 16 vitest
+  files that read models, ship entries or the shop icons pass (94 tests; one file of the 17 run is skipped: the
+  render tests named in D228, sidekickModels, obliqueModels, app/shopIcons, tests/assets). The whole suite was not run.
+- *Captures* (not in git, D3): `tyrian-scratch/ship-feel-uship/final/` (`viewer-free-game-top-old-d228-new.png`,
+  `viewer-closeups-old-d228-new.png`, `viewer-new-angles.png`,
+  `game-271-267-269-273-275-original-old-d228-new.png` and `-px.png`, `shop-simulator-front-gun.png`,
+  `shop-ship-list.png`, `top-view-iou-sheet.png`, `extra-overhead-steep-hitflash.png`, `regions.txt`, `iou.txt`).
+
+**Options considered:**
+- *Keeping D228 and adding detail to it:* its tone is in the paint; any modelled form under painted bands is lit
+  twice. The paint had to go first.
+- *The script before D228 unchanged:* the user's audit had already found it heavy (1.7 px chrome tubes, a 4.4 px
+  barrel of a pod, an orange nozzle turned to the camera).
+- *Guns 1.5 px square with a 1.2 px yoke* (built first): banks 0.64 / 0.66 at full and 0.78 at half right, under
+  D93's bars. The guns' depth is the one dimension the level frame does not show; 2 px is the model's before D228
+  (1.9) and less than the 2.5-3 px D228 read from the banking frames.
+- *A yoke 1.36 px tall* (built): 0.694-0.699 at full left.
+- *The pod's bright column left to sheen:* a spine panel in the shell's own lighter index, polished (26,
+  metalness 0.85, roughness 0.14; built): 138 in game where the sprite has 187, and before D228 one brass gave 68.
+  The panel takes the sprite's index (28) and stays flush, so it is a coloured, polished part and not a ridge.
+- *Scaling the baked map down so up-facing steel shows its index* (D228's 0.66): not done. The guns' steel comes
+  out 1.07-1.2 times the sprite's in game (the necks, sunk between brighter parts, 1.37).
+
+**Open:**
+- The cream spine is the sprite's highlight column given to a part, on the centre line where the sprite has it
+  one column left. It is the one place a bright sprite region became a material; if it reads as a stripe, the
+  fallback is the polished 26 above.
+- The right limb of the yoke is 131 where the sprite has 72, and the pod's dark column is a seam 0.2 px wide,
+  not a 1 px stripe (107 for 36).
+- Full bank passes D93's bar by 0.02 on frame 267.
+- Not checked: D90's wear at low armour, the invulnerable (translucent) ship, two players, the field's left and
+  right edges.

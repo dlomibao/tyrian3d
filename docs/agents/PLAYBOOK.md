@@ -442,3 +442,7 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
     then with the art's view baked into the glb (right in game, a sheared slab everywhere else). A tall sprite object
     is the real upright object in the asset, with the oblique extras, and the renderer draws it as the art does (D82,
     D165).
+21. **Never paint a sprite's tone bands onto a player ship to fit pixel luma; form and lighting carry the shading.**
+    The U-Ship matched the sprite pixel for pixel (D228: painted bands on a blade, a striped capsule) and "regressed
+    in feel": a flat cut-out in the viewer, the hangar and the banks. Parts take the sprite's index per region; light and
+    dark sides come from the model's own shape under the game's lights (D237).
