@@ -469,62 +469,144 @@ def build_claw(coll, out):
 
 
 # --- newshg-127: gimbal eye pod --------------------------------------------------------------------
+# E2 QA (GYGES, 2026-11-17): it read as a smooth blue dome with a small lens and a heavy dark rim.
+# The sprite draws CONCENTRIC PALE RIDGED RINGS round the eye: bright arcs at rows 9-10, 12 and 14-15
+# that bend down round the lens (cols 8-9 / 16-17 at rows 15-17), dark grooves between them. They are
+# rings about one axis through the ball's lower face (sprite point 13, 17.5): ridges at about 36, 55
+# and 77 degrees from it on the ball normalised to a unit sphere. Now the ball is built in that axis
+# frame, its latitude rings dense at the ridges: faired ridges stay on the ball's old surface, grooves
+# cut between them (fading out before the silhouette, so the top-view outline is unchanged), the
+# crests in the sprite's pale index, the grooves in the body's. The straight hoop over the top went
+# (the row-14 band is the inner ring, it bends round the lens); the side pivot bosses stay. The ball
+# is a little less metallic so its rim no longer reads as a second, heavier ink ring.
+
+POD_AXIS_UV = (13.0, 17.5)
+POD_RIDGES = (36.0, 55.0, 77.0)   # degrees from the axis (unit-sphere space)
+POD_RIDGE_W = 4.2                 # ridge half-width (degrees, gaussian)
+POD_GROOVE = 0.055                # groove depth, fraction of the radius
+POD_SHELL_INSIDE = 0.045
+
+
+def ribbed_ball(base_bm, centre, radii, axis, mat_body, mat_ridge, clip=None, grow=1.0):
+    """A ball in the eye-axis frame: each vertex cast from `centre` onto the base ball (`base_bm`,
+    the old fitted body), then sunk by the groove profile. `clip(x, y)`: a top-view test; a vertex
+    outside it is pulled in (horizontally, towards the centre) to the first edge along its ray, so a
+    notch of the mask a lattice this coarse would bridge stays open. Frees `base_bm`; returns a new
+    bmesh."""
+    tree = BVHTree.FromBMesh(base_bm)
+    c = Vector(centre)
+    rx, ry, rz = radii
+    n = Vector(axis).normalized()
+    ref = Vector((1, 0, 0)) if abs(n.x) < 0.9 else Vector((0, 1, 0))
+    a = n.cross(ref).normalized()
+    b = n.cross(a).normalized()
+    # Latitude samples: coarse away from the ridges, fine across them.
+    th = {0.0, 180.0} | {float(t) for t in range(9, 180, 9)}
+    for r0 in POD_RIDGES:
+        th = {t for t in th if abs(t - r0) > 7.5} | {r0 + d for d in (-7.5, -5, -2.5, 0, 2.5, 5, 7.5)}
+    th = sorted(t for t in th if 0 <= t <= 180)
+    segs = 44
+
+    def bump(t):
+        return sum(math.exp(-((t - r0) / POD_RIDGE_W) ** 2) for r0 in POD_RIDGES)
+
+    out = bmesh.new()
+    rows = []
+    for t in th:
+        tr = math.radians(t)
+        ring = []
+        for k in range(1 if t in (0.0, 180.0) else segs):
+            p = 2 * math.pi * k / segs
+            un = math.cos(tr) * n + math.sin(tr) * (math.cos(p) * a + math.sin(p) * b)
+            d = Vector((un.x * rx, un.y * ry, un.z * rz))
+            hit = tree.ray_cast(c, d.normalized(), 2.0)
+            pos = hit[0] if hit[0] is not None else tree.find_nearest(c + d)[0]
+            # Grooves fade out towards the silhouette (low z) so the top view keeps its outline.
+            zf = max(0.0, min(1.0, (un.z - 0.18) / 0.22))
+            sink = POD_GROOVE * zf * (1.0 - min(1.0, bump(t)))
+            pos = c + (pos - c) * (1.0 - sink)
+            pos = Vector((c.x + (pos.x - c.x) * grow, c.y + (pos.y - c.y) * grow, pos.z))
+            off = Vector((pos.x - c.x, pos.y - c.y, 0.0))
+            pad = 0.35 / 12 / max(off.length, 1e-6)   # pulled-in vertices: a third of a pixel clear
+
+            def inside(f):
+                return clip(c.x + off.x * (f + pad), c.y + off.y * (f + pad))
+            if clip is not None and not clip(pos.x, pos.y):
+                f = 0.5
+                while f < 1.0 and inside(f + 0.02):
+                    f += 0.02
+                pos = Vector((c.x + off.x * f, c.y + off.y * f, pos.z))
+            ring.append(out.verts.new(pos))
+        rows.append((t, ring))
+    for (t0, r0_), (t1, r1_) in zip(rows, rows[1:]):
+        tm = 0.5 * (t0 + t1)
+        m = mat_ridge if bump(tm) > 0.45 else mat_body
+        if len(r0_) == 1:
+            for k in range(segs):
+                out.faces.new((r0_[0], r1_[k], r1_[(k + 1) % segs])).material_index = m
+        elif len(r1_) == 1:
+            for k in range(segs):
+                out.faces.new((r0_[k], r1_[0], r0_[(k + 1) % segs])).material_index = m
+        else:
+            for k in range(segs):
+                j = (k + 1) % segs
+                out.faces.new((r0_[k], r1_[k], r1_[j], r0_[j])).material_index = m
+    base_bm.free()
+    return out
+
 
 def build_pod(coll, out):
     name = "newshg-127"
     sp = common.load_sprite(WT, name)
     fr = Fr(name, 129)
     body_i = region_index(fr, fr.region(8, 17, 8, 14))
+    print(f"newshg-127: body index {body_i}")
     mats = [
-        common.palette_material(sp, body_i, name, metallic=0.55, roughness=0.3),   # 0 ball
-        common.palette_material(sp, 59, name, metallic=0.6, roughness=0.28),       # 1 hoop band
+        common.palette_material(sp, body_i, name, metallic=0.4, roughness=0.34),   # 0 ball (grooves)
+        common.palette_material(sp, 60, name, metallic=0.35, roughness=0.3),       # 1 ridge crests
         common.palette_material(sp, 52, name, metallic=0.55, roughness=0.45),      # 2 bosses, socket
         common.palette_material(sp, 49, name, metallic=0.2, roughness=0.08),       # 3 lens
-        common.palette_material(sp, 55, name, metallic=0.55, roughness=0.4),       # 4 seam
     ]
-    BALL, HOOP, BOSS, LENS, SEAM = range(5)
+    BALL, RIDGE, BOSS, LENS = range(4)
     CU, CV, R, RZ = 13.0, 14.0, 6.0, 0.40
     cx, cy = X(CU), Y(CV)
+    # The ring axis in unit-sphere space (the ball normalised by its radii).
+    ax_x, ax_y = (POD_AXIS_UV[0] - CU) / 6.2, (CV - POD_AXIS_UV[1]) / 6.2
+    axis = (ax_x, ax_y, math.sqrt(max(0.0, 1 - ax_x ** 2 - ax_y ** 2)))
     bm = bmesh.new()
     # The ball itself: frame 127 draws it a pixel narrower at its waist (no ink ring, the side
     # gaps transparent), so that frame gets a slightly smaller ball (common.frame_part).
     balls = []
     for frames, rx in (([129, 131], 6.2), ([127], 0)):
         bb = bmesh.new()
+        clip = None
         if rx:
-            ellipsoid(bb, (cx, cy, 0.0), (rx / 12, (rx - 0.05) / 12, RZ), segments=32, rings=16, mat=BALL)
+            ellipsoid(bb, (cx, cy, 0.0), (rx / 12, (rx - 0.05) / 12, RZ), segments=64, rings=32, mat=BALL)
         else:
             # Lofted down its rows from frame 127's mask: the same ball, its waist a pixel in.
             fit_tube(bb, filled(Fr(name, 127)), [(CU, 7.9), (CU, 20.1)], BALL, hr=0.0, hmin=RZ, hmax=RZ, wmax=6.4,
                      keep=lambda u, v: 6.95 <= u <= 19.05, exp=2.0, zbot=1.0, sides=32, cap=(1.2, 1.2), smooth=1,
                      hfun=lambda t: math.sqrt(max(0.05, 1 - (2 * t - 1) ** 2)))
+            f127 = filled(Fr(name, 127))
+            clip = lambda x, y: f127.ins(x * 12 + 12, 14 - y * 12)  # noqa: E731
+        bmesh.ops.triangulate(bb, faces=bb.faces)
+        bb = ribbed_ball(bb, (cx, cy, 0.0), (6.2 / 12, 6.15 / 12, RZ), axis, BALL, RIDGE, clip=clip,
+                         grow=1.0 if clip is None else 1.012)  # the lattice's chords lose a hair at 127's rim
         o = common.mesh_object(f"{name}-ball-{frames[0]}", bb, mats, coll, smooth=True)
         common.frame_part(o, frames)
         o["tyrian_model"] = name
         balls.append(o)
-    # A seam groove ring round the upper hemisphere (machined cap line).
-    tube3(bm, [(cx + 4.3 / 12 * math.cos(a), cy + 4.3 / 12 * math.sin(a), RZ * math.sqrt(1 - (4.3 / 6) ** 2) - 0.004)
-               for a in (2 * math.pi * k / 40 for k in range(40))], 0.22 / 12, sides=5, mat=SEAM, closed=True)
-    # Hoop band over the top in the XZ plane (rows 14-15), ending in the pivot bosses at the sides.
-    hv = 14.85
-    band = []
-    a0 = math.acos(4.4 / 6.25)  # the band dives into the ball 5 px out; a thin axle runs on to the boss
-    for k in range(25):
-        a = a0 + (math.pi - 2 * a0) * k / 24
-        rr = 6.25 / 12
-        band.append((cx + rr * math.cos(a), Y(hv), (RZ + 0.012) * math.sin(a)))
-    tube3(bm, band, 0.75 / 12, sides=8, mat=HOOP, flat=0.35)
-    under = [(cx + 6.22 / 12 * math.cos(a), Y(hv), -(RZ + 0.005) * math.sin(a))
-             for a in (a0 + (math.pi - 2 * a0) * k / 24 for k in range(25))]
-    tube3(bm, under, 0.7 / 12, sides=8, mat=HOOP, flat=0.35)
     for sgn in (-1, 1):
         # Pivot boss: a short cylinder along X (columns 6 / 19, rows 13-15).
         xa = cx + sgn * (R - 1.0) / 12
         x0 = cx + sgn * 6.05 / 12
         x1 = cx + sgn * 6.95 / 12
         rings = []
-        for x, rr in ((xa, 0.2), (x0, 0.2), (x0, 1.45), (x1 - sgn * 0.15 / 12, 1.45), (x1, 1.2)):
-            rings.append([(x, Y(14.6) + rr / 12 * math.cos(2 * math.pi * k / 14), rr / 12 * math.sin(2 * math.pi * k / 14))
+        # The thin axle sits on the row 14/15 line, so frame 127's see-through gap beside the ball
+        # (col 7 / 18) stays under half covered in both rows.
+        for x, rr, yc in ((xa, 0.2, 15.0), (x0, 0.2, 15.0), (x0, 1.45, 14.6), (x1 - sgn * 0.15 / 12, 1.45, 14.6),
+                          (x1, 1.2, 14.6)):
+            rings.append([(x, Y(yc) + rr / 12 * math.cos(2 * math.pi * k / 14), rr / 12 * math.sin(2 * math.pi * k / 14))
                           for k in range(14)])
         ring_loft(bm, rings, BOSS)
     parts = [common.mesh_object(name, bm, mats, coll, smooth=True)]
@@ -554,9 +636,13 @@ def build_pod(coll, out):
         common.frame_part(o, [frame])
         o["tyrian_model"] = name
         eyes.append(o)
-    tmp = join_copy(parts + balls[:1] + eyes[1:2], f"{name}_seal", coll)
+    # No eye in the seal: one frame's socket in a shell shared by all three drew an ink crescent
+    # beside the other frames' lenses.
+    tmp = join_copy(parts + balls[:1], f"{name}_seal", coll)
     bpy.context.view_layer.update()
-    shell = common.outline_shell(tmp, coll, **SHELL)
+    # The shell held further inside than the other groups' (QA: its ink ring read about two sprite
+    # pixels wide against the sprite's one), so less of the pushed-out hull shows past the rim.
+    shell = common.outline_shell(tmp, coll, **{**SHELL, "inside": POD_SHELL_INSIDE})
     bpy.data.objects.remove(tmp, do_unlink=True)
     shell.name = f"{name}_outline"
     for o in parts + [shell]:

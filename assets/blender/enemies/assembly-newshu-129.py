@@ -18,7 +18,7 @@ Construction (cross-sections first, D50-D53/D65 style):
 - Glass dome above it (an ellipsoidal cap, HZ 21.5 px tall), its surface triangulated in plan
   (delaunay, 0.62 px) and painted by the sprite's regions with smooth boundaries; the organs press
   softly against the glass (low relief, under a pixel), the ribs and vein are half-sunk tubes, the
-  lamp is a machined fitting: steel bezel, reflector ring and a domed lens.
+  lamp is one more organ blob painted on the glass (no fitting: a bezel and lens read as an eye).
 - Lower bowl (pchip profile) and a socket boss underneath: a plausible closed shape only.
 - Three states share the plan: grey (dim, frames 91 / 241), -f2 green (lit fade, 153..237),
   -f3 purple (one closed smooth shell, 246). Each region's palette index follows the sprite frame by
@@ -28,6 +28,7 @@ Construction (cross-sections first, D50-D53/D65 style):
   outline shell (D51) per state, cut open at the piece seams.
 
   blender -b --factory-startup -P assembly-newshu-129.py -- [--review] [--out review.glb] [--pieces DIR]
+                                                            [--report report.json]
 
 Default does the real export (export_sprite_model: models, frames, spriteModels JSON). --review writes
 a review copy instead (every state's four pieces with their outline shells at their places, the states
@@ -46,7 +47,7 @@ import numpy as np
 from mathutils import Vector, geometry, interpolate
 from mathutils.bvhtree import BVHTree
 
-WT = Path("/Users/dlomibao/projects/tyrian-worktrees/e1-enemies")
+WT = Path(__file__).resolve().parents[3]  # repo root
 sys.path.insert(0, str(WT / "assets" / "blender"))
 sys.path.insert(0, str(WT / "tools"))
 import common  # noqa: E402
@@ -55,8 +56,6 @@ import sprite_mask as SM  # noqa: E402
 
 NAME = "assembly-newshu-129"
 ROOT = WT
-HERE = Path("/Users/dlomibao/projects/tyrian-scratch/e1-enemies/assembly-newshu-129/final")
-HERE.mkdir(parents=True, exist_ok=True)
 W, H = 48, 56
 PX = 1 / 12
 # piece, its centre relative to the block centre (screen px), its frame offset from the composed key
@@ -90,6 +89,7 @@ RELIEF_SIGMA = 1.4
 EDGE_SIGMA = 1.0
 PAINT_RHO = 0.93   # the organs' paint is gone by here (plan radius fraction) ...
 PAINT_FADE = 0.09  # ... fading over this much, so their edges round off before the steep flank
+GLASS_SPEC = 0.2   # Specular IOR Level of the glass and paint (0.5 = F0 4 %)
 
 
 # --- Sprite ---------------------------------------------------------------------------------------
@@ -185,7 +185,8 @@ def blob_labels(g153):
     # the mass round it and the glossy glass makes the highlight
     lab[ell(17.5, 17.8, 4.6, 5.0) & ~np.isin(lab, [LOBE, BUD])] = MASS
     lab[ell(36.2, 36.3, 3.0, 3.0) & (org | (G >= 32) & (G <= 47))] = LAMP
-    lab[ell(36.2, 36.3, 1.5, 1.5)] = LAMPC
+    # the "lamp" is one more organ blob pressed against the glass (the sprite draws no fitting, no
+    # bright centre: a bezel and lens read as an eye the sprite doesn't have), so no LAMPC centre
     lab[org & box(32, 37.5, 45, 50) & ~ell(36.2, 36.3, 3.0, 3.0)] = GLASS  # rim crescent: sheen
     lab[org & (rr > 46.5)] = GLASS  # the lowest arc is the same crescent
     return lab
@@ -226,6 +227,7 @@ def luma(rgb):
 
 FAM_ORG = set(range(100, 108)) | set(range(133, 142)) | set(range(192, 208))
 FAM_LAMP = set(range(32, 48)) | {55} | set(range(192, 208))
+FAM_GREEN = set(range(32, 44)) | set(range(192, 208))
 
 
 def region_index(g, sel, colors, drop=0.15, keep_top=False, family=None):
@@ -279,10 +281,26 @@ def state_colours(sprites, colors, lab, plan, state):
             # the core's brightest third is the glass's glare (grey frames), not the bulb
             drop = 0.0 if small else (0.3 if reg == CORE else 0.15)
             per[k][reg] = region_index(g, sel, colors, drop=drop, keep_top=small, family=fam)
+            # a grey-glass frame whose organ is drawn mostly green (241: the fade's last step, the
+            # swirls still green on dark glass) takes the commonest green of it, not the blue-grey
+            # the grey mass is drawn 103 and 102 near half and half: the dome's crown takes the full sun,
+            # so the darker 102 (103 lit there reads pale silver-blue against the sprite's slate)
+            if state == "grey" and reg == MASS and per[k][reg] == 103:
+                per[k][reg] = 102
+            if state == "grey" and reg != GLASS:
+                v = [int(x) for x in g[sel] if x >= 0]
+                gv = [x for x in v if x in FAM_GREEN]
+                if v and len(gv) >= 0.4 * len(v):
+                    per[k][reg] = Counter(gv).most_common(1)[0][0]
         # the collar: the steel of the drawn rim (the lit rim colours next to the ink ring)
         ring = (rho > 0.9) & (g >= 0)
         per[k][METAL] = {"grey": 101, "green": 34}[state]
         per[k][GLASS] = per[k][GLASS] if per[k][GLASS] is not None else region_index(g, ring, colors)
+        # the grey glass is drawn 4 inside (then 102 and 5); on the dome under the game's sun and the
+        # glass's low F0 index 4 renders charcoal (about 30 against the sprite's 52-69), so the next
+        # step of the sprite's own ramp, 5, which renders near the sprite's slate (D201)
+        if state == "grey" and per[k][GLASS] == 4:
+            per[k][GLASS] = 5
     for k in keys:
         for reg in range(10):
             if per[k][reg] is None:
@@ -882,37 +900,6 @@ LINK_2 = [(25.8, 35.2), (25.6, 37.5), (25.6, 39.8), (26.0, 41.4), (27.8, 41.9)]
 VEIN_P = [(31.4, 27.6), (30.7, 29.5), (30.6, 32.0), (30.9, 34.5), (31.2, 37.0), (31.0, 39.2), (30.4, 41.0)]
 
 
-def lamp(bm, pod):
-    """The lamp fitting: steel bezel, reflector ring and domed lens, on the glass's normal."""
-    c0, r0 = 36.2, 36.3
-    base, n = pod.dome(c0, r0, False)
-    side = Vector((0, 0, 1)).cross(n).normalized()
-    up = n.cross(side).normalized()
-    m = 28
-
-    def ringv(rad, h):
-        return [bm.verts.new(base + (side * math.cos(2 * math.pi * k / m) + up * math.sin(2 * math.pi * k / m))
-                             * rad * PX + n * h * PX) for k in range(m)]
-    # (radius, height above the glass, material of the band from the previous ring to this one)
-    prof = [(3.35, -0.6, None), (3.35, 0.3, METAL), (3.1, 0.55, METAL), (2.8, 0.55, METAL),
-            (2.62, 0.4, LAMP), (1.95, 0.3, LAMP), (1.6, 0.38, LAMP), (1.6, 0.5, LAMPC), (1.25, 0.88, LAMPC),
-            (0.7, 1.06, LAMPC), (0.0, 1.12, LAMPC)]
-    rings = []
-    for rad, h, mat in prof:
-        if rad == 0:
-            rings.append([bm.verts.new(base + n * h * PX)])
-        else:
-            rings.append(ringv(rad, h))
-    for (r0v, r1v), (_, _, mat) in zip(zip(rings, rings[1:]), prof[1:]):
-        for k in range(m):
-            k2 = (k + 1) % m
-            if len(r1v) == 1:
-                bm.faces.new((r0v[k], r0v[k2], r1v[0])).material_index = mat
-            else:
-                bm.faces.new((r0v[k], r0v[k2], r1v[k2], r1v[k])).material_index = mat
-    bm.faces.new(rings[0][::-1]).material_index = METAL
-
-
 def build(state, pod, mats, coll):
     bm = bmesh.new()
     painted = state != "purple"
@@ -926,7 +913,6 @@ def build(state, pod, mats, coll):
         tube(bm, pod, LINK_1, 0.75, RIBS, lift=-0.45)
         tube(bm, pod, LINK_2, 0.7, RIBS, lift=-0.45)
         tube(bm, pod, VEIN_P, 0.75, VEIN, lift=-0.45)
-        lamp(bm, pod)
     obj = common.mesh_object(f"{NAME}-{state}", bm, mats, coll, smooth=True)
     obj.data.set_sharp_from_angle(angle=math.radians(40))
     return obj
@@ -1033,8 +1019,8 @@ def split_open(obj, layout, coll):
 
 def materials(state, cols, palette):
     mats = []
-    emis = {"grey": {LAMP: 1.0, LAMPC: 1.5},
-            "green": {CORE: 1.0, BUD: 1.0, RIBS: 0.8, VEIN: 0.8, LAMP: 1.5, LAMPC: 2.5},
+    emis = {"grey": {},
+            "green": {CORE: 1.0, BUD: 1.0, RIBS: 0.8, VEIN: 0.8, LAMP: 0.8},
             "purple": {}}[state]
     for reg in range(len(RNAMES)):
         idx, frames = cols[reg]
@@ -1047,8 +1033,16 @@ def materials(state, cols, palette):
         else:
             met, rough = 0.05, 0.36
         tag = f"nsu129A_{state}_{RNAMES[reg]}"
-        mats.append(common.palette_material(palette, idx, tag, metallic=met, roughness=rough,
-                                            emission_strength=emis.get(reg, 0.0), frames=frames or None))
+        mt = common.palette_material(palette, idx, tag, metallic=met, roughness=rough,
+                                     emission_strength=emis.get(reg, 0.0), frames=frames or None)
+        if state != "purple" and reg in PAINTED:
+            # the glass (and the organs seen through it) keeps the sprite's dark slate: at the default
+            # 4 % F0 the game's sun and environment spread pale silver-blue sheen over the lower half,
+            # where the sprite is darkest (D176: F0 through Specular IOR Level)
+            bsdf = next(n for n in mt.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+            if "Specular IOR Level" in bsdf.inputs:
+                bsdf.inputs["Specular IOR Level"].default_value = GLASS_SPEC
+        mats.append(mt)
     return mats
 
 
@@ -1091,7 +1085,8 @@ def main():
             for o in (pieces[name], shells[name]):
                 o["tyrian_state"] = state
                 export.append((o, dx / 12 + 5 * si, -dy / 12))
-    (HERE / "report.json").write_text(json.dumps(report, indent=1))
+    if "--report" in argv:
+        Path(argv[argv.index("--report") + 1]).write_text(json.dumps(report, indent=1))
     if "--review" not in argv:
         for name, (p, sh, state) in pieces_out.items():
             base = name[:-3] if state != "grey" else name
@@ -1104,7 +1099,7 @@ def main():
         d = Path(argv[argv.index("--pieces") + 1])
         for name, (p, sh, state) in pieces_out.items():
             common.export_glb([p, sh], d / f"{name}.glb")
-    out = argv[argv.index("--out") + 1] if "--out" in argv else str(HERE / f"{NAME}_review.glb")
+    out = argv[argv.index("--out") + 1] if "--out" in argv else f"{NAME}_review.glb"
     for o, x, y in export:
         o.location = (x, y, 0)
     common.export_glb([o for o, _, _ in export], out)

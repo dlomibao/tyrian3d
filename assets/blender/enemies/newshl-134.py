@@ -3,8 +3,9 @@
 - newshl-134, red-banded canister: a grey lathe 4 px across lying nose down the screen: a flared
   tail cap (rows 1-3, dark steel), a thin neck drawn in ink only (row 4, r 0.35 px so it never
   covers the ink pixels), a collar (rows 5-6), the 4 px body (rows 7-10) with a glowing red band
-  (row 8) between two steel lips, and a dark rounded nose (row 11). The light stripe down column 5
-  is sheen on a round body.
+  (row 8, the 118 centre) between two steel lips, and a dark rounded nose (row 11). The light stripe
+  down column 5 is sheen on a round body. Bright silver, as the sprite: light grey indices (11 body,
+  9 cap with its lower half (row 2) in 6, 12 lips; row 10 in 6 like the nose) at low metallic, so it never renders charcoal or bronze under D205 (D201).
 
 
 Units: X = (u - 6) / 12, Y = (7 - v) / 12 for sprite edge coordinates (u right, v down), Z up.
@@ -99,25 +100,28 @@ STEEL_SPEC = 0.5 * ((1.4 / 3.4) ** 2 / 0.04)
 
 def canister(sprite, coll):
     name = "newshl-134"
+    # Bright silver (the sprite's body is 9 with a 14 sheen stripe, the collar 12/10): light indices
+    # at low metallic so the D205 lighting keeps them silver, not charcoal/bronze (D201); the band is
+    # the sprite's 118 centre, glowing (metallic 1, rough, D126/D173).
     mats = [
-        material(sprite, 7, f"{name}_body", 0.4, 0.3, spec=STEEL_SPEC, coat=0.5, coat_rough=0.2),  # 0
-        material(sprite, 6, f"{name}_cap", 0.45, 0.38, spec=STEEL_SPEC),                           # 1
-        material(sprite, 4, f"{name}_dark", 0.4, 0.45),                                             # 2
-        material(sprite, 115, f"{name}_band", 1.0, 0.85, glow=0.9),                                 # 3
-        material(sprite, 9, f"{name}_lip", 0.5, 0.3, spec=STEEL_SPEC),                              # 4
-        material(sprite, 3, f"{name}_groove", 0.2, 0.7),                                            # 5
+        material(sprite, 11, f"{name}_body", 0.15, 0.3, spec=STEEL_SPEC, coat=0.4, coat_rough=0.15),  # 0
+        material(sprite, 9, f"{name}_cap", 0.15, 0.32, spec=STEEL_SPEC),                              # 1
+        material(sprite, 6, f"{name}_dark", 0.15, 0.45),                                                # 2
+        material(sprite, 118, f"{name}_band", 1.0, 0.85, glow=0.85),                                    # 3
+        material(sprite, 12, f"{name}_lip", 0.15, 0.28, spec=STEEL_SPEC),                               # 4
+        material(sprite, 4, f"{name}_groove", 0.1, 0.7),                                                # 5
     ]
     BD, CP, DK, BN, LP, GR = range(6)
     zc = 2.0 * PX + 0.003
     # (v edge row, radius px, material of the band ending here); nose toward +v (down-screen).
     prof = [(1.0, 0.0, CP), (1.0, 0.9, CP), (1.08, 1.05, CP), (1.06, 1.55, CP), (1.15, 1.9, CP), (1.35, 2.0, CP),
-            (1.9, 2.0, CP), (1.95, 1.88, GR), (2.1, 1.88, GR), (2.15, 2.0, CP), (2.7, 2.0, CP), (2.95, 1.75, CP),
+            (1.9, 2.0, CP), (1.95, 1.88, GR), (2.1, 1.88, GR), (2.15, 2.0, DK), (2.7, 2.0, DK), (2.95, 1.75, DK),
             (3.1, 1.2, CP), (3.85, 1.0, CP), (3.97, 0.35, DK), (4.95, 0.35, DK), (5.05, 0.95, BD),
             (5.15, 1.05, BD), (5.75, 1.05, BD), (5.8, 0.92, GR), (5.95, 0.92, GR), (6.0, 1.05, BD),
             (6.55, 1.08, BD), (6.95, 1.7, BD), (7.3, 1.98, BD), (7.75, 2.0, BD),
             (7.78, 2.1, LP), (7.98, 2.1, LP), (8.02, 1.96, LP), (8.08, 2.0, BN), (8.9, 2.0, BN),
-            (8.98, 1.96, BN), (9.02, 2.1, LP), (9.22, 2.1, LP), (9.25, 2.0, LP), (10.3, 1.97, BD),
-            (10.55, 1.85, BD), (10.62, 1.72, GR), (10.72, 1.6, DK), (11.1, 1.3, DK), (11.5, 0.95, DK),
+            (8.98, 1.96, BN), (9.02, 2.1, LP), (9.22, 2.1, LP), (9.25, 2.0, LP), (9.98, 1.99, BD), (10.3, 1.97, DK),
+            (10.55, 1.85, DK), (10.62, 1.72, GR), (10.72, 1.6, DK), (11.1, 1.3, DK), (11.5, 0.95, DK),
             (11.8, 0.55, DK), (11.97, 0.2, DK), (12.0, 0.0, DK)]
     sides = 20
     bm = bmesh.new()

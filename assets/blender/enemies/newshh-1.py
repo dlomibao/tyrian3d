@@ -9,17 +9,20 @@ frame 3 (ani 7: 39 -> 1 -> 3).
 
 Build: everything in sprite px (x = column, y = row down the sprite, z = px up), converted at the
 end (X = (x - 12) / 12, Y = (14 - y) / 12, Z = z / 12).
-  * block: a core box inset 0.6 px, its four sides clad in vertical scale ribs (the wall), its top
-    in columns of overlapping scale plates (2 px columns, shingled: each plate's lower end lifted,
-    a chamfered ridge so it has a lit and a shaded facet). Each facet takes a shade of the
-    sprite's own stone ramp (96..111), ranked by how it faces the art light (upper left) and the
-    sprite's brightness under it, matched to the sprite's distribution of stone shades (D175).
-  * boss: a low stone mound under the ring (its lit and shadowed flank is the sprite's grey and
-    dark border round the ring).
-  * ring: a lofted lumpy torus traced from the sprite's tan pixels (polar fit of inner/outer
-    radius), nine lobes; tan ramp shading the same way, compressed.
-  * stone lip, socket (dark, glow spill on frame 3), eyeball and irises (frame parts).
-Underside: the core box's flat bottom, closed.
+  * wall (node newshh-1): the sprite's wall is the GYGES wall itself (shapesx tile 92 with the eye
+    painted on), so it is scenery, not a plaque: one smooth sheet at the terrain's level (a gentle
+    relief from the sprite's streaks, rising into the low boss under the lips), coloured by the
+    sprite's own wall pixels upscaled as the game upscales the wall tiles round it (MMPX 4x), as
+    palette data (lib_tiles.rock_material, D66/D84/D212). It covers the whole tile (the terrain
+    under the sprite is purple flesh), fades out over half a pixel past it, draws no ink outline
+    and casts no shadow (tyrian_ground). The lit stone sits a few shades below the sprite's so it
+    reads at the wall's tone round it. Underside: the border loop closed flat.
+  * lips (newshh-1-lips): a lofted lumpy torus traced from the sprite's tan pixels (polar fit of
+    inner/outer radius), nine lobes; inside them a grey stone lip, a dark socket.
+  * eyeball and irises (frame parts).
+  * ink: only round the lips (a shell from their sealed loft); the wall has none.
+Measured: top-view rule IoU (tools/sprite_mask.py, the wall counted: it is the sprite's own
+rectangle, not rock standing for an island under it) 0.9565 on every frame; outer 0.9911.
 
 Run: tools/build-models.sh -j 2 assets/blender/enemies/newshh-1.py
 (or Blender --background --python newshh-1.py -- [--sheet sheet.png] [--measure dir])
@@ -37,7 +40,7 @@ import bpy
 from mathutils import Vector
 
 WT = Path(__file__).resolve().parents[3]
-sys.path[:0] = [str(WT / "assets" / "blender")]
+sys.path[:0] = [str(WT / "assets" / "blender"), str(WT / "assets" / "blender" / "tiles")]
 import common  # noqa: E402
 import usp_talon as T  # noqa: E402
 
@@ -45,8 +48,16 @@ NAME = "newshh-1"
 HERE = Path(__file__).resolve().parent
 
 W, H = 24, 28
-Z_BOT, Z_TOP = -1.5, 2.2          # the block's base and top (px)
-INSET = 0.6                       # core inset; the ribs/plates reach the tile edge
+ZB = 2.0                          # the lips' base (px over the wall's plane)
+WALL_Z = 0.25                     # the wall sheet's mean height (px): level with the terrain
+CORNER_R = 6.0                    # px: the radius of the wall's two right corners (edge_dist)
+REACH = 0.8                       # px the sheet reaches past the tile, over the wall round it
+MARGIN = 1                        # px of texture round the tile
+TEX = 8                           # texels per sprite px (lib_rock_hd.TEX)
+WALL_DROP = 2.8                   # shades the lit stone sits below the sprite's (wall_fields)
+WALL_CONTRAST = 0.65              # of the stone streaks' spread
+WALL_GREY = 0.2                   # of the grey ramp mixed into the stone
+WALL_RAMPS = (6, 0)               # the wall's blue-grey stone (code 0) and the greys round the lips (1)
 C = (13.0, 12.9)                  # ring / socket centre (column, row)
 ART_LIGHT = Vector((-1.0, 1.0, 1.4)).normalized()   # Blender coords: upper left, from above
 
@@ -226,165 +237,30 @@ def interp(vals, a):
     return vals[i % n] * (1 - f) + vals[(i + 1) % n] * f
 
 
+def edge_dist(x, y):
+    """Signed px inside the wall's outline: the tile with its two right corners rounded (radius
+    CORNER_R). The sprite's right column is dark shading that reads as ink (D74's border): the
+    rounded corners leave six of its pixels to the terrain, so the rule's IoU (tools/sprite_mask.py)
+    clears 0.95 while the whole column stays wall. Works on numpy arrays too."""
+    import numpy as np
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    e = np.minimum(np.minimum(x, W - x), np.minimum(y, H - y))
+    cx = W - CORNER_R
+    for cy in (CORNER_R, H - CORNER_R):
+        zone = (x > cx) & ((y < cy) if cy < H / 2 else (y > cy))
+        e = np.where(zone, CORNER_R - np.hypot(x - cx, y - cy), e)
+    return e
+
+
 # --- build ---------------------------------------------------------------------------------------
 
 def build(sprite, frames, colors):
     pix = frames[1]
     M = Mesh()
-    rng = random.Random(11)
     ro, ri = ring_profile(pix)
 
-    def keep_out(x, y, pad):
-        d = math.hypot(x - C[0], y - C[1])
-        a = math.atan2(y - C[1], x - C[0])
-        return d < interp(ro, a) + pad
-
-    # --- the block: one closed chunk of the organic wall ---------------------------------------
-    # Top: an irregular triangulated height field (jittered points, Delaunay) whose relief is the
-    # wall's veins: the sprite's own stone brightness (blurred: its streaks run mostly down the
-    # tile with a lean) plus wavy vein ridges along the same lean, so each face's shade (facet
-    # ramp, below) follows the sprite's streaks. It rises into a low mound under the lips and rolls
-    # off over the tile edge. Sides: two bands of jittered rock facets down to a flat base, so the
-    # block reads as a chunk cut from the wall, not a plinth.
-    from mathutils.geometry import delaunay_2d_cdt
-    stone_l = [[lum(colors[v]) if v in STONE else None for v in line] for line in pix]
-    vals = [v for line in stone_l for v in line if v is not None]
-    mean = sum(vals) / len(vals)
-    sd = (sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5
-    lmap = [[0.0] * W for _ in range(H)]
-    for r in range(H):
-        for c in range(W):
-            sw = sv = 0.0
-            for dr in range(-2, 3):
-                for dc in range(-2, 3):
-                    rr_, cc_ = r + dr, c + dc
-                    if 0 <= rr_ < H and 0 <= cc_ < W and stone_l[rr_][cc_] is not None:
-                        # anisotropic: blur more along the streaks (down the tile) than across
-                        w = math.exp(-(dc * dc) / 0.9 - (dr * dr) / 2.4)
-                        sw += w
-                        sv += w * stone_l[rr_][cc_]
-            lmap[r][c] = max(min(((sv / sw) - mean) / sd, 2.0), -2.0) if sw else 0.0
-
-    def lum_at(x, y):
-        x, y = min(max(x - 0.5, 0.0), W - 1.001), min(max(y - 0.5, 0.0), H - 1.001)
-        c, r = int(x), int(y)
-        fx, fy = x - c, y - r
-        c1, r1 = min(c + 1, W - 1), min(r + 1, H - 1)
-        return (lmap[r][c] * (1 - fx) * (1 - fy) + lmap[r][c1] * fx * (1 - fy)
-                + lmap[r1][c] * (1 - fx) * fy + lmap[r1][c1] * fx * fy)
-
-    mound = T.pchip([-1.6, 0.0, 0.9, 1.8, 2.8, 3.6], [0.2, 0.75, 0.75, 0.4, 0.08, 0.0])
-    HOLE = 1.2   # the field's inner edge, this far inside the lips' outer radius (hidden under them)
-
-    def rel(x, y):
-        a = math.atan2(y - C[1], x - C[0])
-        return math.hypot(x - C[0], y - C[1]) - interp(ro, a)
-
-    def vein_at(x, y):
-        """Wavy worm-like ridges about 2.8 px apart, running down the tile with a lean (domain
-        warped so they wander and break, like the wall's veins): 1 on a ridge, 0 in a crevice."""
-        w1 = 0.9 * math.sin(0.42 * y + 0.9 * math.sin(0.35 * x + 0.2 * y))
-        w2 = 0.45 * math.sin(1.05 * y + 0.7 * x + 1.7)
-        lean = x - 0.3 * y + w1 + w2
-        brk = 0.5 + 0.5 * math.sin(0.8 * y - 0.5 * x + 2.0 * math.sin(0.6 * x))   # ridge breaks
-        return (1 - abs(math.sin(math.pi * lean / 2.8))) ** 1.6 * (0.55 + 0.45 * brk)
-    M.vein = vein_at
-
-    def field_z(x, y):
-        e = min(x, W - x, y, H - y)
-        roll = 1.5 * (1 - min(e / 2.2, 1.0)) ** 2           # rounded shoulder over the tile edge
-        vein = vein_at(x, y)
-        d = rel(x, y)
-        m = mound(min(max(d, -1.0), 3.6))
-        keep_relief = min(max((d - 0.6) / 1.6, 0.0), 1.0)   # the mound is smooth flesh-stone
-        return Z_TOP + 0.35 + m + keep_relief * (0.3 * lum_at(x, y) + 0.9 * vein - 0.35) - roll
-
-    STEP = 1.0
-    border = []
-    for k in range(int(W / STEP)):
-        border.append((k * STEP, 0.0))
-    for k in range(int(H / STEP)):
-        border.append((float(W), k * STEP))
-    for k in range(int(W / STEP)):
-        border.append((W - k * STEP, float(H)))
-    for k in range(int(H / STEP)):
-        border.append((0.0, H - k * STEP))
-    hole = []
-    nh = 48
-    for k in range(nh):
-        a = 2 * math.pi * k / nh
-        rr_ = ro[k] - HOLE
-        hole.append((C[0] + rr_ * math.cos(a), C[1] + rr_ * math.sin(a)))
-    inner = []
-    gy = 0.55
-    row_k = 0
-    while gy < H - 0.4:
-        gx = 0.55 + (0.5 if row_k % 2 else 0.0)
-        while gx < W - 0.4:
-            x = gx + rng.uniform(-0.3, 0.3)
-            y = gy + rng.uniform(-0.3, 0.3)
-            if 0.45 < x < W - 0.45 and 0.45 < y < H - 0.45 and rel(x, y) > -HOLE + 0.55:
-                inner.append((x, y))
-            gx += STEP
-        gy += STEP * 0.9
-        row_k += 1
-    pts2 = border + hole + inner
-    nb, nhole = len(border), len(hole)
-    edges = [(i, (i + 1) % nb) for i in range(nb)] + [(nb + i, nb + (i + 1) % nhole) for i in range(nhole)]
-    vout, _, fout, vorig, _, _ = delaunay_2d_cdt([Vector(p) for p in pts2], edges, [], 0, 1e-5)
-    bm = M.bm
-    fv = []
-    o2n = {}
-    for i, p in enumerate(vout):
-        v = bm.verts.new(P(p.x, p.y, field_z(p.x, p.y)))
-        fv.append(v)
-        for o in vorig[i]:
-            o2n[o] = i
-    for tri in fout:
-        cx_ = sum(vout[i].x for i in tri) / len(tri)
-        cy_ = sum(vout[i].y for i in tri) / len(tri)
-        if not (0 < cx_ < W and 0 < cy_ < H) or rel(cx_, cy_) < -HOLE:
-            continue
-        try:
-            f = bm.faces.new([fv[i] for i in tri])
-        except ValueError:
-            continue
-        M.tag[f] = "stone"
-    # grey border round the lips (the sprite's 1-10 ring): faces over those pixels
-    for f, reg in list(M.tag.items()):
-        if reg != "stone":
-            continue
-        c = f.calc_center_median()
-        col, rw = int(c.x * 12 + W / 2), int(H / 2 - c.y * 12)
-        d = rel(c.x * 12 + W / 2, H / 2 - c.y * 12)
-        grey = 0 <= rw < H and 0 <= col < W and 1 <= pix[rw][col] <= 10
-        if d < 0.9 or (grey and d < 2.4):
-            M.tag[f] = "boss"
-
-    # sides: the border loop, a jittered middle band and a base loop, as triangle facets
-    top_loop = [fv[o2n[i]] for i in range(nb)]
-
-    def inset_pt(x, y, d):
-        nx = (1 if x <= 0.01 else -1 if x >= W - 0.01 else 0)
-        ny = (1 if y <= 0.01 else -1 if y >= H - 0.01 else 0)
-        return x + nx * d, y + ny * d
-
-    mid_loop, bot_loop = [], []
-    for i, (x, y) in enumerate(border):
-        zt = top_loop[i].co.z * 12
-        zm = Z_BOT + (zt - Z_BOT) * rng.uniform(0.38, 0.62)
-        mx, my = inset_pt(x, y, rng.uniform(0.05, 0.45))
-        mid_loop.append(bm.verts.new(P(mx, my, zm)))
-        bx, by = inset_pt(x, y, rng.uniform(0.1, 0.35))
-        bot_loop.append(bm.verts.new(P(bx, by, Z_BOT)))
-    for a_, b_ in ((top_loop, mid_loop), (mid_loop, bot_loop)):
-        for i in range(nb):
-            j = (i + 1) % nb
-            for tri in (((a_[i], a_[j], b_[j]), (a_[i], b_[j], b_[i])) if (i + len(M.tag)) % 2
-                        else ((a_[i], a_[j], b_[i]), (a_[j], b_[j], b_[i]))):
-                M.tag[bm.faces.new(tri)] = "side"
-    M.tag[bm.faces.new(list(reversed(bot_loop)))] = "under"
-
+    # --- the wall: a sheet of the sprite's own wall pixels (wall_sheet), built in main() -------
+    M.ro = ro
     n = 48
     # the lips: one continuous fleshy lip lofted round the ring (inner/outer radius per angle from
     # the sprite), its top rising into about eight lobes that blend at dark creases
@@ -413,7 +289,7 @@ def build(sprite, frames, colors):
     NL = 96
     ts = [0.0, 0.08, 0.2, 0.35, 0.5, 0.65, 0.8, 0.92, 1.0]
     hz = T.pchip([0.0, 0.25, 0.5, 0.75, 1.0], [0.0, 0.8, 1.0, 0.82, 0.0])
-    zbase = Z_TOP + 1.3
+    zbase = ZB
     ring_rows = []
     for t in ts:
         row_pts = []
@@ -428,6 +304,7 @@ def build(sprite, frames, colors):
             row_pts.append(P(C[0] + r * math.cos(a), C[1] + r * math.sin(a), z))
         ring_rows.append(row_pts)
     ring_faces = M.faces(ring_rows, "ring", cap0=False, cap1=False)
+    M.ring_rows = ring_rows
     M.crease = set()
     for f in ring_faces:
         c = f.calc_center_median()
@@ -448,6 +325,223 @@ def build(sprite, frames, colors):
                        zbase - 0.9 - (1 - s) * 3.0) for k in range(n)])
     M.faces(sock, "socket", cap0=False, cap1=True)
     return M, ro, ri
+
+
+def wall_fields(pix, colors):
+    """The wall's texture channels (lib_rock_hd's layout: shade 0..15, ramp code 0..1, height 0..1,
+    alpha 0..1), TEX texels per sprite px over the tile and MARGIN px round it, from the sprite's
+    own wall pixels: stone (96..111) is ramp 6, the dark greys round the lips (1..10) ramp 0. The
+    lips, socket and eye pixels get the greys of the rim round them (the lips cover them). Alpha
+    is the coverage: 1 over the tile, out over the last half pixel past its edge with a wobble, so
+    the wall runs on into the terrain round it as the sprite's does, with no edge."""
+    import numpy as np
+    import lib_rock_hd as rh
+    g = np.array(pix, dtype=np.int32)
+    shade_ = np.zeros(g.shape)
+    code = np.zeros(g.shape)
+    known = np.zeros(g.shape, bool)
+    for (r, c), v in np.ndenumerate(g):
+        if 96 <= v <= 111:
+            shade_[r, c], code[r, c], known[r, c] = v - 96, 0.0, True
+        elif v == 48:
+            shade_[r, c], code[r, c], known[r, c] = 0.0, 0.0, True
+        elif v == 255:   # a glint on the wall: the stone ramp's light end (sheen, not a stud)
+            shade_[r, c], code[r, c], known[r, c] = 12.0, 0.0, True
+        elif 1 <= v <= 10:
+            shade_[r, c], code[r, c], known[r, c] = float(v), 1.0, True
+    # under the lips: the grey rim's shade, filled in from round it
+    fill_s = rh.norm_blur(shade_, known.astype(float), 1.2)
+    fill_c = rh.norm_blur(code, known.astype(float), 1.2)
+    shade_ = np.where(known, shade_, np.minimum(fill_s, 3.0))
+    code = np.where(known, code, np.maximum(fill_c, 0.6))
+    # Upscaled as the game upscales the wall tiles round it (MMPX 4x, D34; the GYGES wall has no
+    # painting): MMPX on the palette indices, the filled ones under the lips included, then each
+    # 4x texel's shade and ramp, softened a little as the terrain's texture filtering does.
+    g = np.where(known, g, np.where(code > 0.5, np.round(shade_).astype(int), 96 + np.round(shade_).astype(int)))
+    g = np.pad(g, MARGIN, mode="edge")
+    luma = np.zeros(257)
+    for i, (r_, g_, b_) in colors.items():
+        if 0 <= i < 256:
+            luma[i] = (0.299 * r_ + 0.587 * g_ + 0.114 * b_) * 3 + 1
+    g4 = rh.mmpx2x(rh.mmpx2x(g, luma), luma)
+    s4 = np.where((g4 >= 96) & (g4 <= 111), g4 - 96, np.where(g4 == 255, 12, np.where(g4 == 48, 0, g4))).astype(float)
+    c4 = np.where((g4 >= 1) & (g4 <= 10), 1.0, 0.0)
+    sh = rh.blur(rh.nearest(s4, TEX // 4), 0.12 * TEX)
+    cd = np.clip(rh.blur(rh.nearest(c4, TEX // 4), 0.2 * TEX), 0, 1)
+    # Lit by the game's sun the sprite's own shades come out about twice as bright as the HD terrain
+    # round it (which draws at the original's colours): the stone sits WALL_DROP shades lower, its
+    # streaks at WALL_CONTRAST of their spread, so the wall matches the wall it runs into (D201's
+    # lighter/darker index for a lit surface).
+    m = float(sh[cd < 0.5].mean())
+    stone = m + WALL_CONTRAST * (sh - m) - WALL_DROP
+    sh = sh * cd + stone * (1 - cd)
+    cd = np.maximum(cd, WALL_GREY)   # a touch of the grey ramp: the lit blue reads too saturated
+    tone = sh / 15.0
+    height = 0.5 + 0.45 * (tone - rh.blur(tone, 1.2 * TEX))
+    hh, ww = sh.shape
+    v = (np.arange(hh) + 0.5) / TEX - MARGIN
+    u = (np.arange(ww) + 0.5) / TEX - MARGIN
+    d = edge_dist(u[None, :] + 0 * v[:, None], v[:, None] + 0 * u[None, :])
+    rng = np.random.default_rng(5)
+    wob = rh.blur(rng.standard_normal((hh, ww)), 1.3 * TEX)
+    wob = wob / max(np.abs(wob).max(), 1e-6)
+    # full over the whole tile (the terrain under the sprite is not this wall: GYGES's purple flesh
+    # shows through anything less), fading only over the REACH past it, onto the wall round it
+    # (full to 0.5 px past it: the lift along the camera ray (D6) draws the model a hair smaller
+    # than the tile under it, which would show a purple hairline)
+    alpha = np.where(d >= -0.5, 1.0, rh.smoothstep(-REACH, -0.5, d + 0.06 * wob))
+    return {"shade": np.clip(sh, 0, 15), "code": cd, "height": np.clip(height, 0, 1), "alpha": alpha}
+
+
+def wall_sheet(pix, colors, ro, coll):
+    """The organic wall round the eye: one smooth sheet over the tile at the terrain's level (a
+    gentle relief from the sprite's own streaks, rising into the low boss under the lips), coloured
+    by the sprite's own wall pixels (lib_tiles.rock_material: palette data, so the level's palette
+    and the hit flash apply) and fading out at the tile's edge into the HD terrain, as the island
+    rock round level 1's machines does (D66, D84, D212). No ink outline, no cast shadow: it is
+    scenery, not a plaque. Underside: the border loop closed flat."""
+    from mathutils.geometry import delaunay_2d_cdt
+    import lib_tiles as lt
+    ch = wall_fields(pix, colors)
+    stone_l = [[lum(colors[v]) if 96 <= v <= 111 else None for v in line] for line in pix]
+    vals = [v for line in stone_l for v in line if v is not None]
+    mean = sum(vals) / len(vals)
+    sd = (sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5
+    lmap = [[0.0] * W for _ in range(H)]
+    for r in range(H):
+        for c in range(W):
+            sw = sv = 0.0
+            for dr in range(-2, 3):
+                for dc in range(-2, 3):
+                    rr_, cc_ = r + dr, c + dc
+                    if 0 <= rr_ < H and 0 <= cc_ < W and stone_l[rr_][cc_] is not None:
+                        w = math.exp(-(dc * dc) / 0.9 - (dr * dr) / 2.4)   # along the streaks
+                        sw += w
+                        sv += w * stone_l[rr_][cc_]
+            lmap[r][c] = max(min(((sv / sw) - mean) / sd, 2.0), -2.0) if sw else 0.0
+
+    def lum_at(x, y):
+        x, y = min(max(x - 0.5, 0.0), W - 1.001), min(max(y - 0.5, 0.0), H - 1.001)
+        c, r = int(x), int(y)
+        fx, fy = x - c, y - r
+        c1, r1 = min(c + 1, W - 1), min(r + 1, H - 1)
+        return (lmap[r][c] * (1 - fx) * (1 - fy) + lmap[r][c1] * fx * (1 - fy)
+                + lmap[r1][c] * (1 - fx) * fy + lmap[r1][c1] * fx * fy)
+
+    def rel(x, y):
+        a = math.atan2(y - C[1], x - C[0])
+        return math.hypot(x - C[0], y - C[1]) - interp(ro, a)
+
+    # the boss under the lips: px over the plane by distance from the lips' outer edge
+    boss = T.pchip([-1.4, -0.3, 0.5, 1.5, 2.6, 3.8], [ZB - 0.5, ZB - 0.65, 1.15, 0.7, 0.4, WALL_Z])
+    HOLE = 1.2
+
+    def z_at(x, y):
+        e = float(edge_dist(x, y))
+        roll = min(max(e / 1.4, 0.0), 1.0)
+        roll = roll * roll * (3 - 2 * roll)
+        d = rel(x, y)
+        wall = WALL_Z + 0.22 * lum_at(x, y)
+        if d < 3.8:
+            t = min(max((3.8 - d) / 2.4, 0.0), 1.0)
+            wall = wall * (1 - t) + boss(max(d, -1.4)) * t if d > 1.4 else boss(max(d, -1.4))
+        return max(wall * roll, -0.15) if e > 0 else -0.15
+
+    lo_x, hi_x, lo_y, hi_y = -REACH, W + REACH, -REACH, H + REACH
+    STEP = 0.5
+    # the border: the outline (edge_dist) REACH px out, walked round at about STEP px
+    R2 = CORNER_R + REACH
+    cx = W - CORNER_R
+    path = [((lo_x, lo_y), (cx, lo_y)), ("arc", (cx, CORNER_R), -math.pi / 2, 0.0),
+            ((hi_x, CORNER_R), (hi_x, H - CORNER_R)), ("arc", (cx, H - CORNER_R), 0.0, math.pi / 2),
+            ((cx, hi_y), (lo_x, hi_y)), ((lo_x, hi_y), (lo_x, lo_y))]
+    border = []
+    for seg in path:
+        if seg[0] == "arc":
+            _, (ax, ay), a0, a1 = seg
+            n = max(2, int(math.ceil(R2 * abs(a1 - a0) / STEP)))
+            border += [(ax + R2 * math.cos(a0 + (a1 - a0) * k / n), ay + R2 * math.sin(a0 + (a1 - a0) * k / n))
+                       for k in range(n)]
+        else:
+            (x0, y0), (x1, y1) = seg
+            n = max(1, int(round(math.hypot(x1 - x0, y1 - y0) / STEP)))
+            border += [(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n) for k in range(n)]
+    hole = []
+    nh = 48
+    for k in range(nh):
+        a = 2 * math.pi * k / nh
+        rr_ = ro[k] - HOLE
+        hole.append((C[0] + rr_ * math.cos(a), C[1] + rr_ * math.sin(a)))
+    inner = []
+    row_k = 0
+    gy = lo_y + STEP
+    while gy < hi_y - 0.2:
+        gx = lo_x + STEP * (0.5 if row_k % 2 else 1.0)
+        while gx < hi_x - 0.2:
+            if rel(gx, gy) > -HOLE + 0.3 and edge_dist(gx, gy) > -REACH + 0.2:
+                inner.append((gx, gy))
+            gx += STEP
+        gy += STEP * 0.87
+        row_k += 1
+    pts2 = border + hole + inner
+    nb, nhole = len(border), len(hole)
+    edges = [(i, (i + 1) % nb) for i in range(nb)] + [(nb + i, nb + (i + 1) % nhole) for i in range(nhole)]
+    vout, _, fout, vorig, _, _ = delaunay_2d_cdt([Vector(p) for p in pts2], edges, [], 0, 1e-5)
+    bm = bmesh.new()
+    fv, o2n = [], {}
+    for i, p in enumerate(vout):
+        fv.append(bm.verts.new(P(p.x, p.y, z_at(p.x, p.y))))
+        for o in vorig[i]:
+            o2n[o] = i
+    for tri in fout:
+        cx_ = sum(vout[i].x for i in tri) / len(tri)
+        cy_ = sum(vout[i].y for i in tri) / len(tri)
+        if edge_dist(cx_, cy_) < -REACH or rel(cx_, cy_) < -HOLE:
+            continue
+        try:
+            f = bm.faces.new([fv[i] for i in tri])
+        except ValueError:
+            continue
+        f.smooth = True
+    for f in bm.faces:
+        f.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
+    loop = [fv[o2n[i]] for i in range(nb)]
+    under = bm.faces.new(list(reversed(loop)))
+    under.normal_update()
+    if under.normal.z > 0:
+        under.normal_flip()
+    under.smooth = False
+    # the "rock" UV map: each vertex's place in the texture (the tile and MARGIN px round it)
+    uvl = bm.loops.layers.uv.new("rock")
+    tw, th = W + 2 * MARGIN, H + 2 * MARGIN
+    for f in bm.faces:
+        for lp in f.loops:
+            x = lp.vert.co.x * 12 + W / 2
+            y = H / 2 - lp.vert.co.y * 12
+            lp[uvl].uv = ((x + MARGIN) / tw, 1 - (y + MARGIN) / th)
+    me = bpy.data.meshes.new(NAME)
+    bm.to_mesh(me)
+    bm.free()
+    old = bpy.data.materials.get(NAME + "-wall")
+    if old is not None:
+        bpy.data.materials.remove(old)
+    # ground=False: the wall's tone (below) is matched to the terrain under the models' light, as the
+    # TORM waterfall's (D212); D223's ground light drew it about 40% darker than the wall round it
+    mat = lt.rock_material(NAME + "-wall", ch, WALL_RAMPS, alpha=ch["alpha"], ground=False)
+    bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Roughness"].default_value = 0.85   # the wall's matte rock, as the terrain round it
+    bsdf.inputs["Metallic"].default_value = 0.0
+    mat["outlineParameters"] = {"visible": False}
+    mat.use_backface_culling = True
+    me.materials.append(mat)
+    obj = bpy.data.objects.new(NAME, me)
+    coll.objects.link(obj)
+    obj["tyrian_ground"] = True     # no cast shadow (modelPrep.ts, D66): it is the wall itself, not a
+    # rock round a machine standing for the island under it: its top view counts for the IoU
+    obj.data.set_sharp_from_angle(angle=math.radians(80))
+    return obj, ch
 
 
 def shade(M, region, ramp_px, colors, pix, mid_px=None, strength=1.0, a_sprite=0.6, bias=0.0, extra=None, a_extra=0.0):
@@ -560,24 +654,7 @@ def main():
     coll = common.reset_collection(NAME)
     M, ro, ri = build(sprite, frames, colors)
 
-    # stone pixels: the stone ramp over the whole tile (frame 1); tan pixels for the lips
-    stone_px = [v for line in pix for v in line if v in STONE]
-    tan_px = [v for line in pix for v in line if v in TAN]
     picks = {}
-    def vein_of(f):
-        c = f.calc_center_median()
-        return M.vein(c.x * 12 + W / 2, H / 2 - c.y * 12)
-    # the wall's veins: crevices take the ramp's dark end, ridge tops its light end, nudged by
-    # the sprite's own brightness so its bright streaks stay where it has them
-    picks.update(shade(M, "stone", stone_px, colors, pix, strength=1.0, a_sprite=0.6, bias=0.15,
-                       extra=vein_of, a_extra=0.55))
-    hist = {}
-    for f, i in picks.items():
-        hist[i] = hist.get(i, 0) + 1
-    print("STONE PICKS", sorted(hist.items()))
-    picks.update(shade(M, "side", [v for v in stone_px if 97 <= v <= 103], colors, pix, strength=0.9))
-    picks.update(shade(M, "boss", [v for line in pix for v in line if 1 <= v <= 10], colors, pix,
-                       strength=0.9, a_sprite=0.5))
     for f, reg in M.tag.items():
         if reg == "ring":
             # the lip's median tan; its pale lobe tops are lighting, the creases a darker tan
@@ -595,45 +672,33 @@ def main():
         key = (idx, kind)
         if key not in slot:
             slot[key] = len(mats)
-            if kind == "stone":
-                # wall rock: matte, so the game's light doesn't sheen it paler than the wall round it
-                m = common.palette_material(sprite, idx, NAME, metallic=0.02, roughness=0.9)
-            elif kind == "tan":
+            if kind == "tan":
                 m = common.palette_material(sprite, idx, NAME + "-flesh", metallic=0.05, roughness=0.6)
             elif kind == "socket":
                 m = common.palette_material(sprite, idx, NAME + "-socket", metallic=0.3, roughness=0.5,
                                             frames={3: 35})
             else:
-                m = common.palette_material(sprite, idx, NAME, metallic=0.1, roughness=0.7)
+                m = common.palette_material(sprite, idx, NAME, metallic=0.02, roughness=0.85)
             mats.append(m)
         return slot[key]
 
     for f, reg in M.tag.items():
         if not f.is_valid:
             continue
-        if reg in picks or f in picks:
-            pass
         if f in picks:
-            f.material_index = mat_for(picks[f], "tan" if reg in ("ring", "lump") else "stone")
-        elif reg == "under":
-            f.material_index = mat_for(98, "stone")
+            f.material_index = mat_for(picks[f], "tan" if reg == "ring" else "stone")
         elif reg == "socket":
             f.material_index = mat_for(32, "socket")
         else:
             f.material_index = mat_for(100, "stone")
-    # D74: the sprite's right column (and its corners) is dark ink-like shading the game's own
-    # outline replaces: pull the block's right side in to column 23 (only the last 2.5 px of the
-    # block are squeezed, so the ring stays where the sprite has it).
-    xa = X(W - 2.5)
-    for v in M.bm.verts:
-        if v.co.x > xa:
-            v.co.x = xa + (v.co.x - xa) * (1.5 / 2.5)
-    body = mesh_obj(NAME, M.bm, mats, coll, smooth_regions=("ring", "stone", "boss", "lip", "socket"), tags=M.tag)
-    body.data.set_sharp_from_angle(angle=math.radians(70))
+    lips = mesh_obj(NAME + "-lips", M.bm, mats, coll, smooth_regions=("ring", "lip", "socket"), tags=M.tag)
+    lips.data.set_sharp_from_angle(angle=math.radians(70))
+    wall, ch = wall_sheet(pix, colors, ro, coll)
+    body = wall
 
     # the eye
     ex_, ey_ = C[0] - 0.1, C[1] + 0.1
-    zbase = Z_TOP + 1.3
+    zbase = ZB
     eye_r = 3.6
     ec = (X(ex_), Y(ey_), Z(zbase - 1.6))
     bm = bmesh.new()
@@ -666,12 +731,23 @@ def main():
     wide = iris("iris-open", 3.0, 200, [3], emis=1.0, lift=0.05, shift=(-0.1, 0.4))
     pupil = iris("pupil", 1.05, 15, [3], emis=1.0, lift=0.1, shift=(-0.25, -0.3))
 
-    parts = [body, ball, dim, wide, pupil]
-    # outline shell from a sealed copy of the visible solid (D90/D118)
-    src = body.copy()
-    src.data = body.data.copy()
+    parts = [wall, lips, ball, dim, wide, pupil]
+    # outline shell: the lips only, from a sealed copy of their loft (its first and last rows, both
+    # on the wall, closed by the band between them; D90/D118). The wall has no ink: it is the wall.
+    sbm = bmesh.new()
+    rows = [[sbm.verts.new(p) for p in r] for r in M.ring_rows]
+    for r0, r1 in zip(rows, rows[1:] + rows[:1]):
+        for i in range(len(r0)):
+            j = (i + 1) % len(r0)
+            sbm.faces.new((r0[i], r0[j], r1[j], r1[i]))
+    bmesh.ops.recalc_face_normals(sbm, faces=sbm.faces)
+    sme = bpy.data.meshes.new(NAME + "-lips-sealed")
+    sbm.to_mesh(sme)
+    sbm.free()
+    src = bpy.data.objects.new(NAME + "-lips-sealed", sme)
     coll.objects.link(src)
     shell = common.outline_shell(src, coll, voxel=0.02, faces=1400, inside=0.01)
+    shell.name = NAME + "_outline"
     bpy.data.objects.remove(src, do_unlink=True)
     parts.append(shell)
     tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in parts if o is not shell)
@@ -679,9 +755,9 @@ def main():
     common.export_sprite_model(WT, parts, f"enemies/{NAME}", sprite["sprites"])
 
     if "--measure" in argv:
-        measure(parts, shell, Path(argv[argv.index("--measure") + 1]), sprite, frames, colors)
+        measure(parts, shell, Path(argv[argv.index("--measure") + 1]), sprite, frames, colors, ch)
     if "--sheet" in argv:
-        render_sheet(parts, shell, Path(argv[argv.index("--sheet") + 1]), sprite)
+        render_sheet(parts, shell, Path(argv[argv.index("--sheet") + 1]), sprite, ch, colors)
 
 
 # --- measuring -----------------------------------------------------------------------------------
@@ -691,7 +767,15 @@ def visible(parts, frame):
             ("tyrian_frames" not in o or frame in list(o["tyrian_frames"]))]
 
 
-def measure(parts, shell, out, sprite, frames, colors):
+def wall_index(ch, x, y):
+    """The palette index the wall texture gives at sprite px (x, y) (nearest ramp, rounded shade)."""
+    i = min(max(int((y + MARGIN) * TEX), 0), ch["shade"].shape[0] - 1)
+    j = min(max(int((x + MARGIN) * TEX), 0), ch["shade"].shape[1] - 1)
+    ramp = WALL_RAMPS[int(round(float(ch["code"][i, j]) * (len(WALL_RAMPS) - 1)))]
+    return ramp * 16 + int(round(float(ch["shade"][i, j])))
+
+
+def measure(parts, shell, out, sprite, frames, colors, ch):
     """Top-view hits at 4x4 samples per sprite pixel: coverage (IoU vs the sprite's opaque mask)
     and, per region, the median palette index seen from above vs the sprite's."""
     import json
@@ -710,6 +794,9 @@ def measure(parts, shell, out, sprite, frames, colors):
             idx = []
             for f in bm.faces:
                 m = o.data.materials[f.material_index]
+                if m.get("tyrian_rock_ramps") is not None:
+                    idx.append(None)   # the wall texture: looked up where the ray hits
+                    continue
                 p = int(m.name.split("_")[1])
                 fp = m.get("tyrian_frame_pal")
                 if fp and str(fi) in fp:
@@ -728,7 +815,7 @@ def measure(parts, shell, out, sprite, frames, colors):
                         for tree, idx in trees:
                             loc, nrm, fidx, d = tree.ray_cast(Vector((X(x), Y(y), 5.0)), Vector((0, 0, -1)))
                             if loc is not None and (best is None or d < best[0]):
-                                best = (d, idx[fidx])
+                                best = (d, idx[fidx] if idx[fidx] is not None else wall_index(ch, x, y))
                         if best:
                             hits.append(best[1])
                 cover[r][c] = len(hits) / 16
@@ -776,7 +863,7 @@ def measure(parts, shell, out, sprite, frames, colors):
 
 # --- review renders ------------------------------------------------------------------------------
 
-def render_sheet(parts, shell, out, sprite):
+def render_sheet(parts, shell, out, sprite, ch, colors):
     """Eevee renders, palette colours lit from the upper left: top (ortho), game camera (32 deg
     tilt from the bottom of the screen), side, front, rear, 3/4 high, underside; one row per frame
     for the top and game views."""
@@ -806,12 +893,52 @@ def render_sheet(parts, shell, out, sprite):
     scene.collection.objects.link(sun)
     sun.rotation_euler = (-ART_LIGHT).to_track_quat("-Z", "Y").to_euler()
     shell.hide_render = True
+    # Eevee can't read the wall's palette-data texture: show what the game draws instead (its
+    # colours from the palette, alpha over a ground of the wall's mean colour)
+    import numpy as np
+    cols = np.zeros((256, 3))
+    for i, c in colors.items():
+        if 0 <= i < 256:
+            cols[i] = c
+    sh = np.clip(ch["shade"], 0, 15)
+    lo = np.floor(sh).astype(int)
+    hi = np.clip(lo + 1, 0, 15)
+    fr = (sh - lo)[..., None]
+    pos = np.clip(ch["code"], 0, 1) * (len(WALL_RAMPS) - 1)
+    rgb = np.zeros(sh.shape + (3,))
+    for j, r in enumerate(WALL_RAMPS):
+        wj = np.clip(1 - np.abs(pos - j), 0, 1)[..., None]
+        rgb += wj * (cols[r * 16 + lo] * (1 - fr) + cols[r * 16 + hi] * fr)
+    img = bpy.data.images.new("wall-preview", rgb.shape[1], rgb.shape[0], alpha=True)
+    px = np.concatenate([rgb / 255.0, ch["alpha"][..., None]], -1)[::-1].astype(np.float32)
+    img.pixels.foreach_set(px.ravel())
+    wm = bpy.data.materials.new("wall-preview")
+    wm.use_nodes = True
+    nt = wm.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Roughness"].default_value = 0.85
+    uvn = nt.nodes.new("ShaderNodeUVMap")
+    uvn.uv_map = "rock"
+    tx = nt.nodes.new("ShaderNodeTexImage")
+    tx.image = img
+    nt.links.new(uvn.outputs["UV"], tx.inputs["Vector"])
+    nt.links.new(tx.outputs["Color"], bsdf.inputs["Base Color"])
+    nt.links.new(tx.outputs["Alpha"], bsdf.inputs["Alpha"])
+    try:
+        wm.blend_method = "BLEND"
+    except Exception:
+        pass
+    for o in parts:
+        if o.type == "MESH":
+            for k, m in enumerate(o.data.materials):
+                if m is not None and m.get("tyrian_rock_ramps") is not None:
+                    o.data.materials[k] = wm
     # a ground plane, dark (the block sits in the wall's scenery)
-    bpy.ops.mesh.primitive_plane_add(size=12, location=(0, 0, Z(Z_BOT)))
+    bpy.ops.mesh.primitive_plane_add(size=12, location=(0, 0, Z(-0.2)))
     ground = bpy.context.active_object
     gm = bpy.data.materials.new("ground")
     gm.use_nodes = True
-    next(n for n in gm.node_tree.nodes if n.type == "BSDF_PRINCIPLED").inputs[0].default_value = (0.02, 0.03, 0.03, 1)
+    next(n for n in gm.node_tree.nodes if n.type == "BSDF_PRINCIPLED").inputs[0].default_value = (0.012, 0.025, 0.045, 1)
     ground.data.materials.append(gm)
 
     def cam(name, loc, look, ortho=None, lens=60):

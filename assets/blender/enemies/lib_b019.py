@@ -81,6 +81,8 @@ SHIP = ["newsh9-92", "newsh9-94", "newsh9-244", "newsh9-246"]
 SHIP_CENTRE = (159, 5)
 SHIP_DX = 8.0             # where the ship sits beside the sphere in the combined glb (units)
 SHIP_SX, SHIP_SY = 0.958, 0.982   # the ship plan pulled in onto the inner mask
+HULL_PAL, KEEL_PAL = 5, 4
+HULL_FINISH = dict(metallic=0.3, roughness=0.45)
 
 
 def load(name):
@@ -753,10 +755,13 @@ def ship_pixels():
 def build_ship(sprite, coll):
     tag = "nsh9a"
     pal = lambda i, **kw: common.palette_material(sprite, i, tag, **kw)  # noqa: E731
+    # Mid-grey steel (the sprite's hull is pal 5-6 over a pal 4 keel): a satin, mostly dielectric
+    # finish, so the hull's sloped flanks show the lit grey and not the environment's dark
+    # reflection (it rendered near-black gloss at metallic 0.7, D201).
     mats = [
-        pal(5, metallic=0.7, roughness=0.3),
-        pal(4, metallic=0.5, roughness=0.4),
-        pal(7, metallic=0.55, roughness=0.35),
+        pal(HULL_PAL, **HULL_FINISH),
+        pal(KEEL_PAL, **HULL_FINISH),
+        pal(7, metallic=0.35, roughness=0.4),
         pal(2, metallic=0.2, roughness=0.8),
         common.palette_material(sprite, 149, tag + "glass", metallic=0.05, roughness=0.1, emission_strength=1.2),
         pal(148, metallic=0.2, roughness=0.3),
@@ -764,14 +769,14 @@ def build_ship(sprite, coll):
         common.palette_material(sprite, 151, tag + "lamp", emission_strength=2.0),
         common.palette_material(sprite, 151, tag + "chan", emission_strength=3.0,
                                 frames={130: 156, 132: 156, 282: 153, 284: 153}),
-        pal(9, metallic=0.6, roughness=0.3),
-        pal(5, metallic=0.7, roughness=0.3),
+        pal(9, metallic=0.4, roughness=0.35),
+        pal(HULL_PAL, **HULL_FINISH),
         common.palette_material(sprite, 149, tag + "glass", metallic=0.05, roughness=0.1, emission_strength=1.2),
         common.palette_material(sprite, 144, tag + "chand", emission_strength=1.0,
                                 frames={130: 149, 132: 149, 282: 146, 284: 146}),
-        pal(3, metallic=0.4, roughness=0.5),
+        pal(3, metallic=0.3, roughness=0.5),
         common.palette_material(sprite, 157, tag + "core", emission_strength=3.0),
-        pal(10, metallic=0.55, roughness=0.3),
+        pal(10, metallic=0.4, roughness=0.35),
     ]
     (HULL_M, KEEL, LIGHT, DARK, GLASS, GRID, PANE, LAMP, CHANNEL, BRIGHT, POD, GLASS_R, CHAN_DARK, FLANK,
      CELL, RIM_R) = range(16)

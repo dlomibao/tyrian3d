@@ -68,23 +68,41 @@ BEZEL_W = 1.1     # bezel top width (px)
 BEZEL_H = 0.9     # bezel height above the hull
 GLASS_LIFT = 0.65  # glass edge height above the hull
 GLASS_BULGE = 1.5  # extra bulge at the cap's middle
+RIM_F, RIM_F1 = 0.7, 0.97  # the rim glow rises from 0 to full over this plan-radius fraction
+RIM_BAND = 0.88   # the sprite's rim band (plan-radius fraction) its heat is measured on
+RIM_SECTOR = 14   # +- degrees per direction sample
+RIM_HARM = 4      # Fourier terms kept: one smooth crescent, not blotches
+RIM_ZLOW = -4.5   # below the belt the glow is gone by this height (px)
+RIM_STEPS = (2.0, 3.8, 6.0, 8.0, 9.8)  # rim heat (index - 112) where rim_1..rim_5 start
+RIM_EM = (0.3, 0.45, 0.6, 0.8, 0.95)   # their ember emission
 
 # key: (palette index, metallic, roughness, emission strength)
 MATS = {
-    "hull": (115, 0.4, 0.24, 0),
-    "belt": (115, 0.5, 0.36, 0),
+    # QA 2026-11-17: the sprite is a near-black sphere (palette 112/113 round the black cap) with a
+    # red-hot rim: the red ramp 115-119 round the W and S edge, running up to a hot orange SE
+    # crescent (121-125). A lava bubble: the rim is a glowing zone of the shell, painted as palette
+    # regions (rim_*, see paint_rim) from the sprite's own ramp, embers (emission < 1) so it reads
+    # red under any light. The dark dome is metallic so its sheen is red-tinted, not grey.
+    "hull": (112, 0.8, 0.34, 0),
+    "belt": (113, 0.8, 0.34, 0),
     "bezel": (1, 0.45, 0.35, 0),
     "glass": (1, 0.1, 0.06, 0),
-    "socket": (115, 0.55, 0.3, 0),
-    "socket2": (115, 0.55, 0.3, 0),
-    "ring": (123, 0.0, 0.4, 1.1),
-    "ring2": (121, 0.0, 0.4, 1.1),
+    "socket": (112, 0.45, 0.32, 0),
+    "socket2": (112, 0.45, 0.32, 0),
+    "ring": (124, 0.0, 0.4, 1.0),
+    "ring2": (123, 0.0, 0.4, 1.0),
     "core": (127, 0.0, 0.3, 4.0),
-    "core2": (126, 0.0, 0.3, 4.0),
+    "core2": (127, 0.0, 0.3, 4.0),
     "stud_a": (114, 0.2, 0.3, 0.5),
-    "stud_b": (115, 0.2, 0.3, 0.5),
-    "nozzle": (113, 0.55, 0.4, 0),
+    "stud_b": (116, 0.2, 0.3, 0.5),
+    "nozzle": (112, 0.55, 0.4, 0),
     "glow": (121, 0.0, 0.5, 2.0),
+    # the glowing rim zone (D126/D173: glow surfaces metallic 1, rough)
+    "rim_1": (115, 1.0, 0.45, RIM_EM[0]),
+    "rim_2": (117, 1.0, 0.45, RIM_EM[1]),
+    "rim_3": (119, 1.0, 0.45, RIM_EM[2]),
+    "rim_4": (121, 1.0, 0.5, RIM_EM[3]),
+    "rim_5": (123, 1.0, 0.5, RIM_EM[4]),
 }
 MKEYS = list(MATS)
 NO_BAKE = {"glass", "ring", "ring2", "core", "core2", "glow", "stud_a", "stud_b"}
@@ -238,6 +256,64 @@ class Pod:
         return self.hull_z(u, v) + GLASS_LIFT + GLASS_BULGE * (1 - k * k)
 
 
+def rim_profile(pod):
+    """The sprite's rim heat per direction: the mean red ramp (index - 112; black 1/64 = 0) of the
+    body pixels in the outer band (RIM_BAND..1 of the plan radius) within +-RIM_SECTOR degrees,
+    low-passed to RIM_HARM Fourier terms. Returns A(theta_rad)."""
+    idx, inner = pod.idx, pod.m["inner"]
+    px = []
+    for r, row in enumerate(idx):
+        for c, v in enumerate(row):
+            if v < 0 or not (inner[r][c] or v >= 112):
+                continue
+            rho, th = pod.polar(c + 0.5, r + 0.5)
+            if rho / pod.R(th) >= RIM_BAND:
+                px.append((th, float(v - 112) if 112 <= v <= 127 else 0.0))
+    n = 360
+    raw = []
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        sel = [q for t, q in px if abs((t - a + math.pi) % (2 * math.pi) - math.pi) <= math.radians(RIM_SECTOR)]
+        raw.append(sum(sel) / len(sel) if sel else 0.0)
+    co = []
+    for k in range(RIM_HARM + 1):
+        ak = sum(raw[i] * math.cos(2 * math.pi * k * i / n) for i in range(n)) * 2 / n
+        bk = sum(raw[i] * math.sin(2 * math.pi * k * i / n) for i in range(n)) * 2 / n
+        co.append((ak / 2 if k == 0 else ak, bk))
+
+    def f(th):
+        return sum(a * math.cos(k * th) + b * math.sin(k * th) for k, (a, b) in enumerate(co))
+    return f
+
+
+def paint_rim(B, pod):
+    """The rim zone: hull and belt faces past RIM_F of the plan radius glow with the sprite's rim
+    heat in that direction (rim_profile), rising toward the edge, cut into the rim_* regions; the
+    dark dome inside and the sprite's dark NE edge keep the hull colour. Below the belt the glow
+    fades out by RIM_ZLOW, so the lower S hull the tilted camera sees carries the band round."""
+    heat = rim_profile(pod)
+    keys = {B.parts[i][1]: i for i in range(len(B.parts))}
+    hull, belt = keys["hull"], keys["belt"]
+    n = [0] * 6
+    for fc in B.bm.faces:
+        if fc[B.pid] not in (hull, belt):
+            continue
+        cen = fc.calc_center_median()
+        u, v, z = cen.x / PX + 24, 28 - cen.y / PX, cen.z / PX
+        rho, th = pod.polar(u, v)
+        t = min(max((rho / pod.R(th) - RIM_F) / (RIM_F1 - RIM_F), 0.0), 1.0)
+        x = heat(th) * t * t * (3 - 2 * t)
+        if z < BELT[0]:
+            x *= min(max((z - RIM_ZLOW) / (BELT[0] - RIM_ZLOW), 0.0), 1.0)
+        lvl = sum(1 for s in RIM_STEPS if x >= s)
+        if fc[B.pid] == belt:
+            lvl = max(lvl, 1)
+        n[lvl] += 1
+        if lvl:
+            fc.material_index = MKEYS.index(f"rim_{lvl}")
+    print("rim faces per level", n)
+
+
 # ---------------------------------------------------------------- builder ----------------------
 class Builder:
     def __init__(self):
@@ -277,7 +353,7 @@ class Builder:
 
 def angles(pod):
     """xy angles of the body's columns: a uniform set plus three tight samples per seam / notch."""
-    base = [2 * math.pi * i / 60 for i in range(60)]
+    base = [2 * math.pi * i / 96 for i in range(96)]  # fine enough for the rim regions
     extra = []
     tags = {}
     for deg, z0, z1 in SEAMS:
@@ -539,10 +615,11 @@ def build(sp, coll):
     pod = Pod(idx, colors, m)
     B = Builder()
     build_hull(B, pod)
+    paint_rim(B, pod)
     build_hatch(B, pod)
     build_visor(B, pod)
-    build_lens(B, pod, "lens_big", (18.9, 22.6), 5.2, 4.2, 3.3, 1.1, sock="socket", collar=1.0)
-    build_lens(B, pod, "lens_small", (26.4, 28.7), 3.0, 2.25, 1.45, 0.7, sock="socket2", collar=0.8, n=24,
+    build_lens(B, pod, "lens_big", (18.9, 22.6), 5.2, 4.3, 3.75, 1.1, sock="socket", collar=1.0)
+    build_lens(B, pod, "lens_small", (26.4, 28.7), 3.0, 2.25, 1.7, 0.7, sock="socket2", collar=0.8, n=24,
                ring="ring2", core="core2")
     build_stud(B, pod, "stud_a", (25.0, 16.9), 1.8, 0.75, "stud_a")
     build_stud(B, pod, "stud_b", (28.9, 21.0), 2.1, 0.85, "stud_b")
@@ -603,7 +680,7 @@ def setup_ids(obj, parts):
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
     for poly in me.polygons:
         k = pid[poly.index].value
-        pal = MATS[parts[k][1]][0]
+        pal = MATS[MKEYS[poly.material_index]][0]
         col = (lin(4 * (k + 1)), lin(pal), 0.0, 1.0)
         for li in poly.loop_indices:
             attr.data[li].color = col
@@ -859,10 +936,12 @@ def smooth_by_angle(obj, deg=38):
     me = obj.data
     bm = bmesh.new()
     bm.from_mesh(me)
+    part = bm.faces.layers.int.get("part")
     for e in bm.edges:
         if len(e.link_faces) == 2:
             a, b = e.link_faces
-            if a.normal.angle(b.normal, 0.0) > math.radians(deg) or a.material_index != b.material_index:
+            # parts, not materials: the rim regions are paint on one smooth shell
+            if a.normal.angle(b.normal, 0.0) > math.radians(deg) or a[part] != b[part]:
                 e.smooth = False
     bm.to_mesh(me)
     bm.free()

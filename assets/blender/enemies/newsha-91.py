@@ -3,8 +3,9 @@
 Reading of the sprite (the tile is painted sand edge to edge; the sand is the HD ground's job, D103):
 newsha-91 is pixel-identical to newshf-39 (the bell turret, D116) except in two places, so the dome,
 the sensor ball on its arm and the barrel are newshf-39's accepted shapes, copied here (no shared lib):
-- A tan metal dome, footprint ellipse centre (10.5, 11.6) px (pixel-edge coords), 8.5 x 6.6 px radii,
-  lit from the upper left (the white patch is sheen). One pchip profile from the crown to a low foot
+- A polished silver-tan metal dome (pal 27, clear-coated, see SHELL_IDX), footprint ellipse centre
+  (10.5, 11.6) px (pixel-edge coords), 8.5 x 6.6 px radii, lit from the upper left (the white patch is
+  sheen). One pchip profile from the crown to a low foot
   lip; eight flush armour panels with engraved seams; bolt heads round the foot.
 - Where the turret has its eye, the pod has a CLOSED HATCH (centre (9.5, 11.5), 2.5 px; region median
   21): the dome's low chamfered lip, a dark seam gap, a slightly domed lid with a two-leaf split, a
@@ -504,13 +505,59 @@ def finish(M, mats, coll, name):
     return obj
 
 
+# Polished shell (comparison sweep 2026-11-17, SOH JIN: the pod read olive where the sprite reads bright
+# silver-white on top). The shell is polished steel as the D176 mines: metallic low (the diffuse keeps
+# the palette colour's brightness), a clear coat and an F0 of about 0.17 (IOR 2.4, through Specular IOR
+# Level, exported as KHR_materials_specular), which turns the game's sun and environment panels into a
+# broad white sheen. The shell index goes from 24 (the dome's median) to 27 (D201: at 24 and 25 the dome
+# rendered olive / beige beside the sprite's cream; the dome's pixels run 19-31 and the upper half, the
+# part the camera sees lit, has median 27). Measured at SOH JIN t4447 (90th / 98th percentile luma
+# over the pod, sprite 163 / 254): main 111 / 144, index 25 polished 132 / 197, 27 polished 165 / 203.
+# Faces turned away from the sprite's light (the upper left, LIGHT_DIR) fade to satin in graded rings
+# (newsha-283's per-face zones, D92), so the lower right keeps a darker tan instead of mirroring the
+# sky. (Sheen rings with a higher F0 toward the upper left were tried and changed nothing in game: the
+# environment there is dark from the game camera, so the sheen lands where the lights put it.)
+def spec_level(f0):
+    """Specular IOR Level for a dielectric F0 (the exporter writes KHR_materials_specular
+    specularColorFactor = 2 x level, three's F0 = 0.04 x that)."""
+    return 0.5 * f0 / 0.04
+
+
+SHELL_IDX, SHELL_F0, SHELL_ROUGH, COAT_ROUGH = 27, 0.17, 0.2, 0.15
+LIGHT_DIR = Vector((-0.55, 0.42, 0.72)).normalized()   # Blender axes: x right, y screen-up, z up
+# Rings by angle from LIGHT_DIR: (inner edge in degrees, roughness, coat weight, F0); small steps.
+SATIN_ZONES = [(86, 0.26, 0.8, 0.14), (92, 0.32, 0.6, 0.11), (98, 0.38, 0.4, 0.08), (104, 0.44, 0.2, 0.06),
+               (110, 0.5, 0.0, 0.04)]
+
+
+def coated(m, coat, coat_rough=COAT_ROUGH, f0=0.04):
+    bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Coat Weight"].default_value = coat
+    bsdf.inputs["Coat Roughness"].default_value = coat_rough
+    bsdf.inputs["Specular IOR Level"].default_value = spec_level(f0)
+    return m
+
+
+def zone_shell(obj, shell, first):
+    """Faces of material `shell` past a SATIN_ZONES ring's inner edge (angle of the normal from
+    LIGHT_DIR) take that ring's material (first + k)."""
+    for poly in obj.data.polygons:
+        if poly.material_index != shell:
+            continue
+        ang = math.degrees(poly.normal.angle(LIGHT_DIR))
+        for k in range(len(SATIN_ZONES) - 1, -1, -1):
+            if ang >= SATIN_ZONES[k][0]:
+                poly.material_index = first + k
+                break
+
+
 def build(sprite, coll):
     pal = lambda i, tag="", **kw: common.palette_material(sprite, i, TAG + tag, **kw)  # noqa: E731
     mats = [
-        pal(24, metallic=0.2, roughness=0.32),                        # 0 dome shell (region median 24), glossy
+        coated(pal(SHELL_IDX, metallic=0.12, roughness=SHELL_ROUGH), 1.0, f0=SHELL_F0),  # 0 dome shell (polished)
         pal(17, metallic=0.4, roughness=0.5),                         # 1 dark collars, clamps, hatch seam
         pal(21, metallic=0.25, roughness=0.42),                       # 2 hatch lid (region median 21)
-        pal(25, metallic=0.2, roughness=0.4),                         # 3 sensor ball, bolt heads (median 25)
+        coated(pal(25, "-ball", metallic=0.12, roughness=0.3), 0.8),  # 3 sensor ball, bolt heads (median 25)
         pal(22, metallic=0.35, roughness=0.36),                       # 4 barrel (as newshf-39)
         pal(16, metallic=0.2, roughness=0.7),                         # 5 bore
         common.palette_material(sprite, 113, TAG + "-cowl", metallic=0.3, roughness=0.45,
@@ -519,6 +566,8 @@ def build(sprite, coll):
         common.palette_material(sprite, 117, TAG + "-glow", emission_strength=1.6, frames={129: 121}),  # 8
         common.palette_material(sprite, 121, TAG + "-hot", emission_strength=3.0, frames={129: 123}),  # 9
     ]
+    for k, (_e, rough, coat, f0) in enumerate(SATIN_ZONES):
+        mats.append(coated(pal(SHELL_IDX, f"-zone{k}", metallic=0.12, roughness=rough), coat, f0=f0))
     SHELL, DARK, LID, BALLM, BARRELM, BORE, COWL, RIM, GLOW, HOT = range(10)
     M = Mesh()
     build_shell(M, SHELL, DARK)
@@ -528,7 +577,9 @@ def build(sprite, coll):
     build_vent(M, COWL, RIM, GLOW, HOT)
     build_ball(M, SHELL, BALLM, DARK)
     build_barrel(M, BARRELM, DARK, BORE)
-    return finish(M, mats, coll, NAME)
+    obj = finish(M, mats, coll, NAME)
+    zone_shell(obj, SHELL, 10)
+    return obj
 
 
 def main():

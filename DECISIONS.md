@@ -12889,3 +12889,105 @@ model's footprint), `starCover.test.ts` (TileCover), `screenFilters.test.ts` (th
 **Not done:** IXMUCANE (4) and WINDY (6), above. The arch's crown ink is the model's.
 
 **Cost:** one Opus agent, no workflow, no Gemini, no Blender. About 70 headless captures, two at a time.
+## D225 — 2026-11-17 comparison-sweep model fix round: 19 models re-coloured or reshaped to the original (grey steel where they read charcoal, silver where they read olive or bronze, the sprite's own shapes where they were blocks), the GYGES eye flush in the wall and the TYRIAN star core in a round hollow (comparison sweep 2026-11-17; follows D173, D176, D181, D185, D201, D205, D212, D217, D223)
+
+2026-11-17
+
+**Problem:** the `&compare=1` sweep of all four episodes found 19 models that read wrong next to the original:
+wrong colour or finish (mostly charcoal or dull where the sprite is mid-grey, silver or hot), a shape the sprite does
+not have, or a square footprint where the sprite has none. Issue files: `tyrian-scratch/qa-fix/models/*.md`.
+
+**Decision:** one fix-round workflow (fix from each issue, strict re-review, escalate the last fix to Opus; pass mark
+7). All 19 ship, scoring 7 to 8. Each fix stays in its own script or its lib's only importers; no shared lib other
+than `lib_b019` and `lib_eyesphere` changed.
+
+| Item (script) | Where | Score | IoU | What it fixed |
+|---|---|---|---|---|
+| TIME WAR mothership `assembly-newsh9-92` (`lib_b019`) + side pods `assembly-newshl-39` | E4 t19050 | 7 | 0.9885 | Hull and keel stay on the sprite's pal 5/4 but are satin (metallic 0.3), so the hull reads mid-grey steel, not near-black gloss (median luma 35 -> 57; sprite 52). The pods' glossy pal-3 bowl, a black ball in game, is a flat rounded-square satin panel. |
+| TORM / BOTANY boss `assembly-newshj-191` | E2 t7863, t6458 | 7 | 0.9696 | One rounded shield: brighter, glossier, taller crown; the south slit open to the background, as the sprite (its "grey keel" is the level behind it); D185 anchor kept. |
+| GYGES eye pods `newshg-127` (pod group of `newshg-121.py`) | E2 t3600 | 7.5 | 0.9831 | Concentric pale ridged rings round the eye (rings about the eye axis, crests pal 60, grooves pal 57), top view unchanged; ink a little thinner. |
+| CAMANIS boss lower hull `assembly-newshb-154` | E3 t7936 | 7 | 0.9861 | One palette step lighter and metallic 0.25-0.45 (D201): lower-hull median luma 47 -> 74 (sprite 69). |
+| IXMUCANE rock fortress `assembly-newsh8-243` | E3 t1800 | 8 | 0.9821 | The grey-blue bar was the bottom cut faces of D181-raised top-row pieces: the row cuts are now slanted 38 degrees so the camera never sees them, and cut faces take the surface's material and UVs. |
+| New Deli / DELIANI boss `assembly-newsht-39` | E3 t5550 | 7 | 0.9972 | A tall grey H block (pal 8 head, pal 7 foot, D176 gloss) where a small cylinder stood; the eyes fill their U housings. |
+| EYESPY eye `assembly-newsh9-191`/`-210` (`lib_eyesphere`) | E4 t7800 | 7 | 0.9926 whole, 0.9754 worst | Ball anchor 0 and crown 17 px (from 12 px anchor, 24 px crown), so it draws round at the sprite's size; pal 7 at metallic 0.22; both swirl lobes pal 11, nearly dielectric, so the broad light lobe shows; pupil moved upper left. D217's iris and cross kept. |
+| BRAINIAC small mine `newsh5-76` | E4 t10050 | 7 | 0.9846 | Red-hot: a white-hot core plug, an orange-yellow speckled top cooling to a red-brown crust (newshl-116's D201 method), glowing spike shafts. |
+| SQUADRON bottles `newshl-134` | E4 t11850 | 7.5 | 1.0 | Silver body (pal 11, metallic 0.15) with a glowing pal-118 band, the sprite's cap, lip and nose indices. |
+| STARGATE / FLEET big bubbles `assembly-newshe-229` | E3 t4800 | 7 | 0.9825 | Near-black glossy dome (112/113, metallic 0.8) with the sprite's red-hot rim and orange-yellow SE crescent painted from the sprite's outer band (five glow regions). |
+| SAWBLADES pebbles `newshr-171` | E3 t5130 | 7 | 1.0 | One ramp step paler; the outline shell set 0.045 in, so the ink ring is about half as wide. |
+| HARVEST bubbles `assembly-newshu-129` | E4 t2550 | 7 | 0.9679 | The green "eye" lamp fitting is gone (a flush organ blob); low-F0 glass (D176) and darker grey glass (pal 5) and mass (102) remove the pale silver-blue sheen. |
+| LAVA RUN darts `newsh-caret-171` | E4 t4050 | 7 | 1.0 | White silhouettes: an outline shell of convex hulls per section (the old one folded into black bars at the fin roots), AO background filled, rod pal 11. |
+| SOH JIN dome turret `newsha-91` | E1 t4447 | 7 | 0.9908 | Polished steel on pal 27 (D176: F0 0.17, clear coat), satin toward the lower right; reads silver-white on top instead of olive. Geometry unchanged. |
+| TYRIAN star core `newsh2-153` | E1 t4300 | 7.5 | 0.9896 | The pit is a rounded, ragged hollow (`PIT_WINDOW`) with island rock all round it, not a black rectangle; the dark pixels outside it are repainted as their neighbouring stones; rear housings kept inside the pit. |
+| GYGES eye `newshh-1` | E2 t4800 | 7 | 0.9565 | The raised square plaque is gone: the wall is one smooth sheet at terrain level, coloured from the sprite's wall pixels as palette data (`lib_tiles.rock_material`, as D66/D212), opaque on the tile and fading past it, no ink or shadow; ink only round the lips. |
+| GYGES drill column `assembly-newshh-125` + cap `newshh-79` | E2 t2550 | 7 | 0.962 | The body is built for the game's 21 px stack (not 28): one soft saucer with the full dome, no slab or ribbed tube; the cap repainted bright silver (104-109, nearly no metal). |
+| GEM WAR crystal `newshv-38` (+ `newshv-57`, `newshv-19`) | E2 t7050 | 7 | 1.0 | Faceted shading: each crown facet takes the sprite's index under it (girdle +0..+6), F0 0.17 sheen (D176). Geometry unchanged; the gunship (`assembly-newshv-91`) is untouched. |
+| BOTANY A bunker crest `assembly-newshg-191` | E2 t4050 | 7 | 0.969 | Notched, arched crenellations (three merlons traced from the sprite's lip pixels, slope-shaded faces, dark notch floors) instead of a pile of boulders; D182/D185's no-skirt fix kept. |
+
+**Integration (this rebase onto D223):**
+- Every changed entry was rebuilt with `tools/build-models.sh -j 4` (meshopt): the 19 items' scripts, `newshg-127.py`
+  (the pod wrapper, not `newshg-121.py`, which would rebuild the claw, beetle and crystal), both `lib_eyesphere`
+  wrappers, and `newshv-38`/`-57`/`-19`. 105 glbs were written, each by one script (no glb was written twice). All
+  exited cleanly.
+- D223 lands on the two items that use the rock libs. The fix round's `newsh2-153.glb` (kept in the rebase conflict)
+  had lost D223's `tyrian_rock_ground`; the rebuild restores it and D223's tone-lifted texture with the fix's pit.
+  `newshh-1` would have taken ground light too, by D223's new default, and in game its wall then drew about 40%
+  darker than the wall round it (mean (12, 19, 27) against (22, 35, 48)). The fixer had toned it for the models'
+  light, so it passes `ground=False`, as the TORM waterfall does (D212, D223 "Options").
+- The changed glbs are exactly the builders' outputs: 99 glbs. `newshl-1`/`-3` (the pods' other two pieces, rebuilt by
+  `assembly-newshl-39`) came out with the same geometry as origin/main and were restored to it. The glbs other agents'
+  meshopt runs had touched in the fix round (`newsh8-165`/`-167`, `newsh9-246`, ...) all belong to these builders and
+  were rewritten by this rebuild. Against the fix round's files the rebuilt glbs keep vertex and face counts, bounds
+  and materials; the byte differences are bake noise.
+- `lib_b019` is imported only by `assembly-newsh9-92` (`lib_eyesphere` and `assembly-newsh9-54` name it in comments),
+  so the shield ship and the eye stay consistent. `lib_b028` (D217's arms) is untouched.
+- Every glb has one `_outline` node with a mesh, and every other material is `pal_`, except the two palette-data rock
+  materials (`rock_newsh2-153-rock`, `newshh-1-wall`). No spriteModels or tileModels JSON changed; no `src/` or data
+  files changed. The changed scripts have no scratch or worktree paths; their review outputs (`--review`, `--sheet`)
+  only run on a flag. The glbs are 12.26 MB -> 12.50 MB.
+- `npx tsc --noEmit` passes; vitest: 115 files, 919 tests pass.
+
+**Result** (`&compare=1`, original | main | this; `tyrian-scratch/qa-fix-models/integrate/summary.png` and
+`zoom_*.png`, not in git, D3): every item reads as its issue asked, with no regression found.
+- TIME WAR: grey steel hull, grey pod panels. CAMANIS: lower hull median luma 56 -> 82 in this crop.
+- IXMUCANE: no bar. New Deli: grey H between the eyes. EYESPY: round, lighter ball with the broad lobe.
+- BRAINIAC: orange-hot mines. SQUADRON: silver bottles with a red band. LAVA RUN: white darts.
+- STARGATE: dark spheres with a hot rim; the rim's bands step visibly. HARVEST: no eye dot, darker glass.
+- SOH JIN: silver domes. TYRIAN: rounded hollow, rock round it. GYGES: ringed pods, flush eye (pixel-identical to the
+  fixer's), bright cap and flat base. GEM WAR: faceted crystal. BOTANY A: notched crest. TORM: the boss's lower
+  shield (its crown is off screen at t7863).
+
+**Open (reviewers' minor notes):**
+- Mothership: the hull is one smooth shell (the sprite has plate seams and a lit bevel); two white sheen bars under
+  the pod panel.
+- TORM boss: the crown is darker than the sprite's bright ridged band; low-contrast lower ribs; the X mechanism reads
+  dark.
+- GYGES pods: frame 127 still gets an ink ring (shared shell; already on main); the rings have more contrast than the
+  sprite's.
+- CAMANIS: still a little dark (75 vs 81); the D201 comment's numbers in `materials()` should be corrected.
+- IXMUCANE: the slots and stalactite gaps read lighter and shallower than the sprite's.
+- New Deli: the H head is pal 8 all over (the sprite's is dark with a bright bar); bubbly specular dots on the eyes;
+  not checked in E1 DELIANI.
+- EYESPY: the feet are still big pale paws (`lib_b028`, the arms' item); the two lobes are now one shade; the ball is
+  saucer-shaped from the side.
+- BRAINIAC mine: about one step hot; blocky speckle up close; glowing spike tips.
+- Bottles: the red band is thin and dull.
+- STARGATE: the rim heat is stair-stepped bands; the cap reads as a separate helmet; the small bubbles
+  (`newshe-195`/`-235`) are still glossy red (not in this item).
+- Pebbles: the ink is still a crisp contour; the shell inset is an in-memory wrap of `common.outline_shell`.
+- HARVEST: contrasty organ blobs on the grey model; the -f2 lit frames lose some bright green.
+- LAVA RUN: rod and fins one grey; the sideways darts (`newsh-caret-152`/`-190`) keep the old look.
+- SOH JIN: the sheen sits on the crown, not the upper-left crescent; heavy ink ring (on main); `newshf-39` untouched.
+- TYRIAN: faint rectangle seams in the rock; the pit is a little smaller than the original's dark area; the shield
+  drone `newsh2-229` (matte grey core) untouched.
+- GYGES eye: a faint D-shaped panel edge at 4K; the wall is a little smoother and darker than the MMPX wall.
+- Drill: the cap lacks the white crown hotspot; hard palette steps on the body; the dome reads low; the sleeve is
+  smooth.
+- GEM WAR: the red stone's rim is salmon, not 72/74.
+- BOTANY A crest: the notches split the merlons full height; the knob's lip sits 2 rows high; flat pal-5 crowns.
+- `newshr-190` was named with the pebbles and not changed.
+
+**Cost:** 46 agents, about 5.4M subagent tokens, 80 min (fix round); one Opus agent to integrate (one rebuild at
+-j 4, about 6 minutes, and about 40 headless captures).
+
+**Review:** check TIME WAR t19050, EYESPY t7800, STARGATE t4800, TYRIAN t4300 and GYGES t4800 against the original.
+Fallback: revert per item; `lib_eyesphere` reverts with both its wrappers' glbs, `lib_b019` with `assembly-newsh9-92`'s.
