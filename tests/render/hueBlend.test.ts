@@ -5,6 +5,7 @@ import { describe, expect, test, vi } from "vitest";
 import { DrawListRenderer } from "../../src/render/drawListRenderer";
 import { dominantBank, NdcRect, paletteLums, rampShade, UNDER_GRAB_ORDER } from "../../src/render/hueBlend";
 import { ART_HUE_BLEND } from "../../src/render/spriteArtLayer";
+import { SHOT_ART_LAYER } from "../../src/render/vfx/vfxMode";
 import { parseSpriteArtManifest, SpriteArt } from "../../src/render/spriteArt";
 import { OUTLINE_ORDER } from "../../src/render/outlineHook";
 import { blendSheetOrder } from "../../src/render/drawListRenderer";
@@ -94,7 +95,10 @@ describe("hue-keeping blend (D174)", () => {
     const f = frame([draw(sh, { pass: Pass.PlayerShots }), draw(sh, { effect: "none" })]);
     expect(f.layer.peek(f.sheet, Pass.PlayerShots)!.instance(0).fx).toEqual([0, 0, 0, Math.fround(0.55)]);
     expect(f.layer.peek(f.sheet, Pass.Explosions)!.instance(0).fx).toEqual([0, 0, 0, 1]);
-    expect(f.explosionsArmed).toBe(false);
+    expect(f.explosionsArmed).toBe(false);    // The shots' batch is also on SHOT_ART_LAYER, which the screen filters draw over their halos (D215).
+    expect(f.layer.peek(f.sheet, Pass.PlayerShots)!.mesh.layers.isEnabled(SHOT_ART_LAYER)).toBe(true);
+    expect(f.layer.peek(f.sheet, Pass.PlayerShots)!.mesh.layers.isEnabled(0)).toBe(true);
+    expect(f.layer.peek(f.sheet, Pass.Explosions)!.mesh.layers.isEnabled(SHOT_ART_LAYER)).toBe(false);
   });
 
   test("the explosions read the live frame copy, palette and filters, in the main render only (D193)", () => {

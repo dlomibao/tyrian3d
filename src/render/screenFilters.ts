@@ -25,7 +25,7 @@ import type { ScreenFilters, ScreenFilterStage } from "../sim/smoothies";
 import { PASS_HEIGHT } from "./passHeights";
 import type { PaletteTexture } from "./paletteTexture";
 import type { ScreenHue, ScreenHueStage } from "./screenHue";
-import { VFX_LAYER } from "./vfx/vfxMode";
+import { SHOT_ART_LAYER, VFX_LAYER } from "./vfx/vfxMode";
 import { addLightsToLayer, isLight, restoreLights } from "./passLights";
 import { VFX_DRAWN_TWICE } from "./vfx/drawnTwice";
 
@@ -1090,7 +1090,9 @@ export class ScreenFilterPass {
           r.render(this.quadScene, this.quadCamera);
           source = over.texture;
         }
-        this.renderOver(scene, camera, VFX_LAYER);
+        // The shots' flat art is drawn again after their halos, so the halos rim the paintings
+        // instead of washing over them, as in the main render (D169, D215).
+        this.renderOver(scene, camera, VFX_LAYER, this.mode === "new" ? SHOT_ART_LAYER : undefined);
       }
       this.history.reverse(); // this frame's result is the next frame's previous one
       this.historyValid = true;
@@ -1113,8 +1115,11 @@ export class ScreenFilterPass {
     r.render(this.quadScene, this.quadCamera);
   }
 
-  /** Draw only `layer`'s objects of the scene over the current target, in front of everything. */
-  private renderOver(scene: THREE.Scene, camera: THREE.Camera, layer: number): void {
+  /**
+   * Draw only `layer`'s objects of the scene (and `also`'s) over the current target, in front of
+   * everything, in their own render order.
+   */
+  private renderOver(scene: THREE.Scene, camera: THREE.Camera, layer: number, also?: number): void {
     const r = this.renderer;
     const background = scene.background;
     const shadows = r.shadowMap.autoUpdate;
@@ -1131,6 +1136,7 @@ export class ScreenFilterPass {
     r.autoClear = false;
     r.clearDepth();
     camera.layers.set(layer);
+    if (also !== undefined) camera.layers.enable(also);
     // The effects drawn here never had the outline pass's second copy: one plain draw (D206).
     VFX_DRAWN_TWICE.value = 0;
     try {

@@ -12,6 +12,14 @@ export const DEFAULT_VFX_MODE: VfxMode = "remastered";
  */
 export const VFX_LAYER = 1;
 
+/**
+ * The shots' flat art (spriteArtLayer.ts) is also on this layer. The main render draws the shot
+ * halos under it (D169); the screen filters draw the effects over the filtered frame in a render of
+ * their own (ScreenFilterPass.renderOver), and draw this layer there too, after the halos, so the
+ * halos stay under the paintings on the smoothie levels as well (D215).
+ */
+export const SHOT_ART_LAYER = 2;
+
 /** The mode a page's query string asks for (`?vfx=original` or `?vfx=remastered`), else the default. */
 export function vfxModeFromSearch(search: string | undefined = typeof location === "undefined" ? undefined : location.search): VfxMode {
   const v = search === undefined ? null : new URLSearchParams(search).get("vfx");
