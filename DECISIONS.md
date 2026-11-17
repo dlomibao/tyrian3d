@@ -12139,3 +12139,122 @@ Five items ship:
 **Cost:** 18 agents, about 2.0M subagent tokens, 42 min (fix round); one Opus agent to integrate.
 
 **Review:** check BRAINIAC t9300, ICESECRET t1800, EYESPY t7800 and UNDERDELI t4050 against the original. Fallback: revert per item; the fortress, arms and eye each revert their lib and all of its wrappers' glbs together.
+## D212 — The TORM waterfall is scenery, not an object: a relief of the sprite's own pixels in the island rock's palette texture, fading into the HD terrain, with no lip, no ink and no shadow (E2 QA M3, held four times; follows D66, D82, D84, D165, D182, D185, D205, D209)
+
+2026-11-17
+
+**Problem** (E2 QA M3; held in D182, D185 and D209, review 5 each time): `assembly-newshh-129`, the waterfall of TORM
+(2.1, t4050) and BONUS (2.12, t60), read as a box: dark square pillars with a straight inked top for cliffs, a
+dead-straight lip, a raised pool with a line under it. Four rebuilds (cross-sections, lobes and ledges, D175's facet
+ramp) came back with the same findings.
+
+**What was checked** (the sprite's pixels; `&compare=1` at 4K, both panels rectified onto the sprite's grid, mean luma
+per region; scratch `rect.py`):
+- *What the sprite is.* A full rectangle (`sprite_mask`: full-rect, 8% ink in its ring), 4 x 2 pieces in TORM, 3 x 2
+  twice in BONUS, 5 x 2 in the catalogue's layout. Every edge is painted to run on into the tiles: water into the
+  river above and below, rock into the jungle's cliff wall left and right, bushes into the jungle.
+- *The lip is not in the sprite.* Its first row is already falling strands; the crest and the strands' bright heads
+  are in the river TILES, about 8 rows above it. Main builds a lip at the sprite's first row (a tube; its comments
+  record a rail of sheen and a comb of strand ends before it), and the held rebuilds r3 and r4 kept one there: a
+  straight line exactly on the box's top edge. The HD river tiles (D57's repaint) have no strand heads; they are
+  level river up to the box.
+- *The cliffs the reviewers described are mostly not in the sprite either.* Its left cliff is 12 px wide, its right
+  one 14 px: the wall's shadowed inner flanks (faces mostly palette 1-4, luma 39 and 34; a lit rib of 5-6; lobed caps
+  of 4 rising to 11 in rows 0-7). The "rounded, lumpy mid-grey masses with broad lit facets" and the right cliff
+  "spreading down a diagonal" are the cliff tiles beside it (the sprite's is 12 of the roughly 30 px of left cliff
+  in the QA crop). No model inside the rectangle can supply them; it can only join them.
+- *Why dark.* Not the lights: a matte plumb face comes out at about its palette colour under D205's rig (the new
+  rock measures 1.05x the sprite), an up-facing or glossy one at 1.2-1.3x. Main's cliffs matched the sprite's MEAN
+  (left face 34 against 39) but were one index per region on evenly lit plumb faces: luma p10-p90 25-41 where the
+  sprite has 12-69. The lit rib and the black recesses, which are what reads as rock, were gone. Main also
+  darkened the terrain to its right: 36 there against the original's 46, 48 now (its cast shadow and ink went
+  together; they were not separated).
+- *Why square.* It was built as a free-standing object (D82's standing cliff): a level cliff top with a straight
+  rim, an outline shell (ink along the top), a lip, a pool slab with a skirt (the line under the pool), all with
+  hard opaque edges on the rectangle, against terrain that was repainted and no longer matches the sprite pixel
+  for pixel. That is D66's finding for the rock round level 1's machines, on a sprite that is nothing but such rock.
+- *Not involved:* D181's cover lift. It raises later draws over a model that buries them; it does not change how
+  the model looks, and the depth band is as it was.
+
+**Decision:** build it as D66/D84 build island rock: a relief coloured by palette data in a texture made from the
+sprite's own pixels, fading out at the rectangle's edge, no outline, no cast shadow. `assembly-newshh-129.py` is
+rewritten on the numpy-only `lib_newshh_falls.py`; `lib_tiles.rock_material` and `src/render/rockMaterial.ts` are
+used as they are (no renderer change).
+- **Paint** (8 texels per sprite px, one canvas for the whole assembly, noise periodic over 24 px so the repeated
+  pieces 129 and 205 tile): each palette shade's region keeps its tone and gets a smooth outline (its level set
+  blurred and re-thresholded), mixed with a little plain blur. Strands stay crisp across and soft along; the pool's
+  dither becomes mottling with the bright pixels as glints. R = shade, G = ramp (grey, the two greens; the water's
+  texture is one ramp), B = a low bump, A = coverage.
+- **Two layers per piece:** `-static` (rock, bushes, and dark wet rock under the water; roughness 0.9) and
+  `-water-<frame>` (falls, foam, pool; one per animation frame, `tyrian_frames`; roughness 0.78). The water is
+  65% clear between the strands, so the wet rock behind shows in the gaps. Both are D84's fading rock (blended, depth-writing); the water lies at least 1.6 px above the static layer and
+  its node 0.5 units higher, so three.js draws it second.
+- **Edges:** coverage fades over about 1 px at a wobbling line round the rectangle. At the top the water layer ends
+  ragged: each bright strand starts up to 2.6 px ABOVE the sprite's first row and thins into the river's tone, the
+  dark between them starts lower, and the static layer starts 2.6 px in, so the HD river shows between the heads.
+  That is the lip: no tube, no line. The crest's row is scalloped (±2.6 px), so the sun's sheen on the roll is broken.
+- **Tone:** the water's paint is darkened along its ramp by what the lights add (0.74 level, 0.84 falling), so the
+  pool meets the river (51 against 51) instead of standing out (main 56).
+- **Shape:** still the real standing cliff, drawn in the art's view (`tyrian_oblique` 1, the same depth band): a
+  height for every point of the art. Cliffs: a bank, a face leaning 0.9 px per row from foot to rim, a cap that
+  rolls over the rim, the paint's lit stone standing out and its dark sunk (so the scene's light agrees with the
+  paint); the river level at the crest, rolling over 4.5 rows into a near-plumb curtain; the pool. Never
+  overhanging in the art's view. A closed underside per piece (back wall, sides, base, one `pal_2` material),
+  turned away from the art's eye or along its rays: the game never draws it (a capture with and without it differs
+  by at most 3/255).
+- **Seams:** the static layer reaches 0.5 px under its neighbours, 0.4 px lower, with a hard edge at the box, so a
+  piece's own box always shows its own texture. The water layer stops at its box: a neighbour's strip showed through
+  the gaps, and TORM's two rows run one frame apart. In the art's view a seam is a straight line whatever the
+  heights, so the pieces meet without it.
+- **No ink:** every material carries `outlineParameters: {visible: false}` as a glTF extra, which the outline pass
+  reads from `userData` (checked in the running game). **No shadow:** `tyrian_ground` on every node.
+
+**Result** (`&compare=1`, 4K; luma, original / main / this):
+
+| Region (sprite px) | Original | Main | This |
+|---|---|---|---|
+| Left cliff cap, rows 0-7 | 78 (p10-p90 52-107) | 80 (60-100) | 79 (46-107) |
+| Left cliff face | 39 (12-69) | 34 (25-41) | 41 (22-68) |
+| Right cliff cap | 57 (12-106) | 40 (21-65) | 57 (19-111) |
+| Right cliff face | 34 (12-69) | 29 (17-42) | 37 (12-73) |
+| Falls, rows 0-6 | 86 | 95 | 86 |
+| Falls, rows 6-34 | 38 | 50 | 42 |
+| Foam, rows 36-44 | 49 | 67 | 51 |
+| Pool, rows 45-56 | 48 (30-72) | 56 (50-60) | 51 (40-62) |
+| Terrain right of the box | 46 | 36 | 48 |
+
+- Top view (the art's view): `iou_rule_grid` 0.9951 on all four phases, whole assembly, from the script's own
+  coverage (`--measure`) and from an independent rasterisation of the built glbs with their textures' alpha
+  (scratch `artview.py`); 6,714 of 6,720 cells covered, at least 99.5% of every piece's. About 120 px² (1.8%) is opaque outside
+  the rectangle (the strand heads, the wobble), which the tool does not see.
+- Six glbs 2.40 -> 1.36 MB (meshopt); about 47k triangles drawn for TORM's eight pieces; spriteModels unchanged.
+- Also checked: `&camera=overhead|steep`, `&terrain=original` and `&bg=original` (the texture draws one colour per
+  2x pixel, as the island rock does), six animation frames, `?viewer=newshh-117` (a standing solid).
+- `tsc --noEmit` is clean. `vitest run`: 881 passed, 17 failed, every one a timeout (5 s or 60 s) while the machine's
+  load average was about 48 from other agents' jobs. Rerun with a long timeout, 75 of those 77 tests pass; the two
+  that cap themselves at 60 s time out again (`underShade.test.ts`'s ground materials, `remaster.test.ts`'s minRows
+  scan; neither reads a model, and no source file changed). Not rerun on a quiet machine: CI decides.
+- Captures: `tyrian-scratch/fable-waterfall/final/` (original | main | this at TORM t4050 and BONUS t60; not in git, D3).
+
+**Options considered:**
+- *Another round of `pal_` facets (D175's ramp, as round 4):* opaque, so the rectangle's edge stays; round 4's ramp
+  came out as horizontal bars on the left cliff (review 5; why was not looked into).
+- *Let the HD terrain carry the cliffs and model only the falls (D185's next try):* the model must cover the
+  rectangle (the top-view rule), and what the map has under it was not checked.
+- *Tone on COLOR_0 (D209, D211):* smooth, but opaque and without a bump.
+- *Glossy water (roughness 0.28-0.55):* the environment showed as grey bands on the pool and a ruled rail on the
+  crest. Bump at full strength embossed every strand.
+- *Seam strips on the water layer too:* the neighbour's strands showed through the gaps as a dashed line.
+
+**Open:**
+- It is 96 x 56 px of information made smooth: the cliffs are softer than the repainted rock beside them, the pool
+  is mottled rather than swirled, and the gaps between strands are rounder than the art's bars.
+- The strand heads above the falls belong in the terrain: the HD river tiles over the waterfall could be repainted
+  with them (the original's have them); the model only reaches 2.6 px up.
+- Pieces 129 and 205 are cut as if copies of themselves stood on both sides; beside 117/153 their first column
+  differs slightly from the neighbour's view of it. Not visible in the captures.
+- `rock_material` is now also water and leaves; the no-ink extra is the outline pass's own `userData` key, not a
+  `tyrian_` one; the layer order relies on three.js sorting blended meshes by their node's place.
+- TORM's top and bottom rows animate one frame apart (the C's), a faint step at row 28, as in the original.
+
+**Cost:** one Fable agent (asked for by the user).
