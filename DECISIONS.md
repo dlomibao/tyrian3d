@@ -13210,3 +13210,168 @@ faces.
 
 **Cost:** one Fable agent (asked for by the user); 11 builds of the two scripts at `-j 2`, about 120 headless
 captures, no Gemini.
+## D228 — The U-Ship is a blade on edge, traced from its own frames: a 1 px land in the sprite's tone bands over dark shoulders, a keel as deep as the banking frames draw it, a small capsule with a glass nose and the sprite's two stripes, no glow; banks at 40° / 60° (ship audit; follows D50-D53, D74, D90, D93, D175, D212, D213)
+
+2026-11-17
+
+**Problem:** `ships/ship-u-ship` (item 10) read heavy and generic at the game's angle (`?viewer=ship-u-ship`, Game
+angle; `tyrian-scratch/ship-audit/g_ship-u-ship.png`): thick chrome rails, a fat tan loop, a barrel of a pod with a
+glowing orange opening turned to the viewer. The sprite is a thin wire U with a small pointed brown pod. The user
+asked for a rebuild, diagnosis first.
+
+**Diagnosis** (measured from `reference/models/ship-u-ship/sprite.json`, frames 267-275, palette 5, and from the
+game's render: `?debug=play&ship=10&compare=1&solid=1` at 3840x2160, both panels rectified onto the sprite's grid at
+16x, 5.67 screen px per sprite px in the 3D panel; a cell's value is the mean of its central half):
+- *What the sprite draws.*
+  - **Arms.** One colour pixel (columns 5 and 17, rows 8-19) between two ink pixels: 3 px across, one third of it
+    colour. Along it: barrel 9 (rows 8-12), a bright lip 11/12 (row 13), a dark collar 6/5 (row 14), receiver 10-11
+    (rows 15-17), lip 12 (row 18), collar 6/4 (row 19). In the banking frames the arms' centre lines close from 12 px
+    apart to 9 and 6 (a roll of 41° and 60°), where a part 1 px wide would measure 0.75 and 0.5 px across; the art
+    draws them 2 and 3 px wide instead. They are blades standing on edge, about 1 px wide and 2.5-3 px deep
+    (width x cos + depth x sin: 3 px at 60° needs 2.9, 2 px at 41° needs 1.9). The flank that faces left is the
+    top's grey (7-11), the one that faces right is dark (2-5), on both arms and in both banks: the sprite's light.
+  - **Band.** The same line in tan from row 20, one pixel a row round the corners, row 24 along the bottom: left
+    limb 25, 28, 28, 28; right limb 24, 20, 21, 22; bottom 26 25 **28 21 28** 25 24 (a dark clamp between two bright
+    lips). In the banks it widens as the arms do: bright only where its outer face looks left (25-29), dark where it
+    looks right (21) and inside both limbs (20-22, 163-166).
+  - **Pod.** Columns 9-13, rows 13-19, its nose 3 px wide (row 13), its stern flat. Rows 13-15 are dark (163, 16,
+    20, 162) except the right column (23-24): glass over the nose. Behind it five columns: 22-26, **28-29**, 22-25,
+    **162-163**, 24: a cream stripe left of the middle and a dark one right of it.
+  - **Struts.** One pixel row (16) a side, 4 beside the arm and 7 or 6 beside the pod. The ink round strut, arm and
+    pod runs together into blocks 1 x 3 px (columns 6, 8, 14, 16), which D74's inner mask keeps (8 of its 86 px).
+  - **No orange.** The frames use greys 2-12, browns 16-29 and 160-167, and ink (32, 254).
+- *Why main read heavy.*
+  1. Its arms were 1.7 px tubes of one bright material. In play they came to the sprite's 2.9 px with the ink, but
+     the bright core was 1.50 px (sprite 1.00) and the dark beside it 1.3 px in all (sprite 2.0): the proportion
+     turned over. In the viewer the model is five to ten times larger and the ink a fixed share of the screen, so
+     the sheath is gone and a chrome tube is left. The game's ink can't carry a thin part's dark at every scale.
+  2. Up-facing steel came out about 1.25 times its palette colour (D212 measured 1.2-1.3): receivers 186 where the
+     sprite has 149, collars 99 for 71.
+  3. The band was a rounded tube in one tan: core 1.38 px, both limbs 136 | 135 where the sprite has
+     152 | 73. Seen from the south its round aft face adds to it (core 1.69 px under the steep camera).
+  4. The pod stood 4.4 px tall on a 5 px plan, plated in one khaki (the D53 tint 0.76 / 0.86 / 1.0 turned the tan
+     olive): cream stripe 69 for the sprite's 187, dark stripe 65 for 26, glass 60 for 40; and a nozzle glowing
+     orange (palette 121/123, emission 1.6-2.2) in a stern face 4 px high, turned to the camera.
+  5. 17,343 triangles of concept detail (cooling jackets, receivers, hubs, ribs) a third of a pixel wide: noise at
+     2.8-5.7 screen px per sprite px.
+- *The lights are not the cause, and cannot do the band.* A first build gave the band an outer face leaning out
+  53° to take the sun (-6, 20, 8.4) on the left: left limb 139, right 122 with both in one index, 1.14 to 1 where
+  the sprite has 2.1 to 1. The rig is too even for the sprite's left light; as D175 found for the rocks, the sprite
+  draws that range with palette entries and lighting alone does not get there.
+
+**Decision:** `assets/blender/ships/ship-u-ship.py` is rewritten (plain bmesh; no `usp_talon` helpers, no concept
+detail). Every part's plan, tone and depth is read from the frames.
+- **One blade section for the whole U**, 1.6 px wide and 2.6 px tall: a flat **land** 1.0 px wide (the sprite's
+  colour pixel) at 1.2 px over the roll axis, steep **shoulders** 0.3 px a side in a dark index, a plumb flank
+  0.55 px and a keel that tapers 0.4 px per px, inside the camera's rays, so the blade shows 1.6 px anywhere on
+  screen. D74's rule 3 holds (a thin part keeps half its 3 px): the land carries the tone and the shoulders the
+  weight, so the bright line is 1 px at every scale, with the game's ink or without.
+- **Arms:** the land cut along the sprite's bands, one `pal_` material each (9, 11, 5, 10, 11, 5); the collars
+  sunk 0.14 px and dark all round; a chamfered muzzle with a bore.
+- **Band:** the same section swept round the U (1.2 px fillets), its land 26 on the left limb, 21 on the right,
+  24 along the bottom, lips 27 and clamp 20: the sprite's own indices for each stretch or one step from them, set
+  against the original in game. The left/right difference is painted (D175's facet ramp, D213's bands).
+- **Flanks** carry what the banking frames draw: an arm's flank that looks left takes its band's index one step
+  up, the one that looks right the band's index over a keel in 7; the band's outer face is 27 where it looks left,
+  21 where it looks right and inside, and a brown strip (23) over a dark keel where it looks aft, so the loop stays
+  slim from the game's side.
+- **Pod:** a lofted capsule 5.1 px wide and 2.6 px tall with an ogive nose (it covers row 13's three pixels and
+  leaves the ink beside them), cut along its meridians into the sprite's five columns (25, 28, 22, 162, 25), glass
+  (163, roughness 0.05) over rows 13-15 on all but the right column, a dark belly, a flat stern with a sunk dark
+  nozzle. **No emission anywhere**; `tyrian_engines` still places the menus' engine glow behind the pod.
+- **Links:** a plate in the sprite's ink (32) from arm to pod, 3 px long at each end and 1 px in the middle, with
+  the strut on it as a chamfered bar (4 beside the arm, 7 beside the pod).
+- **Tone:** the baked map (occlusion and edge lift, as before; `"bake": "model"`) is scaled 0.66 (linear) on steel
+  and brass, which takes back the lights' 1.25x on up-facing parts, so the land shows its index as the sprite does;
+  the brass keeps a slight cool tint (0.65 / 0.67 / 0.72), not D53's olive.
+- **Banking** (`tools/bank_roll.py --fit`, D93): roll 40° / **60°** (was 55°), shift -3.5, -1, 0, 1, 3
+  (`bankShift.ts` gives -3 for the hard left bank). `src/render/spriteModels/ship-u-ship.json` changes in
+  `bank.roll` and `bank.shift` only.
+- Outline shell as before (`common.outline_shell`, 1,500 faces).
+
+**Result.**
+- *Level frame, in game* (mid-field; mean luma, original | main | this):
+
+  | Region (sprite px) | Original | Main | This |
+  |---|---|---|---|
+  | Arm barrel, rows 8-12 | 121 | 121 | 125 |
+  | Arm lips, rows 13 and 18 | 181 | 193 | 184 |
+  | Arm collars, rows 14 and 19 | 71 | 99 | 83 |
+  | Arm receiver, rows 15-17 | 149 | 186 | 158 |
+  | Band, left limb | 152 | 136 | 151 |
+  | Band, right limb | 73 | 135 | 82 |
+  | Band, bottom | 117 | 144 | 118 |
+  | Band, lips | 163 | 145 | 168 |
+  | Band, clamp | 63 | 86 | 72 |
+  | Struts | 70 | 86 | 80 |
+  | Link ink blocks | 5 | 37 | 27 |
+  | Pod glass, rows 13-15 | 40 | 60 | 38 |
+  | Pod cream stripe, column 10 | 187 | 69 | 188 |
+  | Pod centre, column 11 | 90 | 114 | 104 |
+  | Pod dark stripe, column 12 | 26 | 65 | 33 |
+  | Pod flanks, columns 9 and 13 | 107, 98 | 98, 87 | 108, 98 |
+
+- *Widths* (a luma profile across the left arm, rows 9-11, and across the band's bottom; bright core at half
+  height, and the dark, under 45, beside it; px):
+
+  | | Original | Main | This |
+  |---|---|---|---|
+  | Arm, default camera | 1.00, 2.00 | 1.50, 1.31 | 0.94, 1.75 |
+  | Arm, overhead | | 1.50, 1.44 | 0.94, 1.88 |
+  | Arm, steep | | 1.50, 1.00 | 0.94, 1.44 |
+  | Band, default camera | 1.00, 2.00 | 1.38, 0.75 | 1.00, 1.06 |
+  | Band, overhead | | 1.31, 0.94 | 1.00, 1.44 |
+  | Band, steep | | 1.69, 0.44 | 0.94, 0.62 |
+
+- *Top view* (`tools/bank_roll.py`, `iou_rule_grid`, each at its own pose; main at 40° / 55° with bankShift's shift):
+
+  | Frame | Bar | Main | This |
+  |---|---|---|---|
+  | 267 (full left) | 0.70 | 0.781 | 0.924 |
+  | 269 (half left) | 0.80 | 0.873 | 0.908 |
+  | 271 (level) | 0.95 | 1.000 | 1.000 |
+  | 273 (half right) | 0.80 | 0.876 | 0.847 |
+  | 275 (full right) | 0.70 | 0.776 | 0.924 |
+
+  The banks pass D93's bars and stay under 0.95: their inner masks count the ink the art fills in between arms and
+  pod (the blue cells of `top-view-iou-sheet.png`), and the half banks' left and right frames disagree.
+- *Banking frames, in game* (mean luma over the arm's columns, rows 8-12; original | main | this): full left 74,
+  75 | 82, 106 | 72, 74; half left 79, 85 | 97, 94 | 75, 77; half right 115, 81 | 100, 96 | 89, 84; full right 93,
+  86 | 81, 95 | 84, 82. Band at full right, left and right limb: 147, 40 | 83, 74 | 100, 48.
+- *Weight:* 1,570 triangles (main 17,343), 20 `pal_` materials as before (parts of one index and finish share
+  one), glb 605 -> 149 KB (meshopt).
+- *Also looked at:* the field's left and right edges, `&camera=overhead|steep`, the invulnerable (translucent)
+  ship, `?viewer=ship-u-ship` Top, Game angle and Free. `tsc --noEmit` is clean; 12 vitest files that read models
+  or ship entries pass (63 tests: spriteModels, bankShift, modelCoverage, modelSwap, modelPop, viewerFrames,
+  modelHeight, modelAnchor, modelFrames, modelPrep, shipDamage, ui/screens). The whole suite was not run.
+- *Captures* (not in git, D3): `tyrian-scratch/fable-uship/final/` (`level-centre-left-right.png`,
+  `banks-267-269-273-275.png`, `cameras-overhead-steep.png`, `viewer-game-angle-sprite-main-new.png`,
+  `level-c271-repixelated.png`, `top-view-iou-sheet.png`, `tables.txt`; original | main | this).
+
+**Options considered:**
+- *A 1 px tube and the game's ink for the rest:* under rule 3's half width, and the ink is 0.6 px in play and
+  next to nothing in the viewer; the sheath has to be the model's.
+- *A skirt leaning out, lit by the sun* (built first): 1.14 to 1 between the limbs (above), and from the viewer's
+  game angle its aft face stood 1.5 px tall under the land: the fat loop again.
+- *Dark flanks all over* (built): the banks read as black bars (arms 44-75 where the sprite has 74-115).
+- *A blade 2.0 px tall* (built): banks 0.75-0.86; at 2.6 px 0.85-0.92. Deeper (3.4) fell back to 0.78-0.80.
+- *One brass on the pod, the stripes left to sheen:* main was that (69 for 187, 65 for 26).
+- *Keeping the nozzle's glow:* the sprite has no orange pixel; the menus' glow is `tyrian_engines`, kept.
+
+**Open:**
+- The tones are paint: the band's left and right limbs, the flanks by the side they face, the pod's two stripes.
+  They are right under the game's camera and do not follow the light when the ship turns in a menu. The hangar
+  was not captured (the viewer's Free and Game angle were).
+- The blade's depth is read from the banking frames, the only frames that show it. D93 says no part is shaped for
+  a bank; this is the section's one unknown, and it shows in a side view as a blade 2.6 px deep (main's arms were
+  1.9).
+- Little modelled detail (collars, bores, links, nozzle): under the Talon's standard for a close view, by choice;
+  nothing on the underside.
+- Collars 83 for 71, pod centre 104 for 90, right limb 82 for 73, the ink blocks 27 for the sprite's black.
+- At the field's edges the land, 1.2 px above the origin plane, leans up to half a pixel and a strip of flank
+  shows (right edge: core 1.12 px).
+- D226's shop icon of the U-Ship is rendered from this model: re-run `python tools/shop_icons.py models` after the
+  merge (that tool is not on this branch).
+- Not checked: the hit flash, D90's wear, two players.
+
+**Cost:** one Fable agent (asked for by the user).
