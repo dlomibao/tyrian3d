@@ -65,8 +65,8 @@
   display: block;
 }
 
-/* JE_weaponViewFrame's power bar: the generator's reserve, which every shot draws on. A phosphor
-   gauge in its own well. */
+/* JE_weaponViewFrame's power bar: the generator's reserve, which every shot draws on, in the status
+   panel's generator colours (hudf-powerG, D232), in its own well. */
 .weapon-preview-power {
   flex: none;
   width: 0.7rem;
@@ -74,7 +74,7 @@
   align-items: flex-end;
   padding: 3px;
   border-radius: 3px;
-  background: linear-gradient(var(--ui-phos-cell-off), var(--ui-phos-cell-off)) content-box, var(--ui-well-solid);
+  background: linear-gradient(var(--ui-power-cell-off), var(--ui-power-cell-off)) content-box, var(--ui-well-solid);
   box-shadow: 0 0 0 1px rgba(164, 123, 70, 0.55), 0 0 0 2px var(--ui-rim-ink);
   overflow: hidden;
 }
@@ -83,7 +83,7 @@
   display: block;
   width: 100%;
   height: 0;
-  background: linear-gradient(to top, var(--ui-phos-dim), var(--ui-phos) 60%, var(--ui-phos-name));
+  background: var(--ui-power-cell-on);
 }
 
 /* Phones, where the loadout folds above the menu: a smaller screen, about the loadout's height. */

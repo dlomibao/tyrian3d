@@ -706,6 +706,14 @@ h3.ui-title {
   transition: width var(--ui-med) var(--ui-ease);
 }
 
+/* The ship's own gauges in the status panel's colours (tokens.css, D232). */
+.ui-stat--armor .ui-stat__bar { background: var(--ui-armor-cell-off); }
+.ui-stat--armor .ui-stat__bar > i { background: var(--ui-armor-cell-on); }
+.ui-stat--shield .ui-stat__bar { background: var(--ui-shield-cell-off); }
+.ui-stat--shield .ui-stat__bar > i { background: var(--ui-shield-cell-on); }
+.ui-stat--power .ui-stat__bar { background: var(--ui-power-cell-off); }
+.ui-stat--power .ui-stat__bar > i { background: linear-gradient(180deg, #ffe070, #ffb030 30%, #e86a1c 65%, #b8200c); }
+
 /* Cut the bar into ten cells, over the fill. */
 .ui-stat__bar::after {
   content: "";
