@@ -1,5 +1,5 @@
 {
- "note": "flat_art.py recolour / cut (DECISIONS.md D172): painted frames whose colours drifted from the sprite's, recoloured with the sprite's own palette ramp (histogram-matched brightness, the sprite's colour at each brightness). layout: how much of the brightness order is the sprite's own (0 the painting's, 1 a smoothed sprite); size 2 objects are fitted whole and frames lists their first tiles; tiles names a flat_art.py LAYOUTS arrangement for an object drawn as other sprites than blit_sprite2x2's (D214). joins: Zica Laser pieces stacked edge to edge (head, body, tail), whose edges continue into the next piece.",
+ "note": "flat_art.py recolour / cut (DECISIONS.md D172): painted frames whose colours drifted from the sprite's, recoloured with the sprite's own palette ramp (histogram-matched brightness, the sprite's colour at each brightness). layout: how much of the brightness order is the sprite's own (0 the painting's, 1 a smoothed sprite); size 2 objects are fitted whole and frames lists their first tiles; tiles names a flat_art.py LAYOUTS arrangement for an object drawn as other sprites than blit_sprite2x2's (D214). joins: beams stacked edge to edge (the Zica Laser's head, body and tail; the enemy beam #7 286-288, D221), whose edges continue into the next piece.",
  "objects": [
   {"sheet": "tyrian.shp#7", "why": "side fireballs, painted pale yellow-white (title demo 1)", "frames": [121, 122, 140, 141]},
   {"sheet": "tyrian.shp#7", "why": "round enemy shots, painted pale gold without the wide red rim (demo 5)", "layout": 0.7, "frames": [112, 113]},
@@ -11,7 +11,10 @@
   {"sheet": "tyrian.shp#10", "why": "tan datacube's first frame, painted grey (demo 2)", "size": 2, "layout": 0.35, "frames": [159]},
   {"sheet": "tyrian.shp#7", "why": "D214: Phoenix Device and BattleShip firebomb fireballs, painted pale yellow-white", "frames": [18, 56, 102, 104]},
   {"sheet": "tyrian.shp#11", "why": "D214: Zica Flamethrower's flame, painted with a dark rim the sprite doesn't have", "size": 2, "tiles": "zica-flame", "frames": [172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183]},
-  {"sheet": "tyrian.shp#5", "why": "D214: Plasma Storm's ring of fire, painted paler than the sprite's red rim and white core", "tiles": "plasma-storm", "frames": [22]}
+  {"sheet": "tyrian.shp#5", "why": "D214: Plasma Storm's ring of fire, painted paler than the sprite's red rim and white core", "tiles": "plasma-storm", "frames": [22]},
+  {"sheet": "tyrian.shp#7", "why": "D221: the enemy beam (newsh3-195's shot, LAVA RUN, ICE EXIT): body, flare and shimmer painted orange edge to edge, where the sprite's outer columns are near-black red round a narrow white core", "layout": 0.8, "frames": [286, 287, 288]},
+  {"sheet": "tyrian.shp#10", "why": "D221: the green orb (#10 37), painted pale mint", "layout": 0.5, "frames": [37]},
+  {"sheet": "tyrian.shp#10", "why": "D221: the gold and copper coins' spin (#10 7-12, 26-31), painted silver-grey with a frontal face, where the sprite is tan / salmon copper with a bright rim band", "layout": 0.5, "frames": [7, 8, 9, 10, 11, 12, 26, 27, 28, 29, 30, 31]}
  ],
  "joins": [
   {"sheet": "tyrian.shp#7", "frame": 97, "bottom": 116},
@@ -19,6 +22,9 @@
   {"sheet": "tyrian.shp#7", "frame": 135, "top": 116},
   {"sheet": "tyrian.shp#7", "frame": 101, "bottom": 120},
   {"sheet": "tyrian.shp#7", "frame": 120, "top": 120, "bottom": 120},
-  {"sheet": "tyrian.shp#7", "frame": 139, "top": 120}
+  {"sheet": "tyrian.shp#7", "frame": 139, "top": 120},
+  {"sheet": "tyrian.shp#7", "frame": 286, "top": 286, "bottom": 286},
+  {"sheet": "tyrian.shp#7", "frame": 287, "top": 286, "bottom": 286},
+  {"sheet": "tyrian.shp#7", "frame": 288, "top": 286, "bottom": 286}
  ]
 }

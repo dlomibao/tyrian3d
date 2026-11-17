@@ -16,6 +16,9 @@
 // table's width and height for a table sprite. A blit_sprite2x2 draw is the four 12x14 sprites
 // index, index+1, index+19 and index+20, each with its own frame. A sheet may have a "scale" of its
 // own, and a frame too (newsh6.shp's coin values are drawn at 16 in the explosions' atlas at 8, D80).
+// A frame may have a "shade": the gain on its brightness shade under the C's palette effects (the
+// hit flash, the level filter, the smoothies' hues), so its shades spread as its sprite's palette
+// indices do (D221; tools/flat_art.py shade). 1 when absent.
 //
 // This module is the pure part (parsing, lookup, placement); spriteArtLayer.ts draws.
 
@@ -32,6 +35,8 @@ export interface SpriteArtFrame {
   h: number;
   /** Atlas pixels per original pixel for this frame, when not its sheet's. */
   scale?: number;
+  /** The gain on its brightness shade under palette effects (D221), when not 1. */
+  shade?: number;
 }
 
 export interface SpriteArtManifest {
@@ -65,13 +70,18 @@ export function parseSpriteArtManifest(json: unknown, warn: (msg: string) => voi
     const map = new Map<number, SpriteArtFrame>();
     for (const [key, f] of Object.entries(frames as Record<string, unknown>)) {
       const index = Number(key);
-      const { x, y, w, h, scale: fs } = (f ?? {}) as Record<string, unknown>;
+      const { x, y, w, h, scale: fs, shade } = (f ?? {}) as Record<string, unknown>;
       if (!Number.isInteger(index) || index < 0 || !isCount(x) || !isCount(y) || !isCount(w) || !isCount(h) || w === 0 || h === 0 ||
           (fs !== undefined && (!isCount(fs) || fs <= 0))) {
         warn(`sprite art: ${id} frame ${key} is malformed; skipped`);
         continue;
       }
-      map.set(index, fs === undefined ? { x, y, w, h } : { x, y, w, h, scale: fs });
+      const frame: SpriteArtFrame = fs === undefined ? { x, y, w, h } : { x, y, w, h, scale: fs };
+      if (shade !== undefined) {
+        if (isCount(shade) && shade > 0) frame.shade = shade;
+        else warn(`sprite art: ${id} frame ${key} has a bad shade; drawn without it`);
+      }
+      map.set(index, frame);
     }
     if (map.size > 0) out.sheets.set(id, { image, scale: own ?? scale, frames: map });
   }
@@ -95,6 +105,8 @@ export interface ReadyFrame {
   /** Size in the original's pixels: the frame's size over its scale (its own, its sheet's or the manifest's). */
   w: number;
   h: number;
+  /** The gain on its brightness shade under palette effects (D221): 1 unless the manifest says. */
+  shade: number;
 }
 
 /** One sheet's atlas and frames. `texture` is whatever the drawing side uses (a THREE.Texture). */
@@ -116,7 +128,7 @@ export class SpriteArtSheet<T = unknown> {
     for (const [index, f] of this.frames) {
       if (f.x + f.w > width || f.y + f.h > height) continue; // Outside the image: draw as before.
       const scale = f.scale ?? this.scale;
-      this.ready.set(index, { u0: f.x / width, v0: f.y / height, u1: (f.x + f.w) / width, v1: (f.y + f.h) / height, w: f.w / scale, h: f.h / scale });
+      this.ready.set(index, { u0: f.x / width, v0: f.y / height, u1: (f.x + f.w) / width, v1: (f.y + f.h) / height, w: f.w / scale, h: f.h / scale, shade: f.shade ?? 1 });
     }
     this.texture = texture;
   }

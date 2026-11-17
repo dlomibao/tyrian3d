@@ -9,7 +9,7 @@
 // The atlases are uploaded premultiplied, so their soft edges filter and blend without fringes, and
 // blended with depth testing but no depth writes. Palette effects are done on the art's brightness:
 // the enemy hit flash (blit_sprite2_filter) and blit_sprite_hv recolour each texel with the palette
-// entry of its hue at the shade its brightness gives; the "blend" effect is the renderer's opacity,
+// entry of its hue at the shade its brightness gives (times the frame's shade gain, D221); the "blend" effect is the renderer's opacity,
 // except for explosions, which take the C's hue-keeping blend with the frame under them
 // (ART_HUE_BLEND, hueBlend.ts, D174); JE_filterScreen's level hue and brightness and the smoothies' hues (D31) recolour or scale it the
 // same way, from the live palette texture.
@@ -45,16 +45,19 @@ attribute vec3 aOrigin;   // world position of the quad's top-left corner
 attribute vec2 aSize;     // world size along X and Z
 attribute vec4 aUv;       // frame UV rectangle: u0 v0 u1 v1
 attribute vec4 aFx;       // mode (0 none, 1 filter, 2 hue/value, 3 hue blend), hue, value (hue blend: backing bank + 1), alpha
+attribute float aShade;   // the frame's gain on its brightness shade (D221)
 varying vec2 vUv;
 varying vec4 vUvRect;
 varying vec4 vFx;
 varying float vHeight;
+varying float vShade;
 
 void main() {
   vec3 p = aOrigin + vec3(position.x * aSize.x, 0.0, position.z * aSize.y);
   vUv = mix(aUv.xy, aUv.zw, position.xz);
   vUvRect = aUv;
   vFx = aFx;
+  vShade = aShade;
   vHeight = aOrigin.y;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }
@@ -71,6 +74,7 @@ varying vec2 vUv;
 varying vec4 vUvRect;
 varying vec4 vFx;
 varying float vHeight;
+varying float vShade;
 ${SCREEN_HUE_PARS}
 ${HUE_BLEND_PARS}
 
@@ -93,7 +97,9 @@ void main() {
   vec3 rgb = tex.rgb / max(tex.a, 1e-4);
   // The shade (0..15) a palette ramp would give this brightness.
   float lum = pow(max(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0), 1.0 / 2.2);
-  float shade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
+  // Scaled by the frame's gain (D221), so its shades spread as its sprite's palette indices do: a
+  // saturated ramp (the blue gem's) is much darker by luma than by index. The hue blend keeps lum.
+  float shade = clamp(floor(lum * 15.0 * vShade + 0.5), 0.0, 15.0);
   float index = 16.0 + shade;
   bool recolour = false;
   if (vFx.x > 2.5) {
@@ -126,7 +132,7 @@ void main() {
     // The palette texture already holds the level filter and brightness (paletteTexture.ts).
     rgb = paletteColor(hued);
   } else if (levelBrightness > -98.5 && levelBrightness != 0.0) {
-    float s = lum * 15.0;
+    float s = lum * 15.0 * vShade;
     float k = clampValue(floor(s + 0.5) + levelBrightness) / max(s, 0.5);
     rgb *= pow(k, 2.2);
   }
@@ -145,6 +151,7 @@ class Batch {
   private size!: THREE.InstancedBufferAttribute;
   private uv!: THREE.InstancedBufferAttribute;
   private fx!: THREE.InstancedBufferAttribute;
+  private shade!: THREE.InstancedBufferAttribute;
   private capacity = 0;
   count = 0;
 
@@ -172,6 +179,7 @@ class Batch {
     this.size = make("aSize", 2, this.size);
     this.uv = make("aUv", 4, this.uv);
     this.fx = make("aFx", 4, this.fx);
+    this.shade = make("aShade", 1, this.shade);
     this.capacity = capacity;
   }
 
@@ -182,6 +190,7 @@ class Batch {
     const s = this.size.array as Float32Array;
     const u = this.uv.array as Float32Array;
     const x = this.fx.array as Float32Array;
+    (this.shade.array as Float32Array)[i] = f.shade;
     o[i * 3] = q.x;
     o[i * 3 + 1] = q.y;
     o[i * 3 + 2] = q.z;
@@ -202,7 +211,7 @@ class Batch {
     this.geometry.instanceCount = n;
     this.mesh.visible = n > 0;
     if (n > 0) {
-      for (const attr of [this.origin, this.size, this.uv, this.fx]) {
+      for (const attr of [this.origin, this.size, this.uv, this.fx, this.shade]) {
         attr.clearUpdateRanges();
         attr.addUpdateRange(0, n * attr.itemSize);
         attr.needsUpdate = true;
@@ -212,9 +221,9 @@ class Batch {
   }
 
   /** The instance data written this frame (before commit), for tests. */
-  instance(i: number): { origin: number[]; size: number[]; uv: number[]; fx: number[] } {
+  instance(i: number): { origin: number[]; size: number[]; uv: number[]; fx: number[]; shade: number } {
     const get = (attr: THREE.InstancedBufferAttribute) => Array.from((attr.array as Float32Array).subarray(i * attr.itemSize, (i + 1) * attr.itemSize));
-    return { origin: get(this.origin), size: get(this.size), uv: get(this.uv), fx: get(this.fx) };
+    return { origin: get(this.origin), size: get(this.size), uv: get(this.uv), fx: get(this.fx), shade: get(this.shade)[0] };
   }
 
   dispose(): void {

@@ -12483,3 +12483,79 @@ Every other file and rect is byte for byte as before; the old texels stay unused
 - **Tests:** `tests/render/terrainArt.test.ts` (22) and `opaqueCover.test.ts` (6) pass.
 
 **Cost:** one Opus agent, no workflow, no Gemini, no Blender. About 30 headless captures.
+## D221 — Flat-art fixes from the 2026-11-17 comparison walkthrough: the enemy beam and the coins held to the sprite's colours, the pickups keep their sprite's shades under the C's palette effects (a per-frame shade gain), and DELIANI's "pods" are a frozen explosion burst (follows D42, D43, D172, D214)
+
+2026-11-17
+
+**Findings** (`tyrian-scratch/qa-all/{e1,e2,e4a,demos}/REPORT.md`), each traced in the draw list and the sim before fixing:
+- **Enemy beam `tyrian.shp#7` 286/287/288** (newsh3-195's shot; LAVA RUN t300, ICE EXIT t3300/t4800): the sprite is
+  9 px wide (11 for the flare 287), opaque, near-black red (index 112-115) at its outer columns round a narrow white
+  core; the paintings were orange edge to edge, the flare a white starburst filling its box (and a bright strip down
+  its right column), and each 14-row piece's corners were rounded, so the stacked pieces showed gaps.
+- **Gems in MINES (`#10` 51/52):** in demo 4's frame (s048, curLoc 4121) the original panel draws the blue gem's
+  pixels as `0x70 | (index & 15)`, the sprite's own shades on the fire ramp (bright red-orange, yellow core): an enemy
+  `filter` (`blit_sprite2_filter`; a ground enemy's hit sets it to the shot's `blast_filter`, game.ts, and the
+  Magneto case to 0x70, tyrian2.ts). Which set it there is unverified: a headless replay of the demo draws that gem
+  unfiltered at that tick. The art layer takes a texel's shade from its luma (D42), and the palette's saturated
+  ramps are far darker by luma than by index (bank 3, the blue gem's: index shade 9 has the luma of shade 5), so a
+  painting true to the blue sprite came out dull maroon. Measured on every painted frame, the gain that spreads a
+  painting's luma shades as its sprite's indices spread is 0.46-4.69 (852 frames; 217 above 1.25). Gem 37 is a separate
+  pickup (a green orb, 3.4 and 3.9), painted pale mint, sRGB mean (168,195,152) against the sprite's (75,104,57).
+- **`#10:31` "pink pill enemy shots" (GEM WAR t16615) and `#10:12` "warp eggs" (TYRIAN t1950)** are the copper and
+  gold coins (enemy types 392 and 391, `scoreitem`, evalue 50/25) spinning through `egr` 26-31 / 7-12; the captures
+  froze them on the spin's last frame (enemycycle 5, 6, 1 at t1949, 1950, 1951). The paintings have the sprite's
+  silhouette, but silver-grey and copper-brown with a near-frontal face, where the sprite is tan / salmon copper with
+  a bright rim band on one side. The tilted camera foreshortens the playfield, which made them look rounder still.
+- **DELIANI t7210 "blended pods"** (`newsh6.shp` 4/42/23/61): twelve big air explosions (types 7/9/8/10) started at
+  t7209, a whole row of enemies dying at once, drawn on their second tick; by t7213 both panels show twelve
+  fireballs. The flat art of those frames is a red oblong as in the original (`?vfx=original&sprites=remastered`); the
+  white-red "crackle" is D35/D169's birth sparks, four per quarter, caught 28 ms into their flight because `freezeAt`
+  stops the effects' clock too. Not a mapping error; left as it is (the sparks' strength in clustered explosions is
+  the demos report's M1, a separate renderer question).
+
+**Decision:**
+1. **Recolour toward the sprite's ramp** (D172, `tools/flat_art_recolour.json`, `flat_art.py recolour --only`, one
+   re-encode per atlas): the beam #7 286-288 with layout 0.8 (mostly the sprite's own brightness order: dark rim,
+   white core, a soft flare with dark corners; the strip is gone), the orb #10 37 (layout 0.5), and both coins' six
+   spin frames #10 7-12 and 26-31 (layout 0.5: tan and salmon copper, the rim band where the sprite has it). Colour
+   means now within 3 levels of the sprite's (beam 286 (183,97,40) / was (190,120,71) / now (184,97,41); orb 37
+   (75,104,57) / (168,195,152) / (76,105,57); coin 12 (92,71,41) / (90,74,47) / (94,72,42)).
+2. **Beam joins** (the same file's `joins`, as the Zica Laser's): 286, 287 and 288 continue into 286 above and below,
+   so a piece's alpha doesn't round off at its cut and the stacked beam is one column.
+3. **A per-frame shade gain** (`"shade"` on a manifest frame; `flat_art.py shade`; `spriteArt.ts` parses it, 1 when
+   absent; `spriteArtLayer.ts` passes it per instance as `aShade`): in the art shader's palette paths (the hit-flash
+   filter, hue/value, the level filter and brightness, the smoothies' hues) the shade is `round(luma shade x gain)`,
+   so a painting's shades spread as its sprite's palette indices do. The plain draw and the explosions' hue blend
+   (D174) don't use it. The gain is a quantile fit (10th-95th percentiles, least squares through 0) of the painting's
+   luma shades (as the shader computes them, alpha >= 0.5) onto the sprite's `index & 15`; a 2x2 pickup (the
+   inventory's units) gets one gain for its four tiles; gains within 0.05 of 1 are left out. Written for the pickups'
+   sheet `tyrian.shp#10` only: 214 of 267 frames, 0.46-2.27, median 1.27 (blue gem 51-55 1.55-1.86, green gem
+   32-36 1.35-1.52). Run `flat_art.py shade` again after a cut or recolour of that sheet; `pack` and `atlas_frames`
+   carry a frame's gain through a rebuild.
+4. No Gemini request: every fix is a recolour of the committed paintings, so no new art and no CREDITS change.
+
+**Options considered:**
+- *Repaint the gems paler / brighter* (the brief's suggestion for #2): their plain look is already true to the blue
+  and green sprite (D172); no colour has both the blue sprite's look and a luma that gives its index shades.
+- *A different brightness measure in the shader for all art* (max channel, or a mix): max channel fits the blue and
+  green ramps but overshoots the fire ramp by up to 3 shades; any single formula trades one ramp for another. The
+  gain is measured per painting against its own sprite.
+- *Gains on every sheet:* the shots (#7/#9/#11/#5) aren't hit-flashed, and D215 tuned the lava levels' brightness
+  with their current shades; their gains (585 frames, quartiles 0.92, 1.06, 1.18) would move it. Left for a measured follow-up.
+- *Repaint the coins' last frame (Gemini):* the paintings are the right object with the sprite's silhouette; the
+  recolour fixes what read wrong (colour, where the rim band falls) without a request.
+- *Damp the birth sparks of fixed or clustered explosions* (#5): would change every big explosion's look for a
+  frozen-frame artefact; the demos report's M1 covers that question.
+
+**Checked** (`?debug=play&...&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, 3840x2160, before = origin/main
+5f965b9a on a second dev server, after = this; crops original | before | after in `tyrian-scratch/qa-fix-flat/`):
+`after_beam_lava_t300.png` (4.12), `after_beam_ice_t3300.png`, `after_beam_ice_t4800.png` (4.8);
+`after_gem52_flash_ref_before_after.png` (MINES t1396 overhead, the gem drawn with filter 0x70 by patching its draw:
+reference = the sprite at `0x70 | index & 15`, gem mean sRGB (149,30,5); before (127,29,24); after (159,42,21));
+`after_orb37_sprite_before_after.png`; `after_coins_tyrian_t1950_overhead.png`, `after_coins_gemwar_t16615_overhead.png`;
+`item4_tyrian_coin_spin_t1949_1950_1951.png`; DELIANI `item5_deliani_*` (default | `sprites=original` |
+`vfx=original&sprites=remastered`, and t7210/7211/7213 in both panels). The atlases' untouched frames: alpha exact,
+colour drift from the WebP re-encode mean 0.4-0.7 levels, 99th percentile 3-4. Tests: `spriteArt.test.ts` (the shade's
+parsing, its default, the instance attribute, the shipped manifest's gains on #10 only). tsc, vitest, build.
+
+**Cost:** one Opus agent, no workflow: no Gemini request, ~30 headless captures (two at a time).

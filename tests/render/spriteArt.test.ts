@@ -26,7 +26,7 @@ const MANIFEST = {
   sheets: {
     "test.shp": {
       image: "test.shp-1.webp",
-      frames: { "1": { x: 0, y: 0, w: 96, h: 112 }, "2": { x: 96, y: 0, w: 96, h: 8 } },
+      frames: { "1": { x: 0, y: 0, w: 96, h: 112 }, "2": { x: 96, y: 0, w: 96, h: 8, shade: 1.5 } },
     },
   },
 };
@@ -76,7 +76,36 @@ describe("sprite art manifest", () => {
   test("parses sheets and frames by the draw list's sheet id and sprite index", () => {
     const m = parseSpriteArtManifest(MANIFEST)!;
     expect(m.scale).toBe(8);
-    expect(m.sheets.get("test.shp")!.frames.get(2)).toEqual({ x: 96, y: 0, w: 96, h: 8 });
+    expect(m.sheets.get("test.shp")!.frames.get(2)).toEqual({ x: 96, y: 0, w: 96, h: 8, shade: 1.5 });
+  });
+
+  test("a frame's shade gain (D221): kept when positive, else the frame is drawn without it", () => {
+    const warnings: string[] = [];
+    const m = parseSpriteArtManifest({
+      scale: 8,
+      sheets: { g: { image: "g.webp", frames: { "1": { x: 0, y: 0, w: 96, h: 112, shade: 1.82 }, "2": { x: 0, y: 0, w: 96, h: 112, shade: 0 }, "3": { x: 0, y: 0, w: 96, h: 112, shade: "x" } } } },
+    }, (w) => warnings.push(w))!;
+    const frames = m.sheets.get("g")!.frames;
+    expect(frames.get(1)!.shade).toBe(1.82);
+    expect(frames.get(2)).toEqual({ x: 0, y: 0, w: 96, h: 112 });
+    expect(frames.get(3)).toEqual({ x: 0, y: 0, w: 96, h: 112 });
+    expect(warnings).toHaveLength(2);
+    const art = new SpriteArt<string>(m);
+    art.sheet("g")!.setTexture("t", 256, 256);
+    expect(art.frame("g", 1)!.shade).toBe(1.82);
+    expect(art.frame("g", 2)!.shade).toBe(1);
+  });
+
+  test("the shipped manifest's shade gains are on the pickups (tyrian.shp#10) only, and lift the blue gem", async () => {
+    const { readFileSync } = await import("node:fs");
+    const m = parseSpriteArtManifest(JSON.parse(readFileSync("public/art/sprites/manifest.json", "utf8")))!;
+    for (const [id, sheet] of m.sheets) {
+      const gains = [...sheet.frames.values()].filter((f) => f.shade !== undefined).map((f) => f.shade!);
+      if (id !== "tyrian.shp#10") expect(gains, id).toEqual([]);
+      for (const g of gains) expect(g).toBeGreaterThanOrEqual(0.4), expect(g).toBeLessThanOrEqual(3);
+    }
+    // The blue gem's saturated ramp (bank 3) is far darker by luma than by palette index.
+    for (const i of [51, 52, 53, 54, 55]) expect(m.sheets.get("tyrian.shp#10")!.frames.get(i)!.shade).toBeGreaterThan(1.4);
   });
 
   test("not a manifest: null, so everything draws as before", () => {
@@ -157,8 +186,8 @@ describe("sprite art manifest", () => {
     expect(s.listed(1)).toBe(true);
     expect(art.frame("test.shp", 1)).toBeUndefined();
     s.setTexture("tex", 256, 128);
-    expect(art.frame("test.shp", 1)).toEqual({ u0: 0, v0: 0, u1: 96 / 256, v1: 112 / 128, w: 12, h: 14 });
-    expect(art.frame("test.shp", 2)).toMatchObject({ u0: 96 / 256, u1: 192 / 256, w: 12, h: 1 });
+    expect(art.frame("test.shp", 1)).toEqual({ u0: 0, v0: 0, u1: 96 / 256, v1: 112 / 128, w: 12, h: 14, shade: 1 });
+    expect(art.frame("test.shp", 2)).toMatchObject({ u0: 96 / 256, u1: 192 / 256, w: 12, h: 1, shade: 1.5 });
     expect(art.frame("test.shp", 3)).toBeUndefined();
     expect(art.frame("other.shp", 1)).toBeUndefined();
     // A frame outside the image is dropped.
@@ -282,7 +311,7 @@ describe("renderer", () => {
     camera.position.set(0, 30, 10);
     // Look at the instance before end() commits it: peek through the layer after a frame.
     r.update(1, camera);
-    const layer = (r as unknown as { artLayer: { peek(s: unknown, p: number): { instance(i: number): { origin: number[]; size: number[]; uv: number[]; fx: number[] } } } }).artLayer;
+    const layer = (r as unknown as { artLayer: { peek(s: unknown, p: number): { instance(i: number): { origin: number[]; size: number[]; uv: number[]; fx: number[]; shade: number } } } }).artLayer;
     const inst = layer.peek(art.sheet("test.shp"), Pass.PlayerShots)!.instance(0);
     const q = placeFlatQuad(100, 50, 12, 14, passHeight(Pass.PlayerShots), camera.position, {} as FlatQuad);
     expect(inst.origin[0]).toBeCloseTo(q.x);
@@ -292,6 +321,21 @@ describe("renderer", () => {
     expect(inst.size[1]).toBeCloseTo(q.d);
     expect(inst.uv).toEqual([0, 0, 96 / 256, 112 / 128].map((v) => Math.fround(v)));
     expect(inst.fx).toEqual([1, 3, 0, 1]); // the hit-flash filter, hue 3, opaque
+    expect(inst.shade).toBe(1); // frame 1 has no shade gain
+  });
+
+  test("the instance carries its frame's shade gain (D221)", () => {
+    const sh = sheet("test.shp", 3);
+    const art = readyArt();
+    const r = make(art);
+    const list: DrawList = { items: [draw(sh, 2, { effect: "filter", filter: 0x70 })], palette: 0, filter: -99, brightness: 0, screen: null };
+    r.setDrawList(list);
+    r.setDrawList(list);
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 30, 10);
+    r.update(1, camera);
+    const layer = (r as unknown as { artLayer: { peek(s: unknown, p: number): { instance(i: number): { shade: number } } } }).artLayer;
+    expect(layer.peek(art.sheet("test.shp"), Pass.PlayerShots)!.instance(0).shade).toBe(1.5);
   });
 
   test("no art, art still loading, or the original look: drawn as before", () => {
