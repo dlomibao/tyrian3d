@@ -13076,3 +13076,137 @@ the paintings (softer speculars, no painted rim light); beside the gun icons it 
 menus' ~38 CSS px, and the ship icon now matches the simulator's ship next to it. The credits ships (D218) keep D210's
 painted icon for their level frame (`shopIconUrl(..., paintedOnly)`), so a banking ship stays one painting beside
 D218's painted banking frames rather than switching between a render and a painting.
+## D227 — The EYESPY boss's "arms" are its legs, drawn upside down for the flipped screen: a low relief traced from the sprite, its top cut into the sprite's tone bands at the sprite's darkness, the plane of its crowns on the camera ray (ends the "pale paws" of D217 and D225's Open; follows D74, D90, D126, D176, D181, D196, D213)
+
+2026-11-17
+
+`assembly-newsh9-39` and `assembly-newsh9-45` (`lib_b028.py`; pieces `newsh9-1`/`-3`/`-39` and `-5`/`-7`/`-45`, each a
+24 x 28 window of a 48 x 56 drawing; EYESPY 4.13, `main=20`) were built in D196 as grey robot arms, slimmed in D217
+(review 7), and flagged again in the 2026-11-17 walkthrough and in D225's Open: "the feet are still big pale paws", the
+arms bulky (E4 QA M4). The user asked for one more attempt, diagnosis first. The eye (`lib_eyesphere`) is not touched.
+
+**Diagnosis** (the sprite frames in `reference/models`, the sim stepped through `tyrianHarness`, `&compare=1` at 4K
+with both panels rectified onto the game's pixel grid; scratch `measure.py`, `calib.py`, `pxgrid.py`):
+- *What it is.* The boss's legs, drawn upside down. `drawList.screen.showCode` is 1 (smoothie 9, the flipped screen)
+  from t7511 to t16367. The left limb is drawn for 7,131 ticks (t6910-14041; the right for 9,279), 6,530 of them
+  flipped. So the top of the drawing is the bottom of the screen: the "shoulder housing with two knuckle domes"
+  (rows 2-13) is a foot with two toe studs that the eyeball stands on, and the "claw" with its blue gem is a pincer
+  raised beside the eye. Unflipped (t6910-7510) the eye too is upside down, iris at the bottom. No earlier entry
+  on the limbs (D196, D217) names the flip; both read an arm hanging from a shoulder.
+- *What shows.* The limbs are slots 50-55, the eye 59-67, same pass: the eye is drawn over them. Closed (the eye 16 px
+  right and 10 px down of the left limb: 6,793 ticks) it covers 312 of a limb's 1,023 pixels, the box, the hollow and
+  the drum's inner half; open (31 px: 216 ticks) 49. For 70 ticks (t7475-7545) the eye drops 120 px and comes back,
+  and the limbs show whole. The right limb is the left mirrored one pixel over (0 of 1,023 pixels differ); one frame.
+- *Its tones.* Grey ramp indices 1-14 and six blues. Mean luma of what shows: foot 78 (p10-p90 40-107), toe
+  highlights 144, flank 47, beam 67, the beam's underside 32, forearm 74, pincer 72, all 80. The darks (indices 2-4)
+  are the flanks and undersides: form shading, 0.3-0.5x the lit faces.
+- *Why pale* (main, t7800 and t7485; table below). Each part was one material at its lit index (the foot `pal_7`,
+  93, where the sprite's foot averages 78), metallic 0.45, roughness 0.40, F0 0.11. The game's sun is at
+  (-6, 20, 8.4): every crown faces it, and a matte grey facing up comes out 1.16-1.31x its palette luma (measured
+  here on six broad bands). The foot came out 118, the underside 76 (sprite 32), the flank 86 (47), the forearm 102
+  (74): the lit faces 1.4-1.5x, the darks 1.8-2.4x, so the darks that draw the shape were gone and the limb read as one pale
+  mass. D176's case: a low form under a near-overhead sun cannot shade its own flanks.
+- *Why paws.* The boss fights at the far edge of the playfield (sim y 9-89), where the camera's rays lean 0.5-0.7 px
+  per px of height (measured by moving the anchor, below). Main stands 6.3-7.2 px, base on the ray, so its tops
+  stood past the sprite toward the bottom of the flipped screen: at t7485 the toe highlights are 3 px beyond the
+  sprite's (sprite rows 5-7, main rows 2-4), the foot's lit crown runs to the outline, and the chrome toe balls
+  (1.85 px in radius) hang off its edge. 77 px² of limb showed outside the sprite's visible limb grown by 1 px
+  (125 px² at t7400).
+
+**Decision:** `lib_b028.py` is rewritten (numpy fields, bmesh only to emit the mesh; it no longer imports
+`usp_talon`). D213's recipe, for round parts: every shape is traced from the drawing and the tone bands are real
+faces.
+- **Plan.** The inner mask (D74), blurred 0.4 px and cut at one half on a grid of 3 cells per px, the cut then
+  pulled smooth (surface nets: each corner on a line between two labels moves toward its neighbours along the line,
+  within 0.42 cell). The plan is a thin plate in the sprite's ink (`pal_1`); the ink the sprite draws between parts is
+  a groove down to it.
+- **Relief.** One height field over the steel pixels. Seventeen named parts (`part`: foot, toe, ankle, cowl, flank,
+  box, hollow, rod, pod, beam, under, drum, forearm, ring, pit, finger, gem), each a crown height and an edge
+  radius: a lip straight up from the nearest ink or outline (0.4 of the rise), a quarter-round shoulder, a level
+  crown; the toe studs are 0.75 px domes on the foot. Crowns 2.0-3.4 px (the hollow 1.5, the pincer's pit 1.2), the
+  toes 3.8 (main: 7.2; z 0.6-3.76 px in the built glbs).
+- **Tone bands.** The steel's luma, blurred 0.4 px over the steel only, divided by `GAIN` 1.20 (the measured
+  response), and each cell takes the nearest grey of the sprite's ramp: ten `pal_2`..`pal_11` bands. Two trims from
+  the captures: the foot 1.08 (its crown faces the sun squarely: 1.11-1.14x without), the toe highlights and the gem's
+  glint 0.85 and 0.8 (the blur takes their peak).
+- **Sheen.** Roughness 0.80 at `pal_2` down to 0.40 at `pal_11`, F0 0.11 from `pal_10`, metallic 0.1 throughout. A
+  first try ramped metallic to 0.35: `pal_8` and `pal_9` measured 1.00 and 0.85x their palette where 0.1 gives 1.12
+  and 1.02 (the narrow bands above them cannot be measured apart from their neighbours).
+- **Gem.** The blue pixels as a 2.6 px dome in four of its own blues, glow 0.9 (D126).
+- **`tyrian_anchor` 2.2 px on all six pieces** (D181): the plane of the crowns is put on the camera ray, not the
+  base. With the base on the ray a 3.8 px foot still stood 1.5-2 px past its sprite; anchored, the toe highlights
+  are on the sprite's own pixels (t7485: rows 5-7, columns 36-38 and 41, as the sprite). The model's underside is at
+  0.6 px, so about 1 px of ink-coloured wall should show on the camera's side, where the sprite has its ink border
+  (from the lean; not measured).
+- **Ink.** D90's shell from the same relief with the grooves filled, 0.9 as high (a pillow under the model). At the
+  model's own height its folds drew hairlines across the drum, as D213 found; at 0.9 none shows in the captures.
+- **Contract.** The six glb and JSON paths, one frame each, `pal_<index>` materials, pieces cut open at their windows
+  as before (`split_open`). No `spriteModels` JSON changed; no `src/` change.
+
+**Result.**
+- *Top view* (rule, from the exported glbs, shells left out, 8 px per sprite px; scratch `iou.py`):
+
+  | | `iou_rule_grid` (sub-pixel) | Pieces in the whole | Pieces against their own mask |
+  |---|---|---|---|
+  | `assembly-newsh9-39` | 1.0 (0.980) | 1.0 / 1.0 / 1.0 | `-1` 0.9695, `-3` 1.0, `-39` 0.9692 |
+  | `assembly-newsh9-45` | 1.0 (0.980) | 1.0 / 1.0 / 1.0 | `-5` 0.9927, `-7` 0.9722, `-45` 0.9692 |
+
+  Main: 0.9843 and 0.9821 (as D217 reported; not measured again). A piece's own mask counts the ink the sprite
+  draws along its window's cut.
+
+- *In game* (`&compare=1`, 3840x2160; mean luma over the sprite's pixels of each region that the eye does not
+  cover, both limbs; original / main / this):
+
+  | Region | t7800, flipped, closed | t7485, the limbs alone |
+  |---|---|---|
+  | Foot | 78 / 118 / 82 | 79 / 114 / 79 |
+  | Toe highlights | 144 / 122 / 128 | 144 / 124 / 133 |
+  | Flank | 47 / 86 / 48 | 47 / 89 / 46 |
+  | Beam | 67 / 78 / 64 | 67 / 77 / 63 |
+  | Beam's underside | 32 / 76 / 27 | 32 / 77 / 29 |
+  | Forearm | 74 / 102 / 73 | 79 / 109 / 73 |
+  | Pincer | 73 / 78 / 64 | 73 / 75 / 66 |
+  | Gem (R, G, B) | (33, 63, 224) / (19, 54, 191) / (14, 52, 176) | (33, 63, 224) / (25, 56, 175) / (16, 58, 191) |
+  | All of the limb that shows | 80 (p10-p90 40-121) / 96 (44-147) / 77 (28-128) | 81 / 96 / 78 |
+  | Limb outside the sprite's (grown 1 px) | - / 77 px² / 14 px² | - / 115 px² / 42 px² |
+
+  The ankle and the cowl are left out: 50 and 126 pixels beside each other, and a 1 px lean moves the cowl's bright
+  ridge between them (together: sprite 112, main 112, this 108). At t7100 (closed, not flipped) and t7400 (open) the
+  whole limb reads 80 / 94 / 78 and 82 / 97 / 79. The feet read as the sprite's: dark-grey pads with two small
+  toes under the ball.
+- *Also looked at:* `&camera=overhead` and `steep` at t7800, the play view at 1920x1080, `?viewer=` (top, game
+  angle, free; both assemblies), the six pieces in `?debug=models`.
+- *Weight.* Per piece 4,104-8,648 triangles and 11-13 `pal_` materials, plus a 5,000-face shell between the three;
+  the six glbs 0.51 -> 0.69 MB (meshopt).
+- `tsc --noEmit` clean; `vitest run` on the seven model test files (`viewerFrames`, `modelCoverage`, `modelPop`,
+  `modelSwap`, `spriteModels`, `obliqueModels`, `sidekickModels`): 39 passed. The full suite was not run.
+- Captures (not in git, D3): `tyrian-scratch/fable-eyespy-feet/cap/final/` (`summary.png`: original | main | this at
+  t7800, t7100, t7400, t7485; `t<tick>_three.png`; `viewer-assembly-newsh9-39.png`, `-45.png`); main's captures in
+  `cap/base/`.
+
+**Options considered:**
+- *Recolour D217's hand-built lofts* (darker indices per part, D176's rows; not tried): its parts are single
+  materials on large faces, and its 7 px height is the lean.
+- *Tone on COLOR_0* (D209, D211): smooth tones on one material, but the palette index per region is the contract and
+  the sprite's own steps are the look.
+- *Base on the camera ray (anchor 0), lower still:* at 3.8 px the toes were still 1.5-2 px off (built and
+  measured); a relief flat enough to need no anchor was not tried.
+- *Anchor 2.4 with a full quarter-round edge* (built): the rim, 1.4 px under the anchor, is pulled inside its
+  sprite; the limb showed 13% less than the sprite's at t7800. With the lip and 2.2, 11% (see Open).
+- *A shell from a plain low prism* (D213's; not tried): a crown that leans over the outline would cover its ink,
+  and here that is the feet's bottom edge.
+
+**Open:**
+- It is a relief, not a machine built part by part: from the side (`?viewer=`, free) it is a low moulding, and the
+  bands are the sprite's tones cut and painted (D176's rule), softer than the pixels at 4K.
+- Closed, the limbs show 11% less than the sprite's (1,310 against 1,468 px² at t7800; main 5% more). Two causes,
+  not separated: the eye's ball (anchor 0, its widest 2.6 px up) leans over them at the far edge, about 1.7 px by
+  the lean above, and the measure does not count the model's dark camera-side wall. `lib_eyesphere` was not touched.
+- The toe highlights are 128-133 where the sprite has 144; the pincer and the gem are about 10% and 20% dark.
+- A bright band crossing the steep wall into the hollow breaks into short teeth at the game angle (open pose only).
+- The limbs are not checked on any palette but the level's, nor the hit flash beyond the materials being `pal_`.
+- Seen while capturing, not part of this: at t7508 (the level's white flash before the flip) the original's black
+  void turns grey and the 3D panel's stays black.
+
+**Cost:** one Fable agent (asked for by the user); 11 builds of the two scripts at `-j 2`, about 120 headless
+captures, no Gemini.

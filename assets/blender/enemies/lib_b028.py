@@ -1,30 +1,58 @@
-"""Shared builder for EYESPY's (4.13) grey robot arms: assembly-newsh9-39 (left arm, newsh9 1/3/39) and
-assembly-newsh9-45 (right arm, newsh9 5/7/45, its pixel mirror). Design A of the D65 rebuild.
+"""Shared builder for the EYESPY (4.13) boss's two limbs: assembly-newsh9-39 (newsh9 1/3/39) and
+assembly-newsh9-45 (newsh9 5/7/45, its pixel mirror one px over). DECISIONS.md D227.
 
-WHAT IT IS: two grey manipulator arms hung either side of the EYESPY boss (e4:351-356 spawn them at t4500
-on the top layer, rigid). Read from the 48 x 56 px left drawing:
-- a SHOULDER HOUSING across the top (a rounded drum lying along the screen, pal 7) with two machined
-  KNUCKLE DOMES on its crown (pal 10; their hot spots are sheen);
-- a lower NECK DECK (pal 6) where the upper arm leaves the housing;
-- the UPPER ARM: a raised armoured COWL (pal 9) with a broad glacis on its outer side over a rounded
-  box BEAM (pal 5) slanting down to the lower left, ending in a dark WRIST GEARBOX (pal 3);
-- the ELBOW and FOREARM: one faired tube (pal 9 at the elbow, pal 7 below) hanging under the cowl;
-- a C-shaped YOKE beside the arm: a bright rolled LIP (pal 10) over the PALM HOLLOW, a real recess
-  sunk almost to the base (pal 3-4), into the JAW block (pal 9); under the jaw a hydraulic ACTUATOR
-  pod (pal 4); two thin piston RODS (pal 6) lie low in the hollow;
-- the CLAW: a big open U-HOOK of round tubing (pal 6, dark left leg) over a dark floor (pal 2), its
-  right leg one bright run of pipe (pal 9) down a tapered FINGER (pal 4) into a glowing blue GEM
-  (pal 153) held in the finger's tip.
-Polish (E4 QA M4): no greeble (bolts, seam grooves, hubs, collars); the plan is the sprite's.
-Air unit: everything z >= 0, the underside a plain closed shape.
+WHAT IT IS. The eye boss's LEGS, drawn upside down. The level flips the screen (smoothie 9) from
+t7511, four seconds after the limbs close round the eye, and stays flipped for the rest of the
+fight: 6,530 of the limbs' 7,131 ticks. So the top of the 48 x 56 drawing is the bottom of the
+screen, and the boss is an eyeball standing on two feet with a pincer raised each side:
+- the FOOT (rows 2-13, cols 24-46; the older builds' "shoulder housing"): a rounded pad lying across
+  the screen, mid-dark grey (mean luma 78), darker toward its ends, with two small TOE studs on its
+  crown (cols 35-38 and 40-42), each a 3 x 4 px highlight;
+- the ANKLE (rows 8-12, cols 18-35), a lower neck into
+- the COWL (rows 11-18): a light wedge (pal 9) with a dark FLANK (pal 3-4) down its outer side, its
+  lit edge running on as the bevel of the BOX (rows 13-22, cols 34-44) across a dark HOLLOW with
+  two thin rods; the eye covers nearly all of the box and the hollow while the limbs are closed;
+- the BEAM (pal 5, rows 19-27) slanting out to the knee, its UNDER side rolling into the dark
+  (pal 2-3, rows 24-30), with a light DRUM (pal 9, rows 19-28) lying along it, lit along one edge;
+- the FOREARM (pal 6-7, rows 29-38), a short tube, beside
+- the PINCER: a RING of tube (rows 31-38, its outer leg the one bright run, pal 9-11) round a dark
+  PIT, and a FINGER (rows 39-46) holding a blue GEM lamp (pal 151-156).
 
-Units while building: left-drawing pixel EDGES (c = column edge, r = row edge, down the screen) and z
-in px; Blender X = (c - 24) / 12, Y = (28 - r) / 12, Z = z / 12. The right arm is the left mirrored.
+HOW IT IS BUILT (the sprite is the ruler; the method of D213's saw rotor, for round parts).
+- Plan: the sprite's inner mask (tools/sprite_mask.py, D74) blurred 0.4 px and cut at one half, on a
+  grid of K cells per px, the cut then pulled smooth (`relax`: surface nets). Grid IoU 1.0.
+- Plate: the plan as a thin dark slab (pal_1): the ink the sprite draws between the parts shows as
+  a groove down to it.
+- Relief: every steel pixel stands on the plate as part of one height field, crown height and edge
+  radius per part (PARTS, `part`): a lip straight up from the nearest ink or outline, a quarter-round
+  shoulder, a level crown; the two toe studs are low domes on the foot's crown. Low on purpose (the
+  crowns 2.0-3.4 px, the toes 3.8): the boss fights at the far edge of the playfield, where the
+  camera's rays lean about 0.65 px per px of height, and the older builds' 6-7 px foot stood 3-4 px
+  past its sprite, toward the bottom of the flipped screen. `tyrian_anchor` (ANCHOR) puts the
+  plane of the crowns, not the base, on the camera ray, so the bands sit where the sprite has them.
+- Tone bands: the top is cut along the sprite's own tone steps. The steel's luma, blurred 0.4 px
+  over the steel only, is divided by what the game's lights add (GAIN, TRIM) and each cell takes
+  the nearest grey of the sprite's ramp as its pal_ material, so the bands are the sprite's shading
+  at its darkness. The game's sun is nearly overhead: a 3 px high relief cannot shade its own flanks
+  to the sprite's 0.3-0.5x (D176), which is why every earlier build came out one pale mass.
+- Sheen: the brighter a band the glossier it is (roughness 0.80 at pal 2 down to 0.40 at pal 11
+  and up, a steel F0 from pal 10), so the sprite's highlights are still the surface's shine, on the
+  bands that carry them. Nearly dielectric (metallic 0.1): a metal band reflects the dark room.
+- Gem: the blue pixels as a low dome that glows (D126), cut into its own blues the same way.
+- Ink: D90's shell, made from the same relief with the grooves filled and nine tenths as high (one
+  smooth pillow under the model, so no fold of it draws a hairline across a part, D213).
+No greeble; the underside is the plan, flat.
 
-Used by assembly-newsh9-39.py (exports the left pieces) and assembly-newsh9-45.py (the right pieces):
-run(script_file, side) builds only that side. Review outputs (--views / --pieces DIR) only on a flag.
+Units while building: left-drawing pixel EDGES (c right, r down the screen) and z in px; Blender
+X = (c - 24) / 12, Y = (28 - r) / 12, Z = z / 12. The right limb is the left mirrored.
+
+Used by assembly-newsh9-39.py (exports the left pieces) and assembly-newsh9-45.py (the right
+pieces): run(script_file, side) builds only that side.
+
+    blender -b --factory-startup -P assembly-newsh9-39.py [-- --pieces DIR] [--whole DIR]
+
+--pieces DIR also writes the pieces' glbs to DIR; --whole DIR the whole limb with its shell.
 """
-
 
 import math
 import sys
@@ -32,15 +60,16 @@ from pathlib import Path
 
 import bmesh
 import bpy
+import numpy as np
 from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
 
 WT = common.repo_root(__file__)
-import usp_talon as T  # noqa: E402
+sys.path.insert(0, str(Path(WT) / "tools"))
+import sprite_mask as SM  # noqa: E402
 
-HERE = Path(__file__).resolve().parent
 NAME = "assembly-newsh9-39"
 TAG = "nsh9arm"
 W, H = 48, 56
@@ -49,365 +78,94 @@ WINDOWS = {
     "right": {"newsh9-5": (0, 0), "newsh9-7": (24, 0), "newsh9-45": (24, 28)},
 }
 
-# material slots
-(HOUSE, KNUCK, NECK, COWL, BEAM, WRIST, BALL, LIP, SOCK, HUB, JAW, ACT, ROD, FORE, HOOP, FING, PIPE,
- GEM, HOLE, HOLLOW, HWALL) = range(21)
+K = 3                 # grid cells per sprite px
+K_SHELL = 3           # the same for the pillow the outline shell is made from
+SIG_MASK = 0.40       # blur (px) of the plan and ink indicators before they are cut at one half
+SIG_TONE = 0.40       # blur (px) of the tone field the bands are cut from
+SIG_PART = 0.45       # blur (px) of the parts' crown heights and edge radii
+Z_PLATE = 1.0         # px: top of the dark plate, the floor of every groove
+Z_BOTTOM = 0.6        # px: the model's flat underside (the shell's is at 0)
+LIP = 0.4             # the share of a part's rise above the plate that stands straight up at its edge;
+                      # the rest is the quarter-round shoulder
+Z_RIM = 0.85          # px: the pillow the outline shell is made from is this high at the outline and
+PILLOW = 0.9          # this share of the relief's height inside it: under the model everywhere, so no
+                      # fold of the shell can draw a hairline across a part (D213)
+GAIN = 1.20           # what the game's lights make of a band's grey: luma in game / palette luma, the
+                      # mean over the six broad bands pal 2-7 (1.16-1.31; EYESPY t7400 and t7800,
+                      # `&compare=1` at 3840x2160)
+MIN_CELLS = 4         # a band's specks smaller than this (cells) join their surroundings
+GEM_FIRST = 151       # the blue ramp's first index
+
+# The parts: crown height (px above the model's origin plane) and the radius (px) of the
+# quarter-round shoulder that rises from the nearest ink or outline.
+PARTS = {
+    "foot": (3.1, 4.5), "toe": (3.1, 4.5), "ankle": (2.6, 2.2), "cowl": (3.3, 1.4), "flank": (2.4, 2.2),
+    "box": (3.1, 1.2), "hollow": (1.5, 1.0), "rod": (2.0, 0.8), "pod": (2.4, 1.6),
+    "beam": (2.9, 1.6), "under": (2.0, 2.0), "drum": (3.4, 3.2), "fore": (2.9, 3.0),
+    "ring": (2.5, 1.4), "pit": (1.2, 1.0), "finger": (2.4, 1.8), "gem": (2.6, 2.0),
+}
+# A part whose crown squarely faces the game's sun comes out brighter than GAIN says: its tone is
+# divided by this too (the foot measured 1.13x its sprite where the limb as a whole measured 0.99x).
+# The small bright spots lose their peak to the tone field's blur and get it back here: the toe
+# studs' highlights (144 in the sprite, 106-118 in game without it) and the lamp's glint.
+TRIM = {"foot": 1.08, "toe": 0.85, "gem": 0.8}
+# The toe studs: (c, r) of each highlight's middle (px edges), height and radius (px) of the dome
+# added to the foot's crown.
+TOES = [(37.5, 6.2, 0.75, 1.25), (41.5, 7.1, 0.75, 1.2)]
+# px: the height of the plane the renderer puts on the camera ray (`tyrian_anchor`, D181), on all six
+# pieces. The boss fights at the far edge of the playfield, where the camera's rays lean 0.5-0.7 px
+# per px of height: with the base on the ray (0) a 3.8 px foot crown stood 1.5-2 px past its sprite,
+# toward the bottom of the flipped screen; with the plane of the crowns on it the painted bands sit
+# where the sprite has them (the toe studs on the sprite's own pixels, EYESPY t7485 and t7800).
+ANCHOR = 2.2
 
 
-# Polish (E4 QA M4): the arms read bulky beside the sprite's slim L in the game's tilted camera, so
-# every height is drawn at ZS of its design value (plan untouched, so the top-view IoU is too).
-ZS = 0.72
+def part(idx, r, c):
+    """Which solid the left drawing's pixel (r, c) belongs to (a key of PARTS)."""
+    v = idx[r][c]
+    if v >= GEM_FIRST:
+        return "gem"
+    # the foot pad, the highlights of its two toe studs, and the ankle that joins it to the leg
+    if 4 <= r <= 8 and 34 <= c <= 43 and v >= 10:
+        return "toe"
+    if r <= 8 and c >= 24:
+        return "foot"
+    if r <= 10:
+        return "foot" if c >= 30 else "ankle"
+    if r == 11 and c >= 30:
+        return "foot" if c >= 36 else "ankle"
+    if r == 12 and c >= 32:
+        return "foot" if c >= 36 else "ankle"
+    if r == 13 and c >= 36:
+        return "foot"
+    # the gem's finger and the ring
+    if r >= 39 and c <= 15:
+        return "finger"
+    if r >= 31 and c <= 13:
+        return "pit" if 34 <= r <= 38 and 7 <= c <= 11 and v <= 4 else "ring"
+    if r >= 29 and c >= 14:
+        return "fore"
+    if r >= 28 and c <= 16:
+        return "under"
+    # the beam, its dark underside, the light drum
+    if r >= 19 and c <= 25:
+        if c >= 25 and v <= 4:
+            return "hollow"
+        if v >= 8 or c >= 22 or (c >= 17 and r >= 26):
+            return "drum"
+        return "under" if r >= 24 and v <= 4 else "beam"
+    # the box with its bright bevel, the dark hollow beside it, the rods and the pod under the box
+    if (r >= 14 and c >= 26) or (r == 13 and c >= 34):
+        if v >= 9 or (c >= 34 and r <= 22 and v >= 6):
+            return "box"
+        if v >= 6:
+            return "rod"
+        return "pod" if r >= 20 and c >= 35 else "hollow"
+    # the cowl and its dark outer flank
+    return "flank" if v <= 5 and r >= 12 and c <= 26 else "cowl"
 
 
-def V(c, r, z):
-    return Vector(((c - W / 2) / 12, (H / 2 - r) / 12, z * ZS / 12))
-
-
-def _faces(bm, faces, mat, smooth):
-    for f in faces:
-        f.material_index = mat
-        f.smooth = smooth
-
-
-# --- geometry helpers (px) ------------------------------------------------------------------------
-
-def ring_frame(t):
-    t = t.normalized()
-    up = Vector((0, 0, 1))
-    side = t.cross(up)
-    if side.length < 1e-6:
-        side = Vector((1, 0, 0))
-    side.normalize()
-    return side, side.cross(t).normalized()
-
-
-def tube(bm, stations, sides=16, mat=ROD, cap0=True, cap1=True, smooth=True, zscale=1.0, matf=None,
-         closed=False):
-    """A round tube along stations [(c, r, z, radius)] (px). `closed` joins the last ring to the first
-    (a loop). matf(c, r) -> material per segment (optional)."""
-    pts = [Vector((c, r, z)) for c, r, z, _ in stations]
-    n = len(pts)
-    rings = []
-    for i, (c, r, z, rad) in enumerate(stations):
-        if closed:
-            t = pts[(i + 1) % n] - pts[i - 1]
-        else:
-            t = pts[min(i + 1, n - 1)] - pts[max(i - 1, 0)]
-        side, upv = ring_frame(t)
-        ring = []
-        for k in range(sides):
-            a = 2 * math.pi * k / sides
-            p = pts[i] + side * (rad * math.cos(a)) + upv * (rad * zscale * math.sin(a))
-            ring.append(bm.verts.new(V(p.x, p.y, p.z)))
-        rings.append(ring)
-    pairs = list(zip(rings, rings[1:])) + ([(rings[-1], rings[0])] if closed else [])
-    for si, (r0, r1) in enumerate(pairs):
-        fs = [bm.faces.new((r0[k], r0[(k + 1) % sides], r1[(k + 1) % sides], r1[k])) for k in range(sides)]
-        m = mat
-        if matf:
-            a, b = stations[si], stations[(si + 1) % n]
-            m = matf((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-        _faces(bm, fs, m, smooth)
-    if not closed:
-        for end, cap in ((0, cap0), (-1, cap1)):
-            if not cap:
-                continue
-            ring = rings[end]
-            ctr = bm.verts.new(sum((v.co for v in ring), Vector()) / len(ring))
-            fs = []
-            for k in range(sides):
-                a, b = ring[k], ring[(k + 1) % sides]
-                fs.append(bm.faces.new((b, a, ctr) if end == 0 else (a, b, ctr)))
-            _faces(bm, fs, mat if not matf else matf(*stations[end][:2]), smooth)
-
-
-def poly_area(pts):
-    return 0.5 * sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
-                     for i in range(len(pts)))
-
-
-def offset_poly(pts, ds):
-    """Move each edge i (pts[i] -> pts[i+1]) inward by ds[i] (or one d) and intersect neighbours."""
-    n = len(pts)
-    if not isinstance(ds, (list, tuple)):
-        ds = [ds] * n
-    sgn = 1 if poly_area(pts) > 0 else -1
-    lines = []
-    for i in range(n):
-        a, b = Vector(pts[i]), Vector(pts[(i + 1) % n])
-        d = (b - a).normalized()
-        lines.append((a + Vector((-d.y, d.x)) * sgn * ds[i], d))
-    out = []
-    for i in range(n):
-        p1, d1 = lines[i - 1]
-        p2, d2 = lines[i]
-        den = d1.x * d2.y - d1.y * d2.x
-        if abs(den) < 1e-9:
-            out.append(tuple(p2))
-            continue
-        tt = ((p2.x - p1.x) * d2.y - (p2.y - p1.y) * d2.x) / den
-        q = p1 + d1 * tt
-        out.append((q.x, q.y))
-    return out
-
-
-def chaikin(pts, it=2, keep=()):
-    """Corner-cutting (closed polygon): rounds the plan where the sprite is round."""
-    for _ in range(it):
-        out = []
-        n = len(pts)
-        for i in range(n):
-            a, b = Vector(pts[i]), Vector(pts[(i + 1) % n])
-            out.append(tuple(a * 0.75 + b * 0.25))
-            out.append(tuple(a * 0.25 + b * 0.75))
-        pts = out
-    return pts
-
-
-def block(bm, outline, z0, z1, mat, top_mat=None, insets=0.8, chz=0.8, round_it=1, steps=2):
-    """A hard-surface block on a plan outline (pixel edges): vertical walls from z0, then a rounded
-    chamfer (`steps` facets, a quarter round) of plan inset `insets` (per edge allowed) and height
-    `chz` to the flat top at z1. The outline is corner-rounded by Chaikin first."""
-    n0 = len(outline)
-    if isinstance(insets, (list, tuple)):
-        ins = list(insets)
-    else:
-        ins = [insets] * n0
-    pts = outline
-    for _ in range(round_it):  # carry per-edge insets through the corner cutting
-        newp, newi = [], []
-        n = len(pts)
-        for i in range(n):
-            a, b = Vector(pts[i]), Vector(pts[(i + 1) % n])
-            newp += [tuple(a * 0.75 + b * 0.25), tuple(a * 0.25 + b * 0.75)]
-            newi += [ins[i], (ins[i] + ins[(i + 1) % n]) / 2]
-        pts, ins = newp, newi
-    n = len(pts)
-    layers = [[bm.verts.new(V(c, r, z0)) for c, r in pts]]
-    for k in range(steps + 1):
-        a = 0.5 * math.pi * k / steps
-        f = 1 - math.cos(a)
-        ring = offset_poly(pts, [d * f for d in ins]) if f > 1e-6 else pts
-        z = z1 - chz + chz * math.sin(a)
-        layers.append([bm.verts.new(V(c, r, z)) for c, r in ring])
-    walls = []
-    for lo, hi in zip(layers, layers[1:]):
-        for k in range(n):
-            walls.append(bm.faces.new((lo[k], lo[(k + 1) % n], hi[(k + 1) % n], hi[k])))
-    _faces(bm, walls, mat, True)
-    _faces(bm, [bm.faces.new(list(reversed(layers[0])))], mat, False)
-    top = bm.faces.new(layers[-1])
-    _faces(bm, [top], top_mat if top_mat is not None else mat, False)
-    return top
-
-
-def superellipse(theta, p):
-    cs, sn = math.cos(theta), math.sin(theta)
-    return math.copysign(abs(cs) ** (2 / p), cs), math.copysign(abs(sn) ** (2 / p), sn)
-
-
-def loft(bm, stations, mat, sides=24, p=2.6, dense=0.5, matf=None, cap0=True, cap1=True, grooves=(), normal=None):
-    """A faired loft along a plan polyline: stations [(c, r, hw, zb, zt)], the section a superellipse
-    of exponent p, half-width hw across the axis and z from zb to zt. Stations are interpolated with
-    pchip along the arc length (D52) every `dense` px. `grooves` [(s_px, depth_px, width_px)] cut
-    modelled panel lines round the crown (upper half only, so the plan is untouched).
-    matf(c, r, z, nz) -> material for a face (optional)."""
-    s = [0.0]
-    for a, b in zip(stations, stations[1:]):
-        s.append(s[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
-    fs = [T.pchip(s, [st[k] for st in stations]) for k in range(5)]
-    L = s[-1]
-    m = max(2, int(math.ceil(L / dense)))
-    ss = sorted(set([L * i / m for i in range(m + 1)] + s
-                    + [g[0] + d for g in grooves for d in (-g[2] / 2, -g[2] / 6, g[2] / 6, g[2] / 2)]))
-    ss = [x for x in ss if 0 <= x <= L]
-    rings = []
-    for x in ss:
-        c, r, hw, zb, zt = (f(x) for f in fs)
-        e = 0.05
-        c1, r1 = fs[0](min(L, x + e)), fs[1](min(L, x + e))
-        c0, r0 = fs[0](max(0, x - e)), fs[1](max(0, x - e))
-        tx, ty = c1 - c0, r1 - r0
-        ln = math.hypot(tx, ty) or 1
-        nx, ny = (-ty / ln, tx / ln) if normal is None else normal
-        gd = 0.0
-        for g in grooves:
-            if abs(x - g[0]) < g[2] / 3:
-                gd = max(gd, g[1])
-        zm, hz = (zb + zt) / 2, (zt - zb) / 2
-        ring = []
-        for k in range(sides):
-            th = 2 * math.pi * k / sides
-            u, w = superellipse(th, p)
-            sc = 1.0
-            if gd and w > 0.2:
-                sc = 1 - gd / max(hz, 0.5) * min(1, (w - 0.2) / 0.5)
-            ring.append(bm.verts.new(V(c + nx * hw * u * sc, r + ny * hw * u * sc, zm + hz * w * sc)))
-        rings.append(ring)
-    faces = []
-    for a, b in zip(rings, rings[1:]):
-        for k in range(sides):
-            faces.append(bm.faces.new((a[k], a[(k + 1) % sides], b[(k + 1) % sides], b[k])))
-    _faces(bm, faces, mat, True)
-    for end, cap in ((0, cap0), (-1, cap1)):
-        if not cap:
-            continue
-        ring = rings[end]
-        f = bm.faces.new(list(reversed(ring)) if end == 0 else ring)
-        _faces(bm, [f], mat, False)
-        faces.append(f)
-    if matf:
-        for f in faces:
-            f.normal_update()
-            q = f.calc_center_median()
-            f.material_index = matf(q.x * 12 + W / 2, H / 2 - q.y * 12, q.z * 12 / ZS, f.normal.z)
-    return faces
-
-
-def ellipsoid(bm, c, r, z, a, b, h, mat, rot=0.0, segs=20, rings=10, lower=1.0, flat=1.0):
-    """An ellipsoid at (c, r, z): semi-axes a (along c, turned by rot degrees), b, h; `lower` scales the
-    lower half's height, `flat` < 1 broadens the crown."""
-    res = bmesh.ops.create_uvsphere(bm, u_segments=segs, v_segments=rings, radius=1.0)
-    ca, sa = math.cos(math.radians(rot)), math.sin(math.radians(rot))
-    for v in res["verts"]:
-        x, y, t = v.co
-        t = (abs(t) ** flat if t > 0 else t * lower)
-        u, w = x * a, -y * b
-        v.co = V(c + u * ca - w * sa, r + u * sa + w * ca, z + t * h)
-    fs = list({f for v in res["verts"] for f in v.link_faces})
-    _faces(bm, fs, mat, True)
-    return fs
-
-
-def cyl(bm, c, r, z0, z1, rc, rr, mat, sides=24, top_mat=None, ch=0.3):
-    """A vertical elliptic cylinder with a chamfered top edge."""
-    rings = []
-    for z, s in ((z0, 1.0), (z1 - ch, 1.0), (z1, 1 - ch / max(min(rc, rr), 0.5))):
-        rings.append([bm.verts.new(V(c + rc * s * math.cos(2 * math.pi * k / sides),
-                                     r + rr * s * math.sin(2 * math.pi * k / sides), z)) for k in range(sides)])
-    fs = []
-    for a, b in zip(rings, rings[1:]):
-        for k in range(sides):
-            fs.append(bm.faces.new((a[k], b[k], b[(k + 1) % sides], a[(k + 1) % sides])))
-    _faces(bm, fs, mat, True)
-    _faces(bm, [bm.faces.new(rings[0])], mat, False)
-    _faces(bm, [bm.faces.new(list(reversed(rings[-1])))], top_mat if top_mat is not None else mat, False)
-
-
-# --- the left arm ---------------------------------------------------------------------------------
-
-def build_left(bm):
-    # SHOULDER HOUSING: a rounded drum lying along the screen (rows 3-12, cols 24-46), crown about 8.7
-    # px, two seam grooves round it.
-    hs = [(24.3, 8.2, 12.4, 5.0), (25.2, 7.1, 12.5, 6.2), (26.3, 6.1, 12.6, 6.8), (27.2, 5.25, 12.6, 7.2),
-          (29.0, 5.1, 12.7, 7.6), (30.6, 4.95, 12.8, 7.9), (31.4, 4.2, 12.8, 8.1), (32.6, 3.8, 12.8, 8.3),
-          (33.5, 3.1, 12.8, 8.5), (36.0, 2.95, 12.8, 8.7), (38.6, 3.05, 12.7, 8.7), (39.4, 3.75, 12.6, 8.6),
-          (40.6, 3.95, 12.45, 8.5), (41.4, 4.0, 12.1, 8.3), (42.1, 4.05, 11.05, 8.1), (43.6, 4.15, 10.95, 7.6),
-          (44.4, 4.85, 10.9, 7.2), (45.1, 5.6, 10.75, 6.6), (45.7, 6.3, 10.4, 5.6), (46.1, 7.2, 9.7, 4.2)]
-    # Polish v2: no seam grooves, end hub or knuckle collars (greeble the sprite doesn't draw).
-    loft(bm, [(c, (rt + rb) / 2, (rb - rt) / 2, 0.6, zt) for c, rt, rb, zt in hs], HOUSE, sides=28, p=2.4,
-         normal=(0.0, 1.0))
-    # knuckle domes on the crown: two crisp bumps standing well clear of it (the sprite's twin
-    # bright knobs at cols 35-38 / 40-42), steep sides so each keeps its own outline.
-    ellipsoid(bm, 37.6, 5.8, 8.1, 1.85, 2.0, 1.9, KNUCK, segs=22, rings=11, lower=0.5, flat=0.8)
-    ellipsoid(bm, 41.6, 7.0, 7.8, 1.7, 1.85, 1.8, KNUCK, segs=22, rings=11, lower=0.5, flat=0.8)
-
-    # NECK DECK where the upper arm leaves the housing (rows 8-12, cols 19-28), a lower deck.
-    block(bm, [(19.15, 10.1), (20.1, 9.05), (24.0, 9.0), (24.3, 8.4), (26.0, 7.9), (27.6, 9.8), (27.8, 12.4),
-               (17.15, 12.7), (17.9, 11.15)], 0.8, 6.6,
-          NECK, insets=[0.9, 0.9, 0.9, 0.6, 0.6, 0.6, 0.6, 0.9, 0.9], chz=0.9, round_it=0)
-
-    # COWL: the raised armour over the upper arm (rows 11-20, cols 16-28), a broad glacis down its
-    # outer side.
-    before = set(bm.faces)
-    block(bm, [(17.3, 11.6), (27.7, 11.2), (27.8, 14.0), (26.8, 18.2), (25.0, 20.0), (19.6, 19.4),
-               (16.05, 16.4), (16.1, 13.0)], 1.0, 9.0, COWL,
-          insets=[0.8, 0.6, 0.6, 0.6, 0.8, 3.0, 3.8, 2.6], chz=2.2, steps=1)
-    for f in set(bm.faces) - before:  # the outer glacis is a darker side panel (pal 5, the sprite's band)
-        f.normal_update()
-        q = f.calc_center_median()
-        if abs(f.normal.z) < 0.99 and q.x * 12 + W / 2 < 20.6 and q.z * 12 / ZS > 2.0:
-            f.material_index = BEAM
-        elif abs(f.normal.z) < 0.5 and f.normal.x > 0.3 and H / 2 - q.y * 12 > 13.5:
-            f.material_index = HWALL  # the cowl's wall down into the palm hollow
-
-    # BEAM: a rounded box slanting down to the lower left under the cowl (kept below the cowl's
-    # glacis where they meet, so the two surfaces never run together).
-    u = Vector((-0.68, 0.733))
-    a0 = Vector((21.4, 17.6))
-    st = []
-    for s_, hw, zt in ((0.0, 4.6, 5.8), (3.0, 4.85, 6.1), (7.0, 4.95, 6.2), (10.5, 4.75, 5.9), (13.0, 4.5, 5.4)):
-        q = a0 + u * s_
-        st.append((q.x, q.y, hw, 0.5, zt))
-    loft(bm, st, BEAM, sides=24, p=3.2)
-
-    # WRIST GEARBOX at the beam's lower end (rows 24-31, cols 8-18).
-    block(bm, [(9.1, 24.3), (12.6, 23.4), (17.6, 26.4), (17.8, 30.4), (12.8, 31.0), (8.6, 31.3), (7.6, 31.3),
-               (8.1, 30.2), (9.1, 29.9)], 0.3, 2.4,
-          WRIST, insets=0.9, chz=0.8)
-
-    # Polish v2: the elbow and the forearm are ONE faired tube (the sprite's smooth pal 9 slab running
-    # down into the pal 7 forearm, a single sheen streak along its crown), not a ball, a banded drum
-    # and a cap: no waist, no bands; only the colour steps down where the sprite's does (row 29.5).
-    def fore_mat(c, r, z, nz):
-        return BALL if r < 29.5 else FORE
-    loft(bm, [(23.6, 19.2, 1.4, 2.4, 5.0), (23.0, 20.4, 2.6, 1.0, 6.2), (22.0, 22.2, 3.2, 0.6, 6.6),
-              (21.5, 24.6, 3.4, 0.5, 6.6), (20.6, 27.0, 3.35, 0.5, 6.25), (19.2, 29.3, 3.3, 0.5, 5.85),
-              (18.65, 31.0, 3.3, 0.5, 5.6), (18.5, 33.5, 3.35, 0.5, 5.3), (18.4, 36.0, 3.3, 0.5, 5.0),
-              (18.1, 37.9, 2.4, 0.6, 4.2), (17.9, 38.9, 1.2, 1.3, 3.2)], FORE, sides=28, p=2.3, dense=0.4,
-         matf=fore_mat)
-
-    # PALM CAVITY: the sprite's big dark hollow (pal 3-4, rows 14-23, cols 26-35) under its light rim.
-    # A real recess: a floor sunk to z 1 between the cowl's wall and the rim's dark web, nothing on it
-    # but the two thin piston rods the sprite draws (its pal 6-9 streaks), lying low.
-    block(bm, [(24.6, 15.0), (26.8, 12.9), (31.0, 12.8), (34.2, 14.3), (35.7, 18.6), (35.7, 24.2), (29.6, 24.2),
-               (28.9, 23.0), (26.0, 23.0), (25.95, 24.0), (24.45, 24.0), (24.4, 19.0)], 0.3, 1.0, HWALL,
-          top_mat=HOLLOW, insets=0.3, chz=0.3, round_it=0)
-    # LIP: the bright rolled rim of the yoke, arching over the hollow into the jaw.
-    lip = [(26.9, 12.6, 7.3, 1.0), (28.6, 12.75, 7.6, 1.1), (30.6, 13.05, 7.6, 1.15), (32.4, 13.9, 7.5, 1.15),
-           (33.7, 15.5, 7.3, 1.1), (34.9, 17.2, 7.1, 1.05), (36.4, 18.4, 6.9, 0.95), (37.6, 19.0, 6.6, 0.8)]
-    tube(bm, [(c, r, z, rad * 1.15) for c, r, z, rad in lip], sides=14, mat=LIP, zscale=1.1)
-    # the rim's dark inner web, down to the cavity floor: the hollow's wall
-    loft(bm, [(c, r, rad * 0.75, 0.8, z) for c, r, z, rad in lip], HWALL, sides=16, p=4.0)
-
-    # JAW block under the housing (rows 13-22, cols 34-44): one plain block.
-    block(bm, [(34.6, 13.0), (35.6, 12.7), (40.8, 12.6), (41.7, 13.0), (42.0, 13.95), (43.6, 13.95), (44.05, 14.4),
-               (44.05, 22.0), (43.6, 22.6), (43.0, 23.05), (37.4, 22.8), (34.9, 20.4), (34.0, 16.5)], 1.2, 7.2,
-          JAW, insets=0.9, chz=1.2, steps=3, round_it=0)
-    # ACTUATOR pod under the jaw (rows 21-27.5, cols 34-43), tapering down the screen, plain.
-    loft(bm, [(39.0, 21.0, 4.0, 0.6, 4.4), (38.7, 23.0, 3.6, 0.6, 4.0), (38.0, 24.6, 3.0, 0.7, 3.5),
-              (37.3, 25.9, 2.2, 0.8, 3.0), (36.4, 26.6, 1.6, 1.0, 2.6), (35.7, 27.0, 0.9, 1.2, 2.3)],
-         ACT, sides=20, p=2.6)
-    # RODS: two thin piston rods lying low in the hollow on a dark base plate, meeting at the clevis.
-    loft(bm, [(28.6, 21.4, 1.5, 0.3, 1.0), (31.6, 24.0, 1.7, 0.3, 1.0), (34.6, 26.6, 1.5, 0.3, 1.1),
-              (35.4, 27.2, 1.1, 0.3, 1.1)], HOLLOW, sides=16, p=3.0)
-    tube(bm, [(27.9, 21.1, 1.9, 0.6), (31.4, 24.0, 1.8, 0.62), (34.4, 26.4, 1.8, 0.6)], sides=10, mat=NECK)
-    tube(bm, [(35.45, 19.8, 2.8, 0.6), (35.45, 23.0, 2.4, 0.62), (35.2, 26.4, 1.9, 0.6)], sides=10, mat=NECK)
-
-    # CLAW: a big open U-hook (an inverted U with a thick crown, rows 31-39, cols 6-14) whose left leg
-    # is dark and whose right leg is the one bright run of pipe down into the gem; its interior is open
-    # to a dark floor (the sprite's pal 1-2 hollow, rows 35-38).
-    hook = [(6.7, 40.9, 1.2, 0.75), (6.8, 39.0, 1.6, 0.95), (6.8, 37.0, 2.2, 1.0), (7.0, 35.0, 2.7, 1.15), (7.8, 33.3, 3.0, 1.35),
-            (9.2, 32.5, 3.1, 1.5), (10.7, 32.5, 3.1, 1.5), (12.0, 33.3, 3.0, 1.3), (12.8, 35.0, 2.9, 1.0),
-            (12.95, 37.0, 2.9, 0.9), (12.85, 38.6, 3.3, 0.9), (12.3, 40.6, 3.6, 0.9), (11.3, 42.8, 3.65, 0.88),
-            (10.1, 44.8, 3.45, 0.85), (8.9, 46.2, 3.2, 0.8)]
-    tube(bm, hook, sides=14, zscale=1.0,
-         matf=lambda c, r: PIPE if (c >= 10.3 or r > 38.0) else (WRIST if r > 34.5 else HOOP))
-    # the hook's dark floor and the low mount joining it to the forearm
-    block(bm, [(6.0, 33.4), (6.1, 32.4), (7.1, 31.4), (7.4, 31.0), (12.0, 31.6), (13.0, 31.0), (16.6, 31.0),
-               (16.9, 39.9), (13.0, 39.9), (8.4, 38.0)], 0.3, 0.9, HOLE, insets=0.3, chz=0.3, round_it=0)
-    loft(bm, [(11.3, 39.3, 3.8, 0.4, 3.0), (10.6, 41.2, 4.1, 0.4, 3.2), (9.85, 43.0, 3.7, 0.4, 3.2),
-              (9.0, 45.0, 3.8, 0.5, 3.0), (8.0, 46.7, 3.75, 0.6, 2.9), (7.4, 48.3, 3.5, 0.7, 2.7),
-              (7.45, 49.5, 3.1, 0.9, 2.5), (7.25, 50.6, 2.3, 1.2, 2.0)], FING, sides=22, p=2.6)
-    # GEM held in the finger's tip
-    ellipsoid(bm, 6.45, 48.6, 2.6, 2.45, 1.85, 1.5, GEM, rot=38, segs=20, rings=10, lower=0.8)
-
-
-def mirror(bm):
-    for v in bm.verts:
-        v.co.x = -v.co.x + 1 / 12
-    bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
-
+# --- the drawing ------------------------------------------------------------------------------------
 
 def merged_sprite():
     data = common.load_sprite(WT, "newsh9-1")
@@ -417,60 +175,286 @@ def merged_sprite():
     return data
 
 
+def left_drawing():
+    """The left limb's 48 x 56 drawing as palette indices (-1 transparent)."""
+    idx = [[-1] * W for _ in range(H)]
+    for n, (x0, y0) in WINDOWS["left"].items():
+        px = common.load_sprite(WT, n)["frames"][0]["pixels"]
+        for r, row in enumerate(px):
+            for c, v in enumerate(row):
+                idx[y0 + r][x0 + c] = v
+    return idx
+
+
+# --- fields (numpy) ---------------------------------------------------------------------------------
+
+def _gauss(sig, k):
+    r = max(1, int(math.ceil(3 * sig * k)))
+    x = np.arange(-r, r + 1) / k
+    g = np.exp(-0.5 * (x / sig) ** 2)
+    return g / g.sum()
+
+
+def blur(a, sig, k):
+    """Gaussian blur of a cell field, `sig` in px, zero outside the picture."""
+    g = _gauss(sig, k)
+    r = len(g) // 2
+    p = np.pad(np.asarray(a, float), r, mode="constant")
+    for axis in (0, 1):
+        out = np.zeros_like(p)
+        for i, w in enumerate(g):
+            out += w * np.roll(p, i - r, axis=axis)
+        p = out
+    return p[r:-r, r:-r]
+
+
+def up(a, k):
+    return np.kron(np.asarray(a, float), np.ones((k, k)))
+
+
+def corners(cell):
+    """A cell field at the grid's corners (the mean of the cells round each)."""
+    p = np.pad(cell, 1, mode="edge")
+    return 0.25 * (p[:-1, :-1] + p[1:, :-1] + p[:-1, 1:] + p[1:, 1:])
+
+
+def fields(idx, colors, k, filled=False):
+    """The relief's fields on a grid of k cells per px: `inside` (the plan), `body` (steel or gem
+    standing on the plate), `gem`, `tone` / `gtone` (luma of the steel / the gem, blurred over its
+    own pixels) per cell, and `z` (px) per corner. `filled`: the ink between the parts stands too
+    (the pillow the outline shell is made from)."""
+    a = np.asarray(idx)
+    m = SM.masks(idx, colors)
+    inner = np.asarray(m["inner"], bool)
+    gem = inner & (a >= GEM_FIRST)
+    steel = inner & (a >= 2) & ~gem
+    body = steel | gem
+    lum = np.zeros(a.shape)
+    crown = np.zeros(a.shape)
+    rad = np.zeros(a.shape)
+    for r in range(H):
+        for c in range(W):
+            if a[r, c] >= 0:
+                lum[r, c] = SM.luma(colors[int(a[r, c])])
+            if body[r, c]:
+                name = part(idx, r, c)
+                crown[r, c], rad[r, c] = PARTS[name]
+                lum[r, c] /= TRIM.get(name, 1.0)
+    inside = blur(up(inner, k), SIG_MASK, k) > 0.5
+    stands = inside if filled else inside & (blur(up(body, k), SIG_MASK, k) > 0.5)
+    is_gem = stands & (blur(up(gem, k), SIG_MASK, k) > blur(up(steel, k), SIG_MASK, k))
+
+    def nblur(val, mask, sig):
+        den = blur(up(mask, k), sig, k)
+        return blur(up(val * mask, k), sig, k) / np.maximum(den, 1e-9)
+
+    tone = nblur(lum, steel, SIG_TONE)
+    gtone = nblur(lum, gem, SIG_TONE)
+    sig = SIG_PART * (2.0 if filled else 1.0)
+    cr = corners(nblur(crown, body, sig))
+    rr = np.maximum(corners(nblur(rad, body, sig)), 0.3)
+    # the toe studs
+    ys, xs = np.mgrid[0:H * k + 1, 0:W * k + 1] / k
+    for c0, r0, h0, s0 in TOES:
+        q = np.clip(np.hypot(xs - c0, ys - r0) / (2.0 * s0), 0, 1)
+        cr = cr + h0 * np.sqrt(1 - q * q) * (0.5 + 0.5 * np.cos(np.pi * q))
+    # distance (px) of every corner inside the standing part from the nearest corner on its edge
+    sb = np.pad(stands, 1, mode="constant")
+    interior = sb[:-1, :-1] & sb[1:, :-1] & sb[:-1, 1:] & sb[1:, 1:]
+    pi = np.pad(interior, 1, mode="constant")
+    edge = ~interior & (pi[:-2, 1:-1] | pi[2:, 1:-1] | pi[1:-1, :-2] | pi[1:-1, 2:]
+                        | pi[:-2, :-2] | pi[2:, 2:] | pi[:-2, 2:] | pi[2:, :-2])
+    by, bx = np.nonzero(edge)
+    iy, ix = np.nonzero(interior)
+    d = np.zeros(interior.shape)
+    for s in range(0, len(iy), 2000):
+        yy, xx = iy[s:s + 2000], ix[s:s + 2000]
+        d[yy, xx] = np.sqrt((yy[:, None] - by[None, :]) ** 2 + (xx[:, None] - bx[None, :]) ** 2).min(axis=1) / k
+    t = np.clip(d / rr, 0, 1)
+    prof = LIP + (1 - LIP) * np.sqrt(1 - (1 - t) ** 2)
+    z = np.where(interior, Z_PLATE + (np.maximum(cr, Z_PLATE) - Z_PLATE) * prof, Z_PLATE)
+    if filled:
+        z = np.maximum(PILLOW * z, Z_RIM)
+    return {"inside": inside, "body": stands, "gem": is_gem, "tone": tone, "gtone": gtone, "z": z}
+
+
+def nearest(field, table):
+    """Each cell's nearest entry of {index: luma}, by luma."""
+    keys = np.array(sorted(table))
+    lum = np.array([table[i] for i in keys])
+    return keys[np.abs(field[..., None] - lum[None, None, :]).argmin(axis=2)]
+
+
+def despeckle(lab, min_cells):
+    """Join every 4-connected region of one band smaller than min_cells to the band it borders most."""
+    h, w = lab.shape
+    lab = lab.copy()
+    seen = np.zeros(lab.shape, bool)
+    for y in range(h):
+        for x in range(w):
+            if seen[y, x] or lab[y, x] <= 1:
+                continue
+            v = lab[y, x]
+            stack, comp, nb = [(y, x)], [], {}
+            seen[y, x] = True
+            while stack:
+                cy, cx = stack.pop()
+                comp.append((cy, cx))
+                for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+                    if 0 <= ny < h and 0 <= nx < w:
+                        u = int(lab[ny, nx])
+                        if u == v:
+                            if not seen[ny, nx]:
+                                seen[ny, nx] = True
+                                stack.append((ny, nx))
+                        elif u > 1:
+                            nb[u] = nb.get(u, 0) + 1
+            if len(comp) < min_cells and nb:
+                to = min(nb, key=lambda q: (-nb[q], abs(q - v)))
+                for cy, cx in comp:
+                    lab[cy, cx] = to
+    return lab
+
+
+def bands(F, colors):
+    """Cell labels: -1 outside the plan, 1 the plate (ink), else the palette index painted there:
+    the grey that the game shows nearest to the sprite's tone at the cell (GAIN)."""
+    greys = {i: GAIN * SM.luma(c) for i, c in colors.items() if 2 <= i < 16}
+    blues = {i: SM.luma(c) for i, c in colors.items() if i >= GEM_FIRST}
+    lab = np.where(F["gem"], nearest(F["gtone"], blues), nearest(F["tone"], greys))
+    lab = np.where(F["body"], lab, 1)
+    lab = np.where(F["inside"], lab, -1)
+    return despeckle(lab, MIN_CELLS)
+
+
+def relax(lab, k, iters=4, lam=0.5, clamp=0.42):
+    """Surface nets in 2D: the grid's corner positions (px), each corner on a line between two labels
+    pulled toward its neighbours along that line and held within `clamp` cells of its place, so the
+    cells' stair steps become the smooth cut they sample."""
+    h, w = lab.shape
+    p = np.pad(lab, 1, mode="constant", constant_values=-1)
+    a, b, c, d = p[:-1, :-1], p[:-1, 1:], p[1:, :-1], p[1:, 1:]   # the four cells round each corner
+    eu, ed, el, er = a != b, c != d, a != c, b != d               # lines up, down, left, right from it
+    ys, xs = np.mgrid[0:h + 1, 0:w + 1].astype(float)
+    y0, x0 = ys.copy(), xs.copy()
+    n = eu.astype(int) + ed + el + er
+    on = n >= 2
+    for _ in range(iters):
+        sy = np.zeros_like(ys)
+        sx = np.zeros_like(xs)
+        sy[1:, :] += np.where(eu[1:, :], ys[:-1, :], 0)
+        sx[1:, :] += np.where(eu[1:, :], xs[:-1, :], 0)
+        sy[:-1, :] += np.where(ed[:-1, :], ys[1:, :], 0)
+        sx[:-1, :] += np.where(ed[:-1, :], xs[1:, :], 0)
+        sy[:, 1:] += np.where(el[:, 1:], ys[:, :-1], 0)
+        sx[:, 1:] += np.where(el[:, 1:], xs[:, :-1], 0)
+        sy[:, :-1] += np.where(er[:, :-1], ys[:, 1:], 0)
+        sx[:, :-1] += np.where(er[:, :-1], xs[:, 1:], 0)
+        ty = np.where(on, sy / np.maximum(n, 1), ys)
+        tx = np.where(on, sx / np.maximum(n, 1), xs)
+        ys = np.clip(ys + lam * (ty - ys), y0 - clamp, y0 + clamp)
+        xs = np.clip(xs + lam * (tx - xs), x0 - clamp, x0 + clamp)
+    return xs / k, ys / k
+
+
+# --- mesh -------------------------------------------------------------------------------------------
+
+def V(c, r, z):
+    return Vector(((c - W / 2) / 12, (H / 2 - r) / 12, z / 12))
+
+
+def solid(bm, lab, xs, ys, z, slot, z_bottom):
+    """The closed solid of a labelled grid: a top face per cell at the corners' heights (material
+    slot[label]), a wall down to z_bottom round the plan and the plan itself as the flat underside."""
+    h, w = lab.shape
+    top, low = {}, {}
+
+    def vt(j, i):
+        v = top.get((j, i))
+        if v is None:
+            v = top[(j, i)] = bm.verts.new(V(xs[j, i], ys[j, i], z[j, i]))
+        return v
+
+    def vb(j, i):
+        v = low.get((j, i))
+        if v is None:
+            v = low[(j, i)] = bm.verts.new(V(xs[j, i], ys[j, i], z_bottom))
+        return v
+
+    inside = lab >= 0
+    rim = []
+    for j in range(h):
+        for i in range(w):
+            if not inside[j, i]:
+                continue
+            f = bm.faces.new((vt(j, i), vt(j + 1, i), vt(j + 1, i + 1), vt(j, i + 1)))
+            f.material_index = slot[int(lab[j, i])]
+            f.smooth = True
+            # walls where the neighbour cell is outside (wound to face out)
+            for (dj, di), (p, q) in (((-1, 0), ((j, i + 1), (j, i))), ((1, 0), ((j + 1, i), (j + 1, i + 1))),
+                                     ((0, -1), ((j, i), (j + 1, i))), ((0, 1), ((j + 1, i + 1), (j, i + 1)))):
+                nj, ni = j + dj, i + di
+                if 0 <= nj < h and 0 <= ni < w and inside[nj, ni]:
+                    continue
+                wall = bm.faces.new((vt(*p), vb(*p), vb(*q), vt(*q)))
+                wall.material_index = slot[1]
+                wall.smooth = True
+                rim.append(bm.edges.get((vb(*p), vb(*q))))
+    fill = bmesh.ops.triangle_fill(bm, use_beauty=True, use_dissolve=False, edges=rim)
+    for f in fill["geom"]:
+        if isinstance(f, bmesh.types.BMFace):
+            f.material_index = slot[1]
+            f.smooth = False
+
+
+def mirror(bm):
+    for v in bm.verts:
+        v.co.x = -v.co.x + 1 / 12
+    bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+
+
 STEEL_SPEC = 0.5 * ((1.0 / 3.0) ** 2 / 0.04)  # F0 of IOR 2.0 via Specular IOR Level (D176)
 
 
-def materials(sprite):
-    def pal(i, metallic, roughness, spec=True, emission=0.0, tag=TAG):
-        m = common.palette_material(sprite, i, tag, metallic=metallic, roughness=roughness,
-                                    emission_strength=emission)
-        bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-        if spec and "Specular IOR Level" in bsdf.inputs:
-            bsdf.inputs["Specular IOR Level"].default_value = STEEL_SPEC
-        return m
-    return [
-        pal(7, 0.45, 0.40),  # HOUSE
-        pal(10, 0.5, 0.34),  # KNUCK
-        pal(6, 0.45, 0.42),  # NECK
-        pal(9, 0.45, 0.38),  # COWL
-        pal(5, 0.45, 0.42),  # BEAM
-        pal(3, 0.35, 0.55),  # WRIST
-        pal(9, 0.5, 0.34),  # BALL
-        pal(10, 0.5, 0.32),  # LIP
-        pal(4, 0.3, 0.6, spec=False),  # SOCK
-        pal(3, 0.4, 0.5),  # HUB
-        pal(9, 0.45, 0.38),  # JAW
-        pal(4, 0.4, 0.48),  # ACT
-        pal(7, 0.55, 0.3),  # ROD
-        pal(7, 0.45, 0.4),  # FORE
-        pal(6, 0.45, 0.4),  # HOOP
-        pal(4, 0.4, 0.48),  # FING
-        pal(9, 0.5, 0.34),  # PIPE
-        pal(153, 1.0, 0.7, spec=False, emission=0.6),  # GEM (D126/D173: glow on metallic 1, rough)
-        # the hollows (the hook's floor, the palm's floor and walls): matte, so no sheen lifts them
-        pal(2, 0.0, 0.9, spec=False, tag=TAG + "hollow"),  # HOLE
-        pal(3, 0.0, 0.9, spec=False, tag=TAG + "hollow"),  # HOLLOW
-        pal(4, 0.0, 0.85, spec=False, tag=TAG + "hollow"),  # HWALL
-    ]
+def band_material(sprite, index):
+    """The material of one band: the darker the band the more matte, the brighter the glossier (the
+    sprite's highlights are the surface's shine, on the bands that carry them)."""
+    if index >= GEM_FIRST:   # the lamp: its own blues, glowing (D126/D173: glow on metallic 1, rough)
+        return common.palette_material(sprite, index, TAG, metallic=1.0, roughness=0.7, emission_strength=0.9)
+    if index <= 1:           # the plate: the sprite's ink, matte
+        return common.palette_material(sprite, index, TAG + "ink", metallic=0.0, roughness=0.9)
+    t = min(1.0, max(0.0, (index - 2) / 9.0))
+    m = common.palette_material(sprite, index, TAG, metallic=0.10, roughness=0.80 - 0.40 * t)
+    bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    if index >= 10 and "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = STEEL_SPEC
+    return m
 
 
-def build(side):
-    sprite = merged_sprite()
-    coll = common.reset_collection(f"{NAME}-{side}")
+def make_object(name, coll, sprite, idx, colors, side, k, filled=False):
+    F = fields(idx, colors, k, filled)
+    lab = bands(F, colors)
+    if filled:
+        lab = np.where(lab >= 0, 1, -1)
+    xs, ys = relax(lab, k)
+    used = sorted(int(v) for v in np.unique(lab) if v >= 0)
+    if 1 not in used:
+        used = [1] + used
+    slot = {v: i for i, v in enumerate(used)}
     bm = bmesh.new()
-    build_left(bm)
+    solid(bm, lab, xs, ys, F["z"], slot, 0.0 if filled else Z_BOTTOM)
     if side == "right":
         mirror(bm)
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    mesh = bpy.data.meshes.new(f"{NAME}-{side}")
+    open_edges = sum(1 for e in bm.edges if len(e.link_faces) != 2)
+    mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()
-    for m in materials(sprite):
-        mesh.materials.append(m)
-    obj = bpy.data.objects.new(f"{NAME}-{side}", mesh)
+    for v in used:
+        mesh.materials.append(band_material(sprite, v))
+    obj = bpy.data.objects.new(name, mesh)
     coll.objects.link(obj)
-    return obj, coll, sprite
+    return obj, lab, open_edges
 
 
 def split_open(obj, layout):
@@ -500,6 +484,20 @@ def split_open(obj, layout):
     return result
 
 
+def drop_unused_materials(obj):
+    """Keep only the material slots the piece's faces use (a band that lies wholly in another piece)."""
+    me = obj.data
+    used = sorted({p.material_index for p in me.polygons})
+    mats = [me.materials[i] for i in used]
+    remap = {old: new for new, old in enumerate(used)}
+    index = [remap[p.material_index] for p in me.polygons]
+    me.materials.clear()   # (this resets every face to slot 0)
+    for m in mats:
+        me.materials.append(m)
+    me.polygons.foreach_set("material_index", index)
+    me.update()
+
+
 def layout(side):
     return [(n, x0 + 12 - W / 2, y0 + 14 - H / 2) for n, (x0, y0) in WINDOWS[side].items()]
 
@@ -510,15 +508,16 @@ def finish_normals(obj):
 
 
 def make_side(side):
-    obj, coll, sprite = build(side)
+    sprite = merged_sprite()
+    colors = {int(i): tuple(c) for i, c in sprite["colors"].items()}
+    idx = left_drawing()
+    coll = common.reset_collection(f"{NAME}-{side}")
+    obj, lab, open_edges = make_object(f"{NAME}-{side}", coll, sprite, idx, colors, side, K)
     bpy.context.view_layer.update()
-    sealed = obj.copy()
-    sealed.data = obj.data.copy()
-    coll.objects.link(sealed)
-    shell = common.outline_shell(sealed, coll, voxel=0.012, faces=5000, smooth=4, inside=0.004, islands="outer")
-    bpy.data.objects.remove(sealed, do_unlink=True)
+    pillow, _, _ = make_object(f"{NAME}-{side}-pillow", coll, sprite, idx, colors, side, K_SHELL, filled=True)
+    shell = common.outline_shell(pillow, coll, voxel=0.012, faces=5000, smooth=4, inside=0.004, islands="outer")
+    bpy.data.objects.remove(pillow, do_unlink=True)
     shell.name = f"{NAME}-{side}_outline"
-    T.cull_hidden(obj, grid=4, ndirs=40)
     finish_normals(obj)
     lay = layout(side)
     bodies = split_open(obj, lay)
@@ -529,20 +528,24 @@ def make_side(side):
         b.name = n
         sh.name = f"{n}_outline"
         sh["tyrian_outline"] = True
+        b["tyrian_anchor"] = sh["tyrian_anchor"] = ANCHOR / 12
+        drop_unused_materials(b)
         finish_normals(b)
         sh.data.shade_smooth()
         if len(sh.data.polygons) == 0:
             print(f"WARNING: {n} outline has no mesh")
         pieces.append((n, b, sh))
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
-    print(f"{NAME} ({side}): whole {tris} tris, z max {max(v.co.z for v in obj.data.vertices) * 12:.2f} px; "
-          + ", ".join(f"{n} {sum(len(p.vertices) - 2 for p in b.data.polygons)} tris / shell "
-                      f"{len(sh.data.polygons)} faces" for n, b, sh in pieces))
+    share = {int(v): int((lab == v).sum()) for v in np.unique(lab) if v >= 0}
+    print(f"{NAME} ({side}): whole {tris} tris, {open_edges} open edges, z max "
+          f"{max(v.co.z for v in obj.data.vertices) * 12:.2f} px, bands (cells) {share}; "
+          + ", ".join(f"{n} {sum(len(p.vertices) - 2 for p in b.data.polygons)} tris / "
+                      f"{len(b.data.materials)} materials / shell {len(sh.data.polygons)} faces" for n, b, sh in pieces))
     return obj, shell, pieces
 
 
 def run(script_file, side):
-    """Build one arm and export its three pieces (models and spriteModels entries)."""
+    """Build one limb and export its three pieces (models and spriteModels entries)."""
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o, do_unlink=True)
@@ -556,3 +559,7 @@ def run(script_file, side):
         pdir = Path(argv[argv.index("--pieces") + 1])
         for n, b, sh in pieces:
             common.export_glb([b, sh], str(pdir / f"{n}.glb"))
+    if "--whole" in argv:  # review output only
+        wdir = Path(argv[argv.index("--whole") + 1])
+        shell["tyrian_outline"] = True
+        common.export_glb([obj, shell], str(wdir / f"{Path(script_file).stem}.glb"))
