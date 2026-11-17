@@ -208,3 +208,71 @@ describe("the player ships' models (D207)", () => {
     expect(shop.order).toEqual(["ships/a", "ships/b"]);
   });
 });
+
+describe("a level start frees what the new level can't show (D236)", () => {
+  const level = (frame: number) => ({ sprites: [{ sheet: SHEET.id, size: 2 as const, index: frame, grouped: true, time: 0 }] });
+  const models = (r: DrawListRenderer) => r.root.children.filter((o) => o.children.some((c) => (c as THREE.Mesh).isMesh && !(c as THREE.InstancedMesh).isInstancedMesh));
+
+  test("the last level's models and clones go, with their geometry and materials; a retry keeps them; a pinned model stays", async () => {
+    const l = delayedLoader();
+    const r = make([ENEMY, OTHER], l.loader);
+    r.preloadModel("enemies/other"); // as main.ts does a new game's ship
+    await l.resolve("enemies/other");
+    const p = r.preloadLevel(level(3));
+    await l.resolve("enemies/test");
+    await p;
+    expect(frame(r, enemy(1))).toEqual({ sprites: 0, models: 1 });
+    const [clone] = models(r);
+    const freed: string[] = [];
+    clone.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.geometry.addEventListener("dispose", () => freed.push("geometry"));
+      (m.material as THREE.Material).addEventListener("dispose", () => freed.push("material"));
+    });
+    // A retry: the same list, nothing freed.
+    await r.preloadLevel(level(3));
+    expect(freed).toEqual([]);
+    expect(frame(r, enemy(2))).toEqual({ sprites: 0, models: 1 });
+    // Another level: the enemy's model and clones go; the pinned one stays (no new load).
+    const before = l.order.length;
+    await r.preloadLevel({ sprites: [] });
+    expect(freed).toContain("geometry");
+    expect(freed).toContain("material");
+    expect(clone.parent).toBeNull();
+    expect(l.order.length).toBe(before);
+    // Shown again later, the enemy's model loads afresh (held back meanwhile, D54).
+    expect(frame(r, enemy(3))).toEqual({ sprites: 0, models: 0 });
+    expect(l.order.slice(before)).toEqual(["enemies/test"]);
+  });
+
+  test("the next level's preload stops the last one's loads still queued", async () => {
+    const many: SpriteModelEntry[] = Array.from({ length: 9 }, (_, i) => ({ model: `enemies/m${i}`, sprites: [{ sheet: SHEET.id, size: 2, frames: [i * 2] }] }));
+    const l = delayedLoader();
+    const r = make(many, l.loader);
+    const sprites = many.map((_, i) => ({ sheet: SHEET.id, size: 2 as const, index: i * 2, grouped: true, time: i }));
+    let settled = false;
+    void r.preloadLevel({ sprites }).then(() => (settled = true));
+    expect(l.order.length).toBe(6); // six at a time
+    await r.preloadLevel({ sprites: [] });
+    for (let i = 0; i < 6; i++) await l.resolve(`enemies/m${i}`);
+    expect(l.order.length).toBe(6); // the other three never asked for
+    expect(settled).toBe(true); // and the old preload's wait ends
+  });
+
+  test("a model still loading when its level ends is freed as it lands", async () => {
+    let land!: (o: THREE.Object3D) => void;
+    const r = make([ENEMY], () => new Promise<THREE.Object3D>((resolve) => (land = resolve)));
+    void r.preloadLevel(level(3), { timeoutMs: 0 });
+    await r.preloadLevel({ sprites: [] });
+    const g = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
+    let freed = false;
+    mesh.geometry.addEventListener("dispose", () => (freed = true));
+    g.add(mesh);
+    land(g);
+    await flush();
+    expect(freed).toBe(true);
+    expect(models(r)).toEqual([]);
+  });
+});

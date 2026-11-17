@@ -6,9 +6,9 @@
 // rather than under-covers: every enemy type any event names (whatever the event), the types those
 // launch or leave behind when they die, the random-spawn types, the armour ship and its crates (the
 // game spawns them when armour is low), each with every frame of its egraphic and its damaged
-// graphic, on the sheet its shape bank names, as long as some event of the level loads that bank
-// (an enemy of an unloaded bank borrows another's sheet; the C logs "Ignoring sprite from unloaded
-// shape table"). Then the players' ships and sidekicks.
+// graphic, on the sheet its shape bank names if some event of the level loads that bank, else on
+// every sheet the level loads (an enemy of an unloaded bank keeps its slot's last sheet; the C logs
+// "Ignoring sprite from unloaded shape table"). Then the players' ships and sidekicks.
 // tests/render/modelSwap.test.ts checks that every model level 1 actually shows is in the list.
 
 import { ENEMY_NUM } from "../data/enemies";
@@ -103,11 +103,55 @@ function forLevelEnemyTypes(each: (dat: (typeof g.res.enemyDat)[number], sheet: 
     addType(dat.eLaunchType % 1000, types.get(t)!);
     addType(dat.eEnemyDie, types.get(t)!);
   }
+  const made = madeEnemyTypes(events);
   for (const [t, time] of types) {
     const dat = g.res.enemyDat[t];
-    const sheet = bankSheet(dat.shapeBank);
-    if (sheet) each(dat, sheet, dat.eSize === 1 ? 2 : 1, time);
+    for (const sheet of enemySheets(t, dat.shapeBank, made, banks, bankSheet)) each(dat, sheet, dat.eSize === 1 ? 2 : 1, time);
   }
+}
+
+/**
+ * The sheets an enemy type of shape bank `bank` can be drawn from: its bank's, if the level loads
+ * it. Otherwise, if the level really makes the type (`made`), JE_makeEnemy keeps the sheet of the
+ * slot's last enemy (the C's "Ignoring sprite from unloaded shape table"): any sheet the level draws
+ * enemies from, so all of them (D236: TIME WAR's bank-28 turrets draw from newshl.shp). A type only
+ * named by an event that makes no enemy has none.
+ */
+function enemySheets(type: number, bank: number, made: ReadonlySet<number>, banks: ReadonlySet<number>, bankSheet: (bank: number) => string | null): string[] {
+  const own = bankSheet(bank);
+  if (own) return [own];
+  if (!made.has(type)) return [];
+  return [...new Set([...banks].map(bankSheet).filter((s): s is string => s !== null))];
+}
+
+/** Events that make an enemy of type eventDat (tyrian2.ts JE_eventSystem: JE_createNewEventEnemy); 12 makes eventDat + 0..3. */
+const MAKING_EVENTS = new Set([6, 7, 10, 12, 15, 17, 18, 23, 32, 56]);
+
+/**
+ * The enemy types the level can actually make: those its enemy events create, those events 33 and 45
+ * leave when their enemies die, the random spawns and the armour ship, and what they launch or turn
+ * into, transitively.
+ */
+function madeEnemyTypes(events: readonly { eventType: number; eventDat: number }[]): Set<number> {
+  const made = new Set<number>();
+  const queue: number[] = [];
+  const add = (t: number) => {
+    if (t <= 0 || t > ENEMY_NUM || made.has(t)) return;
+    made.add(t);
+    queue.push(t);
+  };
+  for (const ev of events) {
+    if (MAKING_EVENTS.has(ev.eventType)) for (let k = 0; k < (ev.eventType === 12 ? 4 : 1); k++) add(ev.eventDat + k);
+    if (ev.eventType === 33 || ev.eventType === 45) add(ev.eventDat);
+  }
+  for (let i = 0; i < g.levelEnemyMax; i++) add(g.levelEnemy[i]);
+  for (const t of ARMOR_SHIP_TYPES) add(t);
+  while (queue.length) {
+    const dat = g.res.enemyDat[queue.pop()!];
+    add(dat.eLaunchType % 1000);
+    add(dat.eEnemyDie);
+  }
+  return made;
 }
 
 /** The sprites the current level (g.lvl, g.player) can draw. */
@@ -157,13 +201,14 @@ export function levelSprites(): LevelSprite[] {
     addType(dat.eLaunchType % 1000, types.get(t)!);
     addType(dat.eEnemyDie, types.get(t)!);
   }
+  const made = madeEnemyTypes(events);
   for (const [t, time] of types) {
     const dat = g.res.enemyDat[t];
-    const sheet = bankSheet(dat.shapeBank);
-    if (!sheet) continue;
     const size: 1 | 2 = dat.eSize === 1 ? 2 : 1;
-    for (const f of dat.eGraphic) add(sheet, size, f, true, time);
-    add(sheet, size, dat.dGr, true, time);
+    for (const sheet of enemySheets(t, dat.shapeBank, made, banks, bankSheet)) {
+      for (const f of dat.eGraphic) add(sheet, size, f, true, time);
+      add(sheet, size, dat.dGr, true, time);
+    }
   }
   // Events 49-52: enemy type 0 drawn with eventdat's graphic, from eventdat3's bank (if set).
   const custom = g.res.enemyDat[0];
@@ -226,4 +271,17 @@ export function levelTiles(): LevelTile[] {
     }
   }
   return [...out.values()];
+}
+
+/**
+ * The current level's three maps as the tile number each cell draws (blitBackgroundRow's tile id),
+ * -1 where nothing is drawn (no tile, or one the sim skips: levelTiles in data/levels.ts), row-major
+ * MAP_SIZES[layer].width wide. For which structure models the level can draw (D236).
+ */
+export function levelDrawnMaps(): [Int16Array, Int16Array, Int16Array] | undefined {
+  const lvl = g.lvl;
+  const level = lvl?.level;
+  if (!level || !lvl.tiles) return undefined;
+  const map = (layer: 0 | 1 | 2) => Int16Array.from(level.maps[layer], (b) => (lvl.tiles[layer][b] ? (level.mapSh[layer][b] ?? 0) - 1 : -1));
+  return [map(0), map(1), map(2)];
 }

@@ -104,4 +104,39 @@ describe("StructureInstances", () => {
     expect(h.low).toBeCloseTo(-0.25); // the deck, 0.5 tall round the origin
     expect(h.high).toBeCloseTo(0.6); // the light's top on its node 0.5 up; the shell's 1.5 is left out
   });
+
+  test("a released model leaves the group, and its geometry, materials and textures are freed (D236)", () => {
+    const si = new StructureInstances();
+    const model = structure(true, true);
+    const map = new THREE.Texture();
+    model.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (m?.name === "pal_26_deck") m.map = map;
+    });
+    si.add("tiles/test/a", model);
+    si.add("tiles/test/b", structure(false));
+    const meshes = si.meshes("tiles/test/a");
+    expect(meshes.length).toBeGreaterThan(0);
+    const freed = new Set<object>();
+    for (const m of meshes) {
+      m.geometry.addEventListener("dispose", () => freed.add(m.geometry));
+      (m.material as THREE.Material).addEventListener("dispose", () => freed.add(m.material as THREE.Material));
+    }
+    let mapFreed = false;
+    map.addEventListener("dispose", () => (mapFreed = true));
+    const forgot: THREE.Material[] = [];
+    expect(si.release("tiles/test/a", (m) => forgot.push(m))).toBe(true);
+    expect(si.has("tiles/test/a")).toBe(false);
+    expect(meshes.every((m) => m.parent === null)).toBe(true);
+    expect(meshes.every((m) => freed.has(m.geometry) && freed.has(m.material as THREE.Material))).toBe(true);
+    expect(new Set(forgot)).toEqual(new Set(meshes.map((m) => m.material)));
+    expect([mapFreed, map.userData.released]).toEqual([true, true]);
+    expect(si.release("tiles/test/a")).toBe(false);
+    // The other model is untouched, and a frame still draws it.
+    expect(si.has("tiles/test/b")).toBe(true);
+    si.begin();
+    si.place("tiles/test/b", 0, 0, 0, 1);
+    si.end(0, (_, c) => c);
+    expect(si.stats().models).toBe(1);
+  });
 });

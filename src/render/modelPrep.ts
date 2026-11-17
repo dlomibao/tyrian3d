@@ -146,3 +146,48 @@ export function setModelBlended(root: THREE.Object3D, blended: boolean): void {
     }
   });
 }
+
+/**
+ * Free a texture of a loaded model, which nothing else shows (D236): its GPU copy, and the
+ * ImageBitmap behind it (each load decodes its own). Marked `userData.released`, so a queue that
+ * still holds it (View's late uploads) leaves it alone.
+ */
+export function disposeTexture(t: THREE.Texture): void {
+  if (t.userData.released) return;
+  t.userData.released = true;
+  t.dispose();
+  const image = t.image as unknown;
+  if (typeof ImageBitmap !== "undefined" && image instanceof ImageBitmap) image.close();
+}
+
+/** Free a model's material and the textures it holds (its maps: the palette and shared ones are uniforms, never these). */
+export function disposeMaterial(m: THREE.Material): void {
+  for (const v of Object.values(m)) if ((v as THREE.Texture | null)?.isTexture) disposeTexture(v as THREE.Texture);
+  m.dispose();
+}
+
+/**
+ * Free a loaded model (or its clones: the same geometry, their own materials): take each from its
+ * parent, and free every geometry, material (with the meshes' shadow-pass ones) and texture under
+ * them. `forget` is told of each material first, for caches keyed by it.
+ */
+export function disposeModel(roots: readonly THREE.Object3D[], forget?: (material: THREE.Material) => void): void {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  for (const root of roots) {
+    root.removeFromParent();
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.geometry) geometries.add(mesh.geometry);
+      const m = mesh.material as THREE.Material | THREE.Material[] | undefined;
+      if (m) for (const mat of Array.isArray(m) ? m : [m]) materials.add(mat);
+      if (mesh.customDepthMaterial) materials.add(mesh.customDepthMaterial);
+      if (mesh.customDistanceMaterial) materials.add(mesh.customDistanceMaterial);
+    });
+  }
+  for (const m of materials) {
+    forget?.(m);
+    disposeMaterial(m);
+  }
+  for (const g of geometries) g.dispose();
+}

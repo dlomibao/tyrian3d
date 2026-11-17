@@ -291,7 +291,8 @@ export class View {
       for (const t of texturesOf(root)) if (!this.uploaded(t)) this.lateTextures.push(t);
     }
     const t = this.lateTextures.shift();
-    if (t && !this.uploaded(t)) this.renderer.initTexture(t);
+    // (Not one freed since, with its model's level: D236.)
+    if (t && !t.userData.released && !this.uploaded(t)) this.renderer.initTexture(t);
   }
 
   private uploaded(t: THREE.Texture): boolean {
