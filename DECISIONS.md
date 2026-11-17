@@ -13539,5 +13539,197 @@ region's pixels and p10-p90, reds as mean R, G, B; original / main / this):
 - `assets/blender/features/ship-silver-ship.json` still calls the sides "pods" and the pipes "tail-ribs"; every
   feature it lists is present, the wording was not changed.
 - Not checked: the hit flash by eye (the materials are `pal_` as before), two-player mode, the title screen.
+## D230 — The lava bubbles are one smooth ball each with their heat painted as a continuous ramp: `pal_` bands cut along the sprite's tones, each glowing through an emissive map that takes its palette colour down to the ramp between entries; the small bubble and the clear one rebuilt the same way (D225 Open; follows D7, D51, D74, D126, D173, D176, D212, D213, D225)
+
+2026-11-17
+
+`assembly-newshe-229` (pieces `newshe-191`, `-193`, `-229`, `-231`; STARGATE 3.7, FLEET 3.6, MISTAKES 2.9) shipped in
+D225 at 7 with three notes open: "the rim heat is stair-stepped bands; the cap reads as a separate helmet; the small
+bubbles (`newshe-195`/`-235`) are still glossy red". The user asked for one more attempt, diagnosis first.
+
+**Diagnosis** (measured from `reference/models`, the sim and the game's render):
+- *What it is.* A bubble, not a pod. The three sprites are one drawing at three sizes: a round body, a dark crown
+  toward the upper left, a rim that brightens toward the lower right, a white glint and smaller ones (the big one
+  34 x 31 px in its 48 x 56 block, `newshe-195` 21 x 21, `newshe-235` 16 x 15 in the pale ramp 64-79). `newshe-235` has
+  47 transparent pixels inside its outline: the level shows through it. They have no gun, and they fly over
+  STARGATE's and BUBBLES' ground, which is the same bubbles (`shapesz`, D203). D170 read the big one as "a fast red
+  orb pod"; its script built a cap, a bezel, lenses in collars, a belt, panel lines and thrusters, and D225 kept them.
+  `newshe-195` was "a small red pod with two lenses" (armour petals, a visor), `newshe-235` "an opened sensor pod" (a
+  collar ring, a sensor ball on a manipulator arm).
+- *What the big sprite draws* (829 pixels): a crown of palette 1 and 64, 260 px (31%); 112-113, 234 px; 114-119, 220
+  px; 120-127, 115 px. Four glints stand in the crown (their pixels at 114 and up: a white one of 76 px, 41 of them
+  127; a white-yellow one of 21; two dim red ones of 11 and 5, peaking at 120 and 117). All 16 entries of the fire
+  ramp 112-127 are used (luma 7, 12, 17, 26, 31, 39, 48, 59, 90, 119, 150, 179, 202, 224, 245, 254).
+- *The rim's ramp.* From the crown's edge to the south edge, down column 24: `112 112 112 113 113 116 117 120 121
+  119`; toward the lower right: `112 112 112 113 115 115 119 125 125 119`. Of the 317 radially neighbouring pairs of
+  ramp pixels outside the glints, 104 are equal, 89 differ by one entry, 46 by two and 78 by three or more. So the
+  sprite draws one ramp, a step per pixel where it is shallow (the south side's red, 9 px) and three or more where it
+  is steep (the crescent, 3 px). It has no band wider than a pixel or two.
+- *Which frames show when.* One frame per piece (types 682-685), no animation, no damaged frame. The only other
+  look is the hit flash (`filter 208`: every pixel at its own shade in bank 13, a teal ramp). Stepped through
+  `tyrianHarness` (seed 1, 9,000 ticks, enemy-ticks of piece 191): STARGATE 3,498 (the sky layer from t700, the
+  ground and ground-2 layers from t4405), 114 of them flashing; FLEET 246 (the top layer, t200-440), 8 flashing.
+  `newshe-195`: types 477 (sprayed in rings from t1900, 7,055) and 686 (2,315; FLEET 922); `newshe-235`: types 479
+  (7,843) and 687 (12,244).
+- *Why the rim steps* (main, STARGATE t4800 at 3840x2160, both panels rectified onto the sprite's grid):
+  1. Five flat colours. `paint_rim` cut the rim into five regions, palette 115/117/119/121/123, two ramp entries
+     apart, each an ember (emission 0.3-0.95) on a rough metallic-1 face. A glow replaces the lit colour (D126) and
+     what is left of it on such a face is a dim reflection, so each region reads as one colour. Down sprite column
+     30 main reads (21-25, 0, 0) to row 33.5, then (189, 16, 0) flat for 1.75 px, then (233, 166, 17) flat for 4 px.
+     The sprite climbs 32, 56, 81, 134, 231 (red) in five one-pixel steps there, and its yellow is 3 px.
+  2. Stairs. A face took its region by its centre, on a grid of 96 columns, so the regions meet along quad edges.
+  3. Rings. The heat was the share of the plan radius (rising from 0.7 to 0.97) times a direction profile of four
+     Fourier terms: concentric. The dome (13 px high) is steep there, so the rings lie one above the other on the
+     south flank, which the tilted camera stretches: level strata, the yellow one a fan across the lower right.
+- *Why the cap reads as a helmet.* It was built as one: a bezel 0.9 px high round a glass cap lifted 0.65 px and
+  bulged 1.5 px more, in another material than the hull (glass: `pal_1`, roughness 0.06, nearly dielectric; hull:
+  `pal_112`, metallic 0.8, roughness 0.34), with the lenses standing on it in collars 0.8-1 px high. It has an edge
+  that catches the light and a white room reflection the hull has not: the crown reads luma 35-40 in game, the
+  sprite's 11. In the sprite the crown is not a part. Palette 1 is (12, 12, 12) and the 112 beside it (32, 0, 0), luma
+  12 and 7: its edge is a change of hue between two near-blacks.
+- *The glints are not the game's sheen.* The sprite's light is from the upper left: the white glint sits 5.5 px
+  left of and above the centre. The game's sun (-6, 20, 8.4), seen from the 15-degree camera, puts a ball's own
+  highlight at the normal (-0.14, 0.94, 0.32): left of and below the crown (computed from `sun.ts`; a grey patch
+  there on the first build, at roughness 0.34). A glossy ball gets a third glint, in the wrong place.
+- *The camera moves the paint* (not changed). The camera leans 15 degrees with a 40-degree field of view, so its
+  rays lean up the screen by tan 15 = 0.27 px per px of height at mid-screen, more above and less below (0.38 at
+  screen row 77 of 200, measured once on a 10 px build; about 0 to 0.6 over the playfield by the geometry, not
+  measured). What is painted on a dome is drawn that far up the screen times its height: main's lenses, 12 px up,
+  sit 2 px north of the sprite's glints at row 77.
+- *Tone mapping* takes a glow of 1 down only at the top: (211, 20, 0) comes out (209, 22, 2), white 255 comes out 240.
+
+**Decision:** the three scripts are rewritten on a new `lib_bubble.py` (numpy only). No renderer change.
+- **One ball.** A closed spheroid: the plan is the sprite's inner mask (D74) traced in polar form and low-passed
+  (five Fourier terms; two for `newshe-195`), a superellipse dome 7 px high over it (main: 13) and a closed bowl 4.5
+  px deep under it. No cap, bezel, lenses, studs, belt, notches, panel lines, hatch or thrusters. The normals come
+  from the surface's equation, so the big bubble's four pieces shade as one ball; each piece is clipped from the
+  ball's polygons and its cut faces are capped (`pal_1`).
+- **Tone.** Every sprite pixel becomes a tone (index - 112; palette 1 at -1.2, 64 at -0.6). The inner mask's tones
+  are carried outward past the edge, and the field is made smooth at 5 texels per px: a Gaussian of 0.33 px (0.8 px
+  where the tone is low: the crown's edge is a hard step of two near-blacks drawn in stairs), a second one of 1.2 px
+  ALONG the rim in the outer 30% of the radius (the sprite draws the rim in pixel stairs and single hot pixels; a
+  round blur left blotches), and the ramp past 121.5 stretched by 1.45 (what the smoothing takes off the cores).
+  C(t) is the palette ramp read between its entries.
+- **Bands** (art rule 5, D7). The surface is cut along the tone's own contours (each triangle split where the tone
+  crosses a level) into the crown, `pal_1`, lit, and ten fire bands, `pal_114/116/119/120/121/122/123/125/126/127`,
+  each holding the tones up to its own entry. Every region carries its sprite index to within a step or two, and
+  the hit flash moves each band to its own shade.
+- **The ramp between entries** (D126). Each fire band glows at strength 1 through an emissive map that only ever
+  takes its palette colour DOWN to C(t): M = C(t) / palette[band], per channel, at most 1, in the band's own tile
+  of the piece's atlas. At a band's upper edge M is 1 and the next band starts at that same colour, so the ramp is
+  continuous across every cut and there is no step at any size. The last band glows at 1.35 on its top tone only
+  (the white cores, against the tone mapping). The map is the sprite's own tones, not a concept (rule 4), stored
+  lossless (WebP at quality 100: at 85 its error, up to a fifth of a dark texel, drew steps where bands meet).
+  three.js multiplies a material's emissive colour by its emissive map, and `colourFrame` sets that colour from
+  the live palette, so fades and the flash apply as on any `pal_` material. There is no AO bake: a ball has none.
+- **The hit flash bounds the map.** M bends a band's hue for the fire ramp (red, then green, then blue come up);
+  under bank 13 the same M drew red and yellow fringes in the crescent (seven bands, unbounded: 99th-percentile
+  error 81 of 255 against the ideal flash, in a simulation of both looks). So no channel of M goes under half its
+  strongest, and the ramp gets a band per entry where its hue turns (120-123, 125-127): the normal look stays within
+  6 of the exact ramp (99th percentile), the flash within 39, with no fringe (checked in game).
+- **Where the paint sits.** At (u, v - 0.6 x 0.27 z): between straight down (the top view is the sprite) and the
+  camera's ray at mid-screen (the game's view is the sprite there). The dome is low so the rest of the camera's
+  lean moves the paint by a pixel or two, not five.
+- **Glints** are paint (glow), flush: no lumps (rule 2), no lamps. **Gloss** is dielectric and faint: roughness
+  0.45 and Specular IOR Level 0.16 on the crown, 0.07 and 0.04 on the fire bands (a glow under a glossy dielectric
+  reads as its reflection, D173), so the game's own highlight is a soft grey sheen under the crown.
+- **`newshe-195`** is the same ball at 21 px (dome 4.5 px, all ten bands).
+- **`newshe-235`** is the same ball in the pale ramp (`pal_66` to `pal_79`), with no crown, and its film is cut out
+  where the sprite is see-through: the atlas's alpha, glTF `MASK` at a half (the game draws model materials opaque;
+  an alpha test needs no blending). D74's border test takes the film's dark pixels beside a clear one for ink, so
+  the film keeps the inner mask and the thin parts' border and leaves the other 30 border pixels clear, which is
+  what the top-view rule measures. Its film is the dome alone, and its outline shell is only the strip of the bowl
+  under the rim: a whole ball's inverted hull showed, dark, through every opening.
+- **Contract.** Every material is `pal_<index>` or `outline_shell`; `glowStrength` reads the bands' strength as
+  before (emissiveFactor = palette colour x strength); one outline shell per piece, made from the whole ball (D51,
+  D90) and cut open at the pieces' seams; one frame each; no `spriteModels` JSON changes; export paths as before.
+
+**Result.**
+- *IoU* (rule, sprite grid, top views rendered from the exported glbs with the shells left out; `iou_rule_grid`,
+  sub-pixel `iou_rule` in brackets; one frame each; the clear bubble's top view is its film's coverage, rendered
+  with its alpha):
+
+  | Model | Main, as last reported | Now |
+  |---|---|---|
+  | `assembly-newshe-229` (four pieces composed) | 0.9825 (D225) | 0.9825 (0.967) |
+  | `newshe-195` | 0.973 (E2 QA M4) | 0.9667 (0.944) |
+  | `newshe-235` | 0.9688 | 0.9894 (0.854) |
+
+- *In game* (`&compare=1`, 3840x2160, both panels rectified onto the sprite's grid; mean colour and luma over each
+  region of the sprite's own indices; original | main | this):
+
+  | Region | STARGATE t760, big | FLEET t260, big | FLEET t260, `newshe-195` |
+  |---|---|---|---|
+  | Crown (1, 64) | 11 / 35 / 13 | 11 / 40 / 13 | 11 / 33 / 9 |
+  | Shoulder (112-113) | 9 / 17 / 12 | 9 / 24 / 18 | 10 / 25 / 14 |
+  | Rim, red (114-119, outside the glints) | 37 / 26 / 36 | 37 / 54 / 44 | 27 / 31 / 35 |
+  | Crescent (120-127, outside the glints) | 160 / 59 / 116 | 160 / 135 / 154 | 128 / 42 / 107 |
+  | Crescent, colour | (239, 148, 41) / (147, 38, 6) / (215, 96, 23) | (239, 148, 41) / (215, 123, 18) / (219, 145, 44) | (232, 108, 25) / (122, 22, 5) / (216, 84, 5) |
+  | White glint's core | (255, 255, 243) / (253, 253, 245) / (247, 247, 235) | the same / (146, 133, 117) / (247, 247, 235) | (255, 255, 243) / (252, 250, 239) / (246, 246, 227) |
+  | White glint, off the sprite's place | main 1.6 px, this 0.7 px | main 2.3 px, this 1.8 px | main 2.4 px, this 0.9 px |
+
+- *The ramp* (STARGATE t4800, down sprite columns 24 and 30 of the south flank, sampled every eighth of a sprite
+  pixel, the silhouette's last half pixel left out): the longest run of one tone is 1 px in the original (its
+  pixels), 0.75 and 3.1 px on main, 0.25 and 0.5 px now. The largest step between samples is 51 and 88 (luma) in
+  the original, 29 and 15 on main, 8 and 12 now. Column 24 now reads red 37, 46, 58, 69, 119, 179, 222, 230 a pixel
+  apart, where the sprite has 32, 32, 32, 56, 56, 134, 158, 223.
+- *Reading.* A black glass ball with white glints, a red-hot rim and a yellow crescent, beside the level's own HD
+  bubbles; the crown is not a part (its edge shows only with the levels raised). The small bubble is the same ball;
+  the clear one is a pale ring, a pink glint and a crescent of film, and the level and the red bubbles show through
+  it.
+- *Also checked in captures:* the hit flash on the big and the small bubble (teal, each band at its own shade, no
+  fringe; darker than the original's flash); `&camera=overhead` and `steep` at t4800; the play view at 1920x1080;
+  BUBBLES 1.4 t1300 (`newshe-195`, `-235`) and LAVA EXIT 4.9 t260 (`newshe-195` under the lava filter);
+  `?viewer=newshe-191`, `-195`, `-235`; `?debug=models`.
+- *Weight.* The big bubble: 11,882 triangles in four pieces of 6 to 11 materials, 3,632 more in the shells; 443 KB
+  for the four glbs (meshopt; main 635 KB), their atlases 17-57 KB. `newshe-195`: 3,718 + 1,000 triangles, 158 KB
+  (main 234). `newshe-235`: 1,632 + 80, 108 KB (main 308). Draw calls in the play view at STARGATE t4800: 869 (main
+  959, measured with main's six glbs put back for one capture).
+- `tsc --noEmit` is clean. `vitest run` on the eleven model files (`modelSwap`, `spriteModels`, `modelPop`,
+  `modelCoverage`, `viewerFrames`, `modelFrames`, `modelPrep`, `sidekickModels`, `obliqueModels`, `outlineHook`,
+  `perfPass`): 64 tests pass. The whole suite was not run.
+- Captures (not in git, D3): `tyrian-scratch/fable-stargate/final/` (`big_original_main_new.png`,
+  `small_original_main_new.png`, `stargate_t4800_original_main_new.png`, `stargate_t760_...`, `fleet_t260_...`,
+  `hit_flash_original_new.png`, `stargate_t4800_overhead_steep.png`, the 4K frames and the region tables).
+
+**Options considered:**
+- *More flat bands* (one per ramp entry, no map): still 16 colours, 25 levels of red apart on the south side.
+- *A grey map and a band per entry* (luminance continuous, hue stepping at the cuts): the cleanest flash (99th
+  percentile 17), but the hue steps show as contours in the crescent (26 against the exact ramp). Simulated, not
+  built.
+- *An unbounded colour map, seven bands* (the first build): the exact ramp, and the fringes above under the flash.
+- *A palette-data texture as the island rock's* (D84, D212: shade and ramp per texel, exact under any bank): that
+  material is lit only. A glow would need a renderer change, and the crescent sits on the flank the sun does not
+  reach.
+- *Blended layers* (a red base, yellow and white over it by alpha): the game draws model materials opaque
+  (`setCloneBlended` owns `transparent`). Not tried.
+- *The glints as real sheen:* the game's sun puts it in the wrong place (above).
+- *The paint straight down, or along the mid-screen ray:* the first is 1.7 px off in game at mid-screen on a 7 px
+  dome, the second 1.7 px off in the top view (0.27 x the glints' 6.4 px). *A taller ball* (10 px, the first build;
+  main's 13): the glint sat 2.3 px north at screen row 77, and would sit about 4 px north at the top (estimated).
+- *`newshe-235` left as it was, or a lattice of real geometry:* the first keeps a machine among bubbles; the second
+  is what it had.
+
+**Open:**
+- The paint moves over the ball with the camera's rays: the white glint is 0.7 px off the sprite's place at
+  mid-screen and 1.8 px in the upper part of the screen (table), and the hot flank reads wider toward the top of
+  the screen than the sprite's rim. The balls are already low (7 px over 33; from the side, in `?viewer`, a
+  saucer): a flatter one would hold the paint stiller and read less as a ball. Not judged in motion.
+- The crescent is dimmer than the sprite's at mid-screen (116 against 160): the smoothing along the rim spreads its
+  few 125-127 pixels. The shoulder is a little brighter than the sprite's (12-18 against 9; the gloss).
+- The hit flash is approximate: the map's ratios are the fire ramp's, so under bank 13 the bands' lower edges are a
+  little dark (faint contours) and the whole reads darker than the original's flash. Exact under any bank would
+  need palette data in the texture and a glow, as the island rock's material has not got.
+- The emissive map is new on an enemy model, and so is the alpha cut-out on `newshe-235`; both are plain glTF and
+  needed no renderer change, but nothing else exercises them. `lib_bubble._export` repeats `common.export_glb` with
+  the image quality at 100.
+- The crown's edge is a material edge (`pal_1`, lit, against a glow). Up to 11 materials per piece.
+- `newshe-235`: the film's cut edges are alias steps (an alpha test gets no multisampling); 30 of its dark film
+  pixels are left clear for the top-view rule; near the top of the screen and under the steep camera the dome's
+  inside shows through the openings; it has no underside.
+- The camera's lean over the playfield is estimated from its tilt and field of view (one point measured).
+- Not checked: MISTAKES 2.9 and the two BONUS levels (the same sprites); the STARGATE crops of `newshe-195` were
+  taken before its outline shell was thinned from 1,200 to 500 faces (FLEET's after). No strict review was run.
+- The scripts' docstrings cite this entry's number.
 
 **Cost:** one Fable agent (asked for by the user).
