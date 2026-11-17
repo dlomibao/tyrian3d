@@ -246,10 +246,12 @@ describe("the shade pass on a headlight frame (D220)", () => {
     expect(artMark.depthWrite).toBe(false);
     // pal_117: shade 5, bank 7, the model's mark.
     const model = drawn[0].find((m) => m.name === "under_shade_model") as THREE.MeshBasicMaterial;
-    expect(model.customProgramCacheKey()).toBe("under-shade-model-5-7");
-    const shader = { fragmentShader: "#include <dithering_fragment>", vertexShader: "", uniforms: {} };
+    expect(model.customProgramCacheKey()).toBe("under-shade-model"); // the shade and bank are uniforms (D235)
+    const shader = { fragmentShader: "#include <dithering_fragment>", vertexShader: "", uniforms: {} as Record<string, THREE.IUniform> };
     model.onBeforeCompile(shader as never, {} as never);
-    expect(shader.fragmentShader).toContain("float hue = 7.0;");
+    expect(shader.fragmentShader).toContain("float hue = shadeHue;");
+    expect(shader.uniforms.shadeHue.value).toBe(7);
+    expect(shader.uniforms.shadeValue.value).toBe(Number((5 / 15).toFixed(6)));
     expect(shader.fragmentShader).toContain(MODEL_MARK.toFixed(4));
     // A plain frame: no art, sheet marks over everything (the blends' copies, D204), top sheets don't mark.
     pass.render(renderer, s, camera, area);

@@ -820,8 +820,7 @@ export class HudFrame {
     });
     b.sidekicks.forEach((geo, i) => {
       const sk = v.sidekicks[i] ?? null;
-      const key = sk ? `${sk.icon?.length ?? 0}:${sk.icon?.slice(-24)}:${sk.ammoMax}:${JSON.stringify(ammoSegments(sk.ammo, sk.ammoMax))}` : "empty";
-      this.set(`sk${i}`, key, () => (this.el[`sk${i}`].innerHTML = sidekickMarkup(geo, sk)));
+      this.set(`sk${i}`, this.sidekickKey(i, sk), () => (this.el[`sk${i}`].innerHTML = sidekickMarkup(geo, sk)));
     });
     this.set("score", v.score, () => (this.el.score.textContent = v.score));
     this.set("level", v.level, () => (this.el.level.textContent = v.level));
@@ -831,6 +830,22 @@ export class HudFrame {
       const textW = v.message ? (this.el.message as SVGTextElement).getComputedTextLength() : 0;
       this.el.msgBack.setAttribute("width", v.message ? String(f(Math.min(m.barW, textW + (m.x - m.barX) * 2))) : "0");
     });
+  }
+
+  /** Each sidekick slot's last icon, ammo and capacity, and the key they made (sidekickKey). */
+  private readonly sidekickKeys: { icon: string | null; ammo: number; ammoMax: number; key: string }[] = [];
+
+  /**
+   * What a sidekick slot shows, as a key that changes when its markup would: built only when the
+   * icon, ammo or capacity changes, not every frame (D235).
+   */
+  private sidekickKey(i: number, sk: SidekickView | null): string {
+    if (!sk) return "empty";
+    const c = this.sidekickKeys[i];
+    if (c && c.icon === sk.icon && c.ammo === sk.ammo && c.ammoMax === sk.ammoMax) return c.key;
+    const key = `${sk.icon?.length ?? 0}:${sk.icon?.slice(-24)}:${sk.ammoMax}:${JSON.stringify(ammoSegments(sk.ammo, sk.ammoMax))}`;
+    this.sidekickKeys[i] = { icon: sk.icon, ammo: sk.ammo, ammoMax: sk.ammoMax, key };
+    return key;
   }
 
   private gauge(key: string, g: GaugeGeo, rows: number, text: string): void {

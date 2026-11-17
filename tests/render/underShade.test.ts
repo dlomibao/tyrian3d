@@ -163,7 +163,24 @@ describe("the terrain's own shade under the blends (D204)", () => {
     expect(by.get("model")!.name).toBe("under_shade_unknown");
     expect(by.get("child")).toBe(by.get("model"));
     expect(by.get("pal")!.name).toBe("under_shade_model");
-    expect((by.get("pal")! as THREE.MeshBasicMaterial).customProgramCacheKey()).toBe("under-shade-model-5-7"); // pal_117: 117 & 15, bank 117 >> 4
+    // One program for every pal_<index>, one for every rock (D235): the shade, bank and ramps are
+    // uniforms. pal_117: 117 & 15, bank 117 >> 4; the rock's ramps 0 and 9.
+    const palShade = by.get("pal")! as THREE.MeshBasicMaterial;
+    const rockShade = by.get("rock")! as THREE.MeshBasicMaterial;
+    expect(palShade.customProgramCacheKey()).toBe("under-shade-model");
+    expect(rockShade.customProgramCacheKey()).toBe("under-shade-rock");
+    const compiled = (m: THREE.Material) => {
+      const shader = { uniforms: {} as Record<string, THREE.IUniform>, vertexShader: "", fragmentShader: "#include <common>\nvoid main() {\n#include <dithering_fragment>\n}" };
+      m.onBeforeCompile(shader as never, renderer);
+      return shader;
+    };
+    const palProgram = compiled(palShade);
+    expect(palProgram.uniforms.shadeValue.value).toBe(Number((5 / 15).toFixed(6)));
+    expect(palProgram.uniforms.shadeHue.value).toBe(7);
+    expect(palProgram.fragmentShader).toContain("float s = shadeValue * 15.0;");
+    const rockProgram = compiled(rockShade);
+    expect((rockProgram.uniforms.shadeRamps.value as THREE.Vector4).toArray()).toEqual([0, 9, 9, 9]);
+    expect((rockProgram.uniforms.shadeRampSteps.value as THREE.Vector2).toArray()).toEqual([1, 0]);
     expect((by.get("rock")! as THREE.MeshBasicMaterial).map).toBe((rock.material as THREE.MeshStandardMaterial).map);
     const mark = by.get("sheet") as THREE.ShaderMaterial;
     expect(mark.name).toBe("under_shade_sheet");
@@ -192,6 +209,42 @@ describe("the terrain's own shade under the blends (D204)", () => {
     const again = new Map(renders[1].drawn.map((d) => [d.object.name, d.material]));
     expect(again.get("ground")).toBe(by.get("ground"));
     expect(again.has("model")).toBe(false);
+  });
+
+  test("the warm-up compiles the pass's programs with stand-ins, into its target, and restores everything (D235)", async () => {
+    const { scene: s, ground, model, shadow, child, sheet, cover, pal, rock } = scene();
+    const camera = new THREE.PerspectiveCamera();
+    const { renderer, raw } = fakeRenderer();
+    const compiled: { target: THREE.WebGLRenderTarget | null; drawn: Map<string, THREE.Material> }[] = [];
+    (raw as unknown as { compileAsync: unknown }).compileAsync = (root: THREE.Object3D) => {
+      const drawn = new Map<string, THREE.Material>();
+      root.traverse((o) => drawn.set(o.name, (o as THREE.Mesh).material as THREE.Material));
+      compiled.push({ target: raw.getRenderTarget(), drawn });
+      return Promise.resolve();
+    };
+    const pass = new UnderShadePass(new PaletteTexture());
+    const before = new Map([ground, model, shadow, child, sheet, cover, pal, rock].map((o) => [o, o.material]));
+    await pass.compileAsync(renderer, s, camera, s);
+    expect(compiled).toHaveLength(1);
+    const [{ target, drawn }] = compiled;
+    expect(target).toBe(pass.target);
+    expect([...drawn.keys()].sort()).toEqual(["child", "ground", "model", "pal", "rock", "sheet"]);
+    expect(drawn.get("pal")!.customProgramCacheKey()).toBe("under-shade-model");
+    expect(drawn.get("rock")!.customProgramCacheKey()).toBe("under-shade-rock");
+    expect(drawn.get("ground")!.name).toBe("under_shade");
+    expect(drawn.get("sheet")!.name).toBe("under_shade_sheet");
+    expect(drawn.get("model")!.name).toBe("under_shade_unknown");
+    for (const [o, m] of before) expect(o.material).toBe(m);
+    expect(raw.getRenderTarget()).toBeNull();
+    // The pass's own materials are still made by its first frame, not by the warm-up (their order,
+    // and so the pass's draw order, stays the frames').
+    const area = new NdcRect();
+    area.add(-1, -1);
+    area.add(1, 1);
+    const { renderer: r2, renders } = fakeRenderer();
+    pass.render(r2, s, camera, area);
+    const frame = new Map(renders[0].drawn.map((d) => [d.object.name, d.material]));
+    for (const name of ["pal", "rock", "ground", "sheet"]) expect(frame.get(name), name).not.toBe(drawn.get(name));
   });
 
   test("under a render target the pass matches its size", () => {

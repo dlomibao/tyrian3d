@@ -66,6 +66,9 @@ export class Hud {
   private readonly insetProbe = document.createElement("div");
   private shown = false;
   private framed = false;
+  /** The score as last formatted, and the cash it was formatted from (formatted only when it changes, D235). */
+  private scoreCash = Number.NaN;
+  private scoreText = "";
 
   /**
    * `compare`: the side-by-side comparison (`?compare=1`, D158) has the window's left half, so the
@@ -175,7 +178,7 @@ export class Hud {
         rearName: fitted(rear) ? rear.toUpperCase() : "",
         mode: fitted(rear) ? p.weapon_mode : 0,
         sidekicks: [0, 1].map((i) => this.sidekick(i)),
-        score: p.cash.toLocaleString("en-US"),
+        score: this.score(p.cash),
         message,
         level,
       };
@@ -298,6 +301,14 @@ export class Hud {
    * A sidekick's box (JE_drawOptions): its HUD icon, OPTION_SHAPES iconGr - 1 in the in-level
    * palette, and its ammo (draw_segmented_gauge, for sidekicks that run out).
    */
+  private score(cash: number): string {
+    if (cash !== this.scoreCash) {
+      this.scoreCash = cash;
+      this.scoreText = cash.toLocaleString("en-US");
+    }
+    return this.scoreText;
+  }
+
   private sidekick(i: number): SidekickView | null {
     const p = g.player[0];
     const id = p.items.sidekick[i];

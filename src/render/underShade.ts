@@ -250,26 +250,65 @@ function sheetCut(m: THREE.Material): MaskCut | undefined {
  * A model material's own shade (the C's sprite pixel's) and bank: a flat `shade` in bank `hue` for a
  * pal_<index> material (index & 15, index >> 4), or the R channel (shade / 15) of a rock material's
  * palette data, in the ramp its G channel picks of `ramps` (rockMaterial.ts).
+ *
+ * The shade, bank and ramps are uniforms, so every pal_<index> material shares one program and every
+ * rock material another, compiled by the level's warm-up (compileAsync, D91, D235). Baked into the
+ * source, each index and ramp set was a program of its own, compiled the first time it showed under a
+ * blended layer: TYRIAN compiled 75 of them in its first 20 s of play, stalls of up to 131 ms.
  */
 function modelShadeMaterial(shade: number | THREE.Texture, hue = 0, ramps: readonly number[] = [0]): THREE.MeshBasicMaterial {
   const rock = typeof shade !== "number";
   const m = new THREE.MeshBasicMaterial({ name: "under_shade_model", fog: false, side: THREE.DoubleSide, map: rock ? shade : null });
-  const value = rock ? "texture2D(map, vMapUv).r" : `${(Math.min(15, Math.max(0, shade)) / 15).toFixed(6)}`;
   const n = Math.max(1, Math.min(4, ramps.length));
   const list = Array.from({ length: 4 }, (_, i) => (ramps[Math.min(i, n - 1)] ?? 0) & 15);
-  // The rock's ramps: G steps through them (0..1), weights between the two nearest (rockMaterial.ts).
-  const ramp = (j: string) => `(${j} < 0.5 ? ${list[0].toFixed(1)} : ${j} < 1.5 ? ${list[1].toFixed(1)} : ${j} < 2.5 ? ${list[2].toFixed(1)} : ${list[3].toFixed(1)})`;
-  const banks = rock
-    ? `float rockCode = texture2D(map, vMapUv).g * ${(n - 1).toFixed(1)}; float rockJ = min(floor(rockCode), ${Math.max(0, n - 2).toFixed(1)}); float hue = ${ramp("rockJ")}; float hue2 = ${ramp("(rockJ + 1.0)")}; float tw = ${n > 1 ? "clamp(rockCode - rockJ, 0.0, 1.0)" : "0.0"};`
-    : `float hue = ${(hue & 15).toFixed(1)}; float hue2 = hue; float tw = 0.0;`;
+  const uniforms: Record<string, THREE.IUniform> = rock
+    ? {
+        // The rock's ramps: G steps through them (0..1), weights between the two nearest (rockMaterial.ts).
+        shadeRamps: { value: new THREE.Vector4(list[0], list[1], list[2], list[3]) },
+        // G's scale to a ramp index (n - 1), and the last index a pair of ramps starts at (n - 2).
+        shadeRampSteps: { value: new THREE.Vector2(n - 1, Math.max(0, n - 2)) },
+      }
+    : {
+        // As the source had it baked: the shade / 15 to six places, times 15 in the shader.
+        shadeValue: { value: Number((Math.min(15, Math.max(0, shade)) / 15).toFixed(6)) },
+        shadeHue: { value: hue & 15 },
+      };
+  const pars = rock
+    ? `uniform vec4 shadeRamps;
+uniform vec2 shadeRampSteps;
+float shadeRamp(float j) { return j < 0.5 ? shadeRamps.x : j < 1.5 ? shadeRamps.y : j < 2.5 ? shadeRamps.z : shadeRamps.w; }`
+    : `uniform float shadeValue;
+uniform float shadeHue;`;
+  // A single ramp (n = 1): G scales by 0, so rockJ and tw are 0 and both banks are the first.
+  const body = rock
+    ? `float rockCode = texture2D(map, vMapUv).g * shadeRampSteps.x; float rockJ = min(floor(rockCode), shadeRampSteps.y); float hue = shadeRamp(rockJ); float hue2 = shadeRamp(rockJ + 1.0); float tw = clamp(rockCode - rockJ, 0.0, 1.0);
+float s = texture2D(map, vMapUv).r * 15.0;`
+    : `float hue = shadeHue; float hue2 = hue; float tw = 0.0;
+float s = shadeValue * 15.0;`;
   m.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "#include <dithering_fragment>",
-      `#include <dithering_fragment>\n${banks}\nfloat s = ${value} * 15.0;\n${MODEL_SHADE_OUTPUT}`,
-    );
+    Object.assign(shader.uniforms, uniforms);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", `#include <common>\n${pars}`)
+      .replace("#include <dithering_fragment>", `#include <dithering_fragment>\n${body}\n${MODEL_SHADE_OUTPUT}`);
   };
-  m.customProgramCacheKey = () => (rock ? `under-shade-rock-${list.slice(0, n).join(",")}` : `under-shade-model-${shade}-${hue & 15}`);
+  m.customProgramCacheKey = () => (rock ? "under-shade-rock" : "under-shade-model");
   return m;
+}
+
+/**
+ * Meshes walked as one root by WebGLRenderer.compile (which only traverses it), each on its own, not
+ * their children. No lights of its own.
+ */
+class MeshList extends THREE.Object3D {
+  constructor(private readonly list: readonly THREE.Object3D[]) {
+    super();
+  }
+
+  override traverse(callback: (object: THREE.Object3D) => void): void {
+    for (const o of this.list) callback(o);
+  }
+
+  override traverseVisible(): void {}
 }
 
 /** Cells across and down the screen in the grid the blended draws' rectangles are marked in (D207). */
@@ -380,18 +419,7 @@ export class UnderShadePass {
     let m: THREE.Material;
     if (out) m = shadeOutMaterial(out, this.shared);
     else if (cut) {
-      const mark = cutMaskMaterial(cut, SHEET_MARK_OUTPUT);
-      mark.name = "under_shade_sheet";
-      mark.fragmentShader = `uniform float shadeMarksTop;\n${mark.fragmentShader}`;
-      mark.uniforms.shadeMarksTop = this.marksTop;
-      markBlending(mark);
-      // Its bank replaces the one under it (the frame shows the sheet's colour there).
-      mark.blendEquationAlpha = THREE.AddEquation;
-      mark.blendSrcAlpha = THREE.OneFactor;
-      mark.blendDstAlpha = THREE.ZeroFactor;
-      // Over everything for the blends' copies (D204); behind what covers the sheet in the frame for
-      // the headlight, whose shade it says (render() sets it per frame).
-      mark.depthTest = false;
+      const mark = this.sheetMark(cut);
       this.sheetMarks.add(mark);
       m = mark;
     } else {
@@ -405,6 +433,91 @@ export class UnderShadePass {
     }
     this.shadeMaterials.set(material, m);
     return m;
+  }
+
+  /** A background-2 sheet's mark material (`cut`: its texels' cover). */
+  private sheetMark(cut: MaskCut): THREE.ShaderMaterial {
+    const mark = cutMaskMaterial(cut, SHEET_MARK_OUTPUT);
+    mark.name = "under_shade_sheet";
+    mark.fragmentShader = `uniform float shadeMarksTop;\n${mark.fragmentShader}`;
+    mark.uniforms.shadeMarksTop = this.marksTop;
+    markBlending(mark);
+    // Its bank replaces the one under it (the frame shows the sheet's colour there).
+    mark.blendEquationAlpha = THREE.AddEquation;
+    mark.blendSrcAlpha = THREE.OneFactor;
+    mark.blendDstAlpha = THREE.ZeroFactor;
+    // Over everything for the blends' copies (D204); behind what covers the sheet in the frame for
+    // the headlight, whose shade it says (render() sets it per frame).
+    mark.depthTest = false;
+    return mark;
+  }
+
+  /** Stand-ins for the ground's and the sheets' pass materials, per source material (compileAsync). */
+  private readonly warmOwn = new WeakMap<THREE.Material, THREE.Material>();
+
+  /**
+   * Stand-ins that compile a pal_<index> material's and a rock material's programs (compileAsync),
+   * kept so the programs stay while no real one uses them yet.
+   */
+  private warmPal: THREE.MeshBasicMaterial | null = null;
+  private warmRock: THREE.MeshBasicMaterial | null = null;
+
+  /**
+   * Compile, without drawing, the programs this pass would draw `root`'s models with (hidden ones
+   * too) as `camera` sees them, lit by `scene`'s lights as the pass is (D91, D235): the level's
+   * warm-up and the models that load later. Resolves when they're ready.
+   *
+   * It compiles with stand-ins (one pal_<index> shade, one rock shade, the "unknown" material, a copy
+   * of each ground and sheet material's) and makes none of the pass's own materials: the frames still
+   * make them as they first draw them, in the same order, so the pass sorts its draws as it did (three
+   * orders equal render orders by material id, and of two faces at one depth the first drawn keeps
+   * its shade).
+   */
+  compileAsync(renderer: THREE.WebGLRenderer, root: THREE.Object3D, camera: THREE.Camera, scene: THREE.Scene): Promise<unknown> {
+    const meshes: THREE.Mesh[] = [];
+    const saved: (THREE.Material | THREE.Material[])[] = [];
+    root.traverse((o) => {
+      const r = o as THREE.Mesh;
+      if (!r.isMesh || !o.layers.test(camera.layers) || !r.material || isFlatArt(o)) return;
+      let pass: THREE.Material | THREE.Material[] | null;
+      if (Array.isArray(r.material)) {
+        const list = r.material.map((m) => this.warmMaterial(m));
+        pass = list.every((m) => m === null) ? null : list.map((m) => m ?? this.unknown);
+      } else pass = this.warmMaterial(r.material);
+      if (!pass) return;
+      meshes.push(r);
+      saved.push(r.material);
+      r.material = pass;
+    });
+    if (meshes.length === 0) return Promise.resolve();
+    const current = renderer.getRenderTarget();
+    // Programs are keyed by their target: this pass draws into its own (linear output, no tone mapping).
+    renderer.setRenderTarget(this.target);
+    try {
+      return renderer.compileAsync(new MeshList(meshes), camera, scene);
+    } finally {
+      meshes.forEach((m, i) => (m.material = saved[i]));
+      renderer.setRenderTarget(current);
+    }
+  }
+
+  /**
+   * The stand-in compileAsync draws `material` with (what passMaterial would make, or "unknown"), or
+   * null where the pass leaves it out.
+   */
+  private warmMaterial(material: THREE.Material): THREE.Material | null {
+    const out = material.userData.shadeOut as ShadeOut | undefined;
+    const cut = sheetCut(material);
+    if (out || cut) {
+      let m = this.warmOwn.get(material);
+      if (!m) this.warmOwn.set(material, (m = out ? shadeOutMaterial(out, this.shared) : this.sheetMark(cut!)));
+      return m;
+    }
+    if (material.transparent || !material.depthWrite || !material.colorWrite) return null;
+    const rock = rockShadeMap(material);
+    if (rock) return (this.warmRock ??= modelShadeMaterial(rock, 0, rockRamps(material)));
+    if (PALETTE_MATERIAL.test(material.name)) return (this.warmPal ??= modelShadeMaterial(0, 0));
+    return this.unknown;
   }
 
   /** The mark material for a flat-art batch drawn with `material` (one per atlas). */
@@ -583,5 +696,7 @@ export class UnderShadePass {
     this.unknown.dispose();
     this.raw.dispose();
     for (const m of this.palShades) m?.dispose();
+    this.warmPal?.dispose();
+    this.warmRock?.dispose();
   }
 }

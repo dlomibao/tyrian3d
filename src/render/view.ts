@@ -8,7 +8,7 @@ import { PLAYFIELD_WORLD_D, PLAYFIELD_WORLD_W, PX_PER_UNIT, screenWorldX, screen
 import type { World } from "../game/world";
 import type { DrawList } from "../sim/draw";
 import { DrawListRenderer } from "./drawListRenderer";
-import { isModelHelper } from "./modelPrep";
+import { isModelHelper, OUTLINE_SHELL_LAYER } from "./modelPrep";
 import { OutlineHook } from "./outlineHook";
 import { ResolutionScaler } from "./resolutionScaler";
 import { ScreenFilterPass } from "./screenFilters";
@@ -260,8 +260,9 @@ export class View {
       for (const state of warm.states) {
         state();
         this.scene.updateMatrixWorld();
-        // The canvas's programs, and the screen filters' scene target's (D159), in parallel.
-        await Promise.all([...compile(), ...this.screenFilters.compileFiltered(compile)]);
+        // The canvas's programs, the screen filters' scene target's (D159) and the under-shade
+        // pass's (D204, D235), in parallel.
+        await Promise.all([...compile(), ...this.screenFilters.compileFiltered(compile), this.draws.compileUnderShade(this.renderer, this.scene, this.camera, this.scene)]);
         for (const t of texturesOf(this.scene)) this.renderer.initTexture(t);
         this.renderPixel();
         await this.screenFilters.warmFiltered(() => this.renderPixel());
@@ -285,7 +286,8 @@ export class View {
       // One compile for all of them (each call walks the scene for its lights).
       const root = new ObjectList(late);
       const compile = () => [this.renderer.compileAsync(root, this.camera, this.scene), this.outline.compileAsync(root, this.camera, this.scene)];
-      void Promise.all([...compile(), ...this.screenFilters.compileFiltered(compile)]); // and the screen filters' (D159)
+      // and the screen filters' (D159) and the under-shade pass's (D235)
+      void Promise.all([...compile(), ...this.screenFilters.compileFiltered(compile), this.draws.compileUnderShade(this.renderer, root, this.camera, this.scene)]);
       for (const t of texturesOf(root)) if (!this.uploaded(t)) this.lateTextures.push(t);
     }
     const t = this.lateTextures.shift();
@@ -344,10 +346,21 @@ export class View {
     this.fallback.visible = !drawLists;
     if (drawLists) this.draws.update(alpha, this.camera);
     else if (world) this.updateFallback(world, alpha);
-    if (drawLists && this.screenFilters.active) {
-      this.screenFilters.render(this.scene, this.camera, this.draws.root, this.drawScene, alpha);
-    } else {
-      this.drawScene();
+    // The frame's world matrices, once (D235): nothing moves between here and the frame's last
+    // render, and every render of the scene (the under-shade pass, the main one, the screen filters'
+    // mask and effects) recomputed them all again.
+    const scene = this.scene;
+    const autoUpdate = scene.matrixWorldAutoUpdate;
+    if (autoUpdate) scene.updateMatrixWorld();
+    scene.matrixWorldAutoUpdate = false;
+    try {
+      if (drawLists && this.screenFilters.active) {
+        this.screenFilters.render(scene, this.camera, this.draws.root, this.drawScene, alpha);
+      } else {
+        this.drawScene();
+      }
+    } finally {
+      scene.matrixWorldAutoUpdate = autoUpdate;
     }
     if (drawLists && this.settings.clip) {
       const autoClear = this.renderer.autoClear;
@@ -367,7 +380,15 @@ export class View {
     if (this.draws.active) this.draws.renderUnderShade(this.renderer, this.scene, this.camera);
     this.outlineHook.draw(
       () => this.renderer.render(this.scene, this.camera),
-      () => this.outline.renderOutline(this.scene, this.camera),
+      () => {
+        // The outline shells are drawn by this pass alone (and the screen filters' mask, D235).
+        this.camera.layers.enable(OUTLINE_SHELL_LAYER);
+        try {
+          this.outline.renderOutline(this.scene, this.camera);
+        } finally {
+          this.camera.layers.disable(OUTLINE_SHELL_LAYER);
+        }
+      },
     );
   };
 

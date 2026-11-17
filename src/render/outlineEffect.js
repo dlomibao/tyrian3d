@@ -10,7 +10,9 @@
 // in the art's view, D165) is drawn in that view too; and renderOutline hides the objects marked
 // userData.outlineSkip while it renders (D193: the frame copies and the explosions they serve; D206:
 // everything else it would draw a second time with its own material), and leaves a multisampled
-// target's resolve to the main render it runs inside (D206).
+// target's resolve to the main render it runs inside (D206); and its cache is keyed by the material,
+// the swapped objects keep their own material and onBeforeRender, and one walk of the scene sets the
+// outline materials and finds the skipped objects (D235).
 // The rest is three.js's code unchanged. Types: outlineEffect.d.ts (three's own).
 
 import {
@@ -63,23 +65,21 @@ class OutlineEffect {
 		const defaultAlpha = parameters.defaultAlpha !== undefined ? parameters.defaultAlpha : 1.0;
 		const defaultKeepAlive = parameters.defaultKeepAlive !== undefined ? parameters.defaultKeepAlive : false;
 
-		// object.material.uuid -> outlineMaterial or
-		// object.material[ n ].uuid -> outlineMaterial
+		// object.material -> outlineMaterial or
+		// object.material[ n ] -> outlineMaterial
 		// save at the outline material creation and release
 		// if it's unused removeThresholdCount frames
 		// unless keepAlive is true.
+		// Tyrian 3D (D235): keyed by the material itself, not its uuid; an outline material keeps its
+		// original as `outlineOriginal`, and an object its own material and onBeforeRender as
+		// `outlineSavedMaterial` and `outlineSavedOnBeforeRender` while it's swapped (`swapped`),
+		// rather than in uuid-keyed Maps filled and cleared every frame.
 		const cache = new Map();
 
 		const removeThresholdCount = 60;
 
-		// outlineMaterial.uuid -> object.material or
-		// outlineMaterial.uuid -> object.material[ n ]
-		// save before render and release after render.
-		const originalMaterials = new Map();
-
-		// object.uuid -> originalOnBeforeRender
-		// save before render and release after render.
-		const originalOnBeforeRenders = new Map();
+		// The objects whose materials are swapped for outline materials, until restored.
+		const swapped = [];
 
 		//this.cache = cache;  // for debug
 
@@ -207,7 +207,7 @@ class OutlineEffect {
 
 		function getOutlineMaterialFromCache( originalMaterial ) {
 
-			let data = cache.get( originalMaterial.uuid );
+			let data = cache.get( originalMaterial );
 
 			if ( data === undefined ) {
 
@@ -218,7 +218,9 @@ class OutlineEffect {
 					count: 0
 				};
 
-				cache.set( originalMaterial.uuid, data );
+				data.material.outlineOriginal = originalMaterial;
+
+				cache.set( originalMaterial, data );
 
 			}
 
@@ -232,22 +234,15 @@ class OutlineEffect {
 
 			const outlineMaterial = getOutlineMaterialFromCache( originalMaterial );
 
-			originalMaterials.set( outlineMaterial.uuid, originalMaterial );
-
 			updateOutlineMaterial( outlineMaterial, originalMaterial );
 
 			return outlineMaterial;
 
 		}
 
-		// Tyrian 3D (D193): the objects renderOutline hides while it renders.
+		// Tyrian 3D (D193): the objects renderOutline hides while it renders (collected by
+		// setOutlineMaterial's walk, D235).
 		const skipped = [];
-
-		function hideSkipped( object ) {
-
-			if ( object.userData.outlineSkip === true ) skipped.push( object );
-
-		}
 
 		function isCompatible( object ) {
 
@@ -260,52 +255,59 @@ class OutlineEffect {
 
 		function setOutlineMaterial( object ) {
 
+			if ( object.userData.outlineSkip === true ) skipped.push( object ); // Tyrian 3D (D193)
+
 			if ( isCompatible( object ) === false ) return;
 
-			if ( Array.isArray( object.material ) ) {
+			const material = object.material;
 
-				for ( let i = 0, il = object.material.length; i < il; i ++ ) {
+			// Tyrian 3D (D235): the original material (or list) and onBeforeRender kept on the object.
+			object.outlineSavedMaterial = material;
+			object.outlineSavedOnBeforeRender = object.onBeforeRender;
 
-					object.material[ i ] = getOutlineMaterial( object.material[ i ] );
+			if ( Array.isArray( material ) ) {
+
+				const outlines = new Array( material.length );
+
+				for ( let i = 0, il = material.length; i < il; i ++ ) {
+
+					outlines[ i ] = getOutlineMaterial( material[ i ] );
 
 				}
 
+				object.material = outlines;
+
 			} else {
 
-				object.material = getOutlineMaterial( object.material );
+				object.material = getOutlineMaterial( material );
 
 			}
 
-			originalOnBeforeRenders.set( object.uuid, object.onBeforeRender );
 			object.onBeforeRender = onBeforeRender;
+			swapped.push( object );
 
 		}
 
-		function restoreOriginalMaterial( object ) {
+		// Tyrian 3D (D235): every swapped object gets its own material and onBeforeRender back.
+		function restoreOriginalMaterials() {
 
-			if ( isCompatible( object ) === false ) return;
+			for ( let i = 0, il = swapped.length; i < il; i ++ ) {
 
-			if ( Array.isArray( object.material ) ) {
-
-				for ( let i = 0, il = object.material.length; i < il; i ++ ) {
-
-					object.material[ i ] = originalMaterials.get( object.material[ i ].uuid );
-
-				}
-
-			} else {
-
-				object.material = originalMaterials.get( object.material.uuid );
+				const object = swapped[ i ];
+				object.material = object.outlineSavedMaterial;
+				object.onBeforeRender = object.outlineSavedOnBeforeRender;
+				object.outlineSavedMaterial = null;
+				object.outlineSavedOnBeforeRender = null;
 
 			}
 
-			object.onBeforeRender = originalOnBeforeRenders.get( object.uuid );
+			swapped.length = 0;
 
 		}
 
 		function onBeforeRender( renderer, scene, camera, geometry, material ) {
 
-			const originalMaterial = originalMaterials.get( material.uuid );
+			const originalMaterial = material.outlineOriginal;
 
 			// just in case
 			if ( originalMaterial === undefined ) return;
@@ -365,7 +367,7 @@ class OutlineEffect {
 
 				material.transparent = ( outlineParameters.alpha !== undefined && outlineParameters.alpha < 1.0 ) ? true : originalMaterial.transparent;
 
-				if ( outlineParameters.keepAlive !== undefined ) cache.get( originalMaterial.uuid ).keepAlive = outlineParameters.keepAlive;
+				if ( outlineParameters.keepAlive !== undefined ) cache.get( originalMaterial ).keepAlive = outlineParameters.keepAlive;
 
 			} else {
 
@@ -392,10 +394,8 @@ class OutlineEffect {
 
 		function cleanupCache() {
 
-			// Tyrian 3D (D91): Maps, cleared, rather than objects whose keys (every material and
-			// object ever outlined) piled up and were listed with Object.keys every frame.
-			originalMaterials.clear();
-			originalOnBeforeRenders.clear();
+			// Tyrian 3D (D91): a Map rather than an object whose keys (every material ever outlined)
+			// piled up and were listed with Object.keys every frame.
 
 			// remove unused outlineMaterial from cache
 
@@ -485,12 +485,11 @@ class OutlineEffect {
 			renderer.autoClear = false;
 			renderer.shadowMap.enabled = false;
 
-			scene.traverseVisible( setOutlineMaterial ); // Tyrian 3D (D91): hidden objects aren't drawn
-
 			// Tyrian 3D (D193): an object it has no outline material for is drawn with its own, so this
-			// render draws it a second time; the ones marked outlineSkip are hidden for it.
+			// render draws it a second time; the ones marked outlineSkip are hidden for it (found by
+			// the same walk, and hidden after it, D235).
 			skipped.length = 0;
-			scene.traverseVisible( hideSkipped );
+			scene.traverseVisible( setOutlineMaterial ); // Tyrian 3D (D91): hidden objects aren't drawn
 			for ( const object of skipped ) object.visible = false;
 
 			// Tyrian 3D (D206): this render runs inside the main render, into its target. three resolves
@@ -516,7 +515,7 @@ class OutlineEffect {
 			for ( const object of skipped ) object.visible = true;
 			skipped.length = 0;
 
-			scene.traverseVisible( restoreOriginalMaterial );
+			restoreOriginalMaterials(); // Tyrian 3D (D235): no third walk
 
 			cleanupCache();
 
@@ -542,6 +541,7 @@ class OutlineEffect {
 			const currentShadowMapEnabled = renderer.shadowMap.enabled;
 			renderer.shadowMap.enabled = false;
 			scene.traverse( setOutlineMaterial );
+			skipped.length = 0;
 
 			try {
 
@@ -549,7 +549,7 @@ class OutlineEffect {
 
 			} finally {
 
-				scene.traverse( restoreOriginalMaterial );
+				restoreOriginalMaterials();
 				renderer.shadowMap.enabled = currentShadowMapEnabled;
 
 			}

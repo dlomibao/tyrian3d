@@ -28,6 +28,7 @@ import type { ScreenHue, ScreenHueStage } from "./screenHue";
 import { SHOT_ART_LAYER, VFX_LAYER } from "./vfx/vfxMode";
 import { addLightsToLayer, isLight, restoreLights } from "./passLights";
 import { VFX_DRAWN_TWICE } from "./vfx/drawnTwice";
+import { OUTLINE_SHELL_LAYER } from "./modelPrep";
 
 /** Classic ticks per second (DECISIONS.md D2): the C runs each filter once a tick. */
 const TICK_HZ = 1000 / CLASSIC_TICK_MS;
@@ -1447,7 +1448,11 @@ export class ScreenFilterPass {
     r.shadowMap.autoUpdate = false;
     r.setClearColor(0x000000, 0);
     r.setRenderTarget(this.maskTarget);
+    // The models' outline shells (off the main pass's layers, D235) mark the mask as they always have.
+    const shells = camera.layers.isEnabled(OUTLINE_SHELL_LAYER);
+    camera.layers.enable(OUTLINE_SHELL_LAYER);
     r.render(scene, camera);
+    if (!shells) camera.layers.disable(OUTLINE_SHELL_LAYER);
     for (const m of art) m.visible = true;
     if (art.length > 0) {
       const saved = art.map((m) => ({ material: m.material, layers: m.layers.mask }));
