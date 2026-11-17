@@ -33,6 +33,11 @@ from input sheets of the original sprites. This tool does both ends of that loop
         (and joins beam pieces), in the committed atlases, once; `cut` applies the same file to what it
         cuts (D172).
 
+    python tools/flat_art.py shade [--sheets tyrian.shp#10]
+        Writes each frame's shade gain ("shade" in its manifest rect) for the renderer's palette
+        effects: the gain that spreads the painting's brightness shades as its sprite's palette
+        indices spread (D221). Run it after a cut or recolour of those sheets.
+
 A few frames are painted here instead of cut from Gemini's art (PAINTED: the Vulcan Cannon's
 tracers, D56); `cut` draws them with their painter and packs them with the rest.
 
@@ -629,7 +634,8 @@ def pack(frames: list[dict], width: int = 1024) -> tuple[np.ndarray, dict]:
         fx, fy = places[f["index"]]
         padded = np.pad(f["rgba"], ((PAD, PAD), (PAD, PAD), (0, 0)), mode="edge")
         atlas[fy - PAD:fy + h + PAD, fx - PAD:fx + w + PAD] = padded
-        rects[str(f["index"])] = {"x": fx, "y": fy, "w": w, "h": h, **({"scale": f["scale"]} if f.get("scale") else {})}
+        rects[str(f["index"])] = {"x": fx, "y": fy, "w": w, "h": h, **({"scale": f["scale"]} if f.get("scale") else {}),
+                                  **({"shade": f["shade"]} if f.get("shade") else {})}
     return atlas, rects
 
 
@@ -658,7 +664,8 @@ def pack_append(old: np.ndarray, old_rects: dict, frames: list[dict]) -> tuple[n
         h, w = f["rgba"].shape[:2]
         fx, fy = places[f["index"]]
         atlas[fy - PAD:fy + h + PAD, fx - PAD:fx + w + PAD] = np.pad(f["rgba"], ((PAD, PAD), (PAD, PAD), (0, 0)), mode="edge")
-        rects[str(f["index"])] = {"x": fx, "y": fy, "w": w, "h": h, **({"scale": f["scale"]} if f.get("scale") else {})}
+        rects[str(f["index"])] = {"x": fx, "y": fy, "w": w, "h": h, **({"scale": f["scale"]} if f.get("scale") else {}),
+                                  **({"shade": f["shade"]} if f.get("shade") else {})}
     return atlas, rects
 
 
@@ -674,6 +681,8 @@ def atlas_frames(out: Path, entry: dict, keep) -> list[dict]:
         f = {"index": i, "rgba": img[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]].copy()}
         if r.get("scale", entry.get("scale")):
             f["scale"] = r.get("scale", entry.get("scale"))
+        if r.get("shade"):
+            f["shade"] = r["shade"]  # D221's gain, until `shade` measures the sheet again
         out_frames.append(f)
     return out_frames
 
@@ -1036,6 +1045,80 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
     return manifest
 
 
+# --- Shade gains: the sprite's own shades under the C's palette effects (D221) ----------------------
+
+# The renderer gives a painting the shade 0..15 a palette ramp would have at its brightness
+# (spriteArtLayer.ts: Rec. 709 luma of the linear colour, to the power 1/2.2, times 15) wherever the
+# C recolours by palette index: the hit flash (blit_sprite2_filter), blit_sprite_hv, the level filter
+# and the smoothies' hues. The C keeps each pixel's own shade (index & 15) there. The palette's
+# saturated ramps are much darker by luma than by index (the blue gem's bank 3: shade 9 has the luma
+# of shade 5), so a painting true to the sprite's colours came out dark under them. A frame's "shade"
+# in the manifest scales its luma shade so that its shades spread as its sprite's indices do
+# (quantiles 10..95, least squares through 0); a 2x2 object (the inventory's units) gets one gain.
+SHADE_SHEETS = ("tyrian.shp#10",)
+SHADE_MIN_CHANGE = 0.05  # gains closer to 1 than this are left out of the manifest
+SHADE_LIMITS = (0.4, 3.0)
+INVENTORY = ROOT / "docs" / "roadmap" / "inventory.json"
+REC709 = np.array([0.2126, 0.7152, 0.0722])
+
+
+def shade_gain(gd: GameData, sheet: str, first: int, size: int, tiles: dict[int, np.ndarray]) -> float | None:
+    """The gain for an object whose atlas tiles are `tiles` ({index: rgba uint8}); None if too small to tell."""
+    shades, lums = [], []
+    for t in object_tiles(gd, sheet, first, size):
+        if t["index"] not in tiles:
+            continue
+        px = t["pixels"]
+        shades.append((px[px >= 0] & 15).astype(np.float64))
+        im = tiles[t["index"]].astype(np.float64) / 255
+        keep = im[..., 3] >= 0.5  # the shader discards texels under 0.5
+        lin = im[..., :3][keep] ** 2.2
+        lums.append(np.maximum(lin @ REC709, 0) ** (1 / 2.2) * 15)
+    s = np.concatenate(shades) if shades else np.zeros(0)
+    a = np.concatenate(lums) if lums else np.zeros(0)
+    if s.size < 4 or a.size < 16:
+        return None
+    q = np.linspace(10, 95, 18)
+    qa, qs = np.percentile(a, q), np.percentile(s, q)
+    if (qa * qa).sum() < 1e-6:
+        return None
+    return float(np.clip((qa * qs).sum() / (qa * qa).sum(), *SHADE_LIMITS))
+
+
+def shade_atlas(gd: GameData, out: Path, sheets: tuple[str, ...], inventory: dict) -> None:
+    """Write the listed sheets' frames' shade gains into out/manifest.json (the atlases are untouched).
+    Run it again after a cut or recolour of those sheets: the gains are measured on the paintings."""
+    manifest = json.loads((out / "manifest.json").read_text())
+    for sid in sheets:
+        sh = manifest["sheets"].get(sid)
+        if not sh:
+            continue
+        img = np.asarray(Image.open(out / sh["image"]).convert("RGBA"))
+        tiles = {int(k): img[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]] for k, r in sh["frames"].items() if "scale" not in r}
+        first_of: dict[int, int] = {}  # a 2x2 object's tile -> the object's first tile
+        for u in inventory.get("units", []):
+            if u.get("sheet") == sid and u.get("size") == 2:
+                for fl in u["frames"].values():
+                    for f in fl:
+                        for d in (0, 1, 19, 20):
+                            first_of.setdefault(f + d, f)
+        gains: dict[int, float | None] = {}
+        for i in sorted(tiles):
+            first = first_of.get(i, i)
+            if first not in gains:
+                gains[first] = shade_gain(gd, sid, first, 2 if i in first_of else 1, tiles)
+        n = 0
+        for k, r in sh["frames"].items():
+            i = int(k)
+            r.pop("shade", None)
+            g = gains.get(first_of.get(i, i)) if "scale" not in r else None
+            if g is not None and abs(g - 1) >= SHADE_MIN_CHANGE:
+                r["shade"] = round(g, 2)
+                n += 1
+        print(f"  {sid}: {n} of {len(sh['frames'])} frames get a shade gain")
+    (out / "manifest.json").write_text(dump_manifest(manifest))
+
+
 def contact_sheet(gd: GameData, frames: list[dict], palette: int, path: Path, cols: int = 6) -> None:
     """original (nearest, 8x) | remastered, for every frame, on a checker; label under each pair."""
     from PIL import ImageDraw
@@ -1083,8 +1166,15 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--config", type=Path, default=RECOLOUR)
     r.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
     r.add_argument("--only", help="comma-separated sheet:index (first tiles / join frames) to apply, e.g. tyrian.shp#7:121")
+    g = sub.add_parser("shade", help="write the frames' shade gains (D221) into the manifest; run after a cut or recolour of those sheets")
+    g.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
+    g.add_argument("--sheets", default=",".join(SHADE_SHEETS), help="comma-separated sheet ids (default the pickups, tyrian.shp#10)")
+    g.add_argument("--inventory", type=Path, default=INVENTORY, help="for the 2x2 objects (default docs/roadmap/inventory.json)")
     args = ap.parse_args(argv)
     gd = GameData(args.data)
+    if args.cmd == "shade":
+        shade_atlas(gd, args.out, tuple(args.sheets.split(",")), json.loads(args.inventory.read_text()))
+        return
     if args.cmd == "recolour":
         config = json.loads(args.config.read_text())
         if args.only:
