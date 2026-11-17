@@ -320,6 +320,16 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   ramp, D172; `cut` reapplies the file). Beam pieces stacked edge to edge (Zica Laser) → its `joins`.
 - **Cost/time:** level 1's 179 frames came from 11 sheets (D43); no workflow run log exists for it
   (done in the main loop). Budget ~12 Gemini requests per episode's new families, plus retries.
+- **Shop icons (D210, D226):** the item screen's pictures are Gemini paintings (`public/art/shop/icons.webp`,
+  `tools/shop_icons.py sheets|cut`), except the player ships, which are rendered from their 3D models
+  (`models.webp` + `models.json`, drawn over the paintings). **After any ship model changes, re-run**
+  `$PY tools/shop_icons.py models --check $W/models.png` (~1 min, no Gemini; starts its own dev server
+  on a free port 5220-5299, or `--server URL`): renders every shop picture the game draws as a model
+  (`?debug=shopicons`), cuts each onto its sprite's silhouette, rewrites only `models.*`. Accept: each
+  model's IoU against the inner mask ≥ 0.95 (the model's own D74 fit; printed per icon), a look at
+  `$W/models.png` (original | painting | render) and the Upgrade Ship → Ship menu. Sidekick pictures
+  (newsh1.shp) are separate drawings from the sidekicks' in-game sprites, so they have no model and
+  stay painted.
 
 ### 5. Music arrangements
 

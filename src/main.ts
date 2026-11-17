@@ -85,6 +85,11 @@ function startGame(): void {
     import("./debug/creditsHarness")
       .then(({ runCreditsHarness }) => runCreditsHarness(view))
       .catch((err) => console.error("credits harness failed", err));
+  } else if (debug === "shopicons") {
+    // The shop icons' model renders (src/debug/shopIconsHarness.ts, D226), for tools/shop_icons.py models.
+    import("./debug/shopIconsHarness")
+      .then(({ runShopIconsHarness }) => runShopIconsHarness(view))
+      .catch((err) => console.error("shop icons harness failed", err));
   } else if (new URLSearchParams(location.search).has("destruct")) {
     // Destruct, the hidden artillery game (src/destruct/), straight away.
     ui.attachBackdrop(new Backdrop(view.renderer));
