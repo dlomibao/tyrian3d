@@ -13939,3 +13939,37 @@ unaffordable price in a dimmer green, so a short price read as a gauge.
 **Options considered:** *dim the whole unaffordable row* (it also dims the icon, which the original doesn't); *the
 HUD's flat colours* (overlay.css, the minimal HUD) rather than the framed HUD's ramps (the default interface's).
 **Review:** the shop's ship and weapon submenus; fallback is reverting the four CSS files.
+
+## D233 — The ground compiles without the specular it multiplies by zero, and the HD terrain skips its bank lookups when no hue or level filter is on; every frame unchanged (GPU performance; follows D188, D205, D224)
+2026-11-17
+**Problem** (GPU scout, `tyrian-scratch/perf-scout/gpu/NOTES.md`): since D205 the rig's ground specular is 0, yet every
+ground, cutout and island-rock pixel still computed the environment's reflection (`getIBLRadiance`) and the sun's GGX
+highlight, which GROUND_SHEEN and CUTOUT_SPECULAR then multiplied by `groundSpecular` = 0. Instanced ground draws are
+most of a terrain level's GPU frame (68% of TYRIAN's at 4K). The HD terrain's `terrainPalette` also found every texel's
+nearest palette bank (an sRGB conversion, a LUT fetch, the screen hue loop) on frames where no hue and no level filter
+can change it.
+**Decision:**
+- `lighting.ts`: `groundSpecularOff()` (the shared `groundSpecular` uniform is 0 when the material compiles; the View's
+  `applyGroundLight` runs first). Then `patchGroundLight` defines `GROUND_NO_SPECULAR` and inlines three's
+  `lights_fragment_maps` and `lights_physical_pars_fragment` with `iblRadiance = vec3(0)` and `specularBRDF = vec3(0)`
+  (`NO_SPECULAR_EDITS`). The indirect specular call stays: its multiscatter terms feed the diffuse's energy conservation.
+  GROUND_SHEEN and CUTOUT_SPECULAR set both speculars to 0 under the define, so the HD ground's `groundSheen` is a
+  constant 0 there. If three's chunk text changes, a warning, and the ground computes its specular and zeroes it as
+  before (the same picture at the old cost); a test pins the two lines.
+- The mode is in each ground material's `customProgramCacheKey` (`groundLightCacheKey()`: pixel ground, 4x ground, HD
+  ground and cutouts, the island rock). `?lighting=old` (ground specular 1) and a dev `&lt=g.specular:x` compile as before.
+- `terrainMaterial.ts` `terrainPalette`: the bank lookup and hue path run only when `screenHueCount > 0` or a level filter
+  is on; the level brightness branch is kept. With no hue, `screenHueIndex` returned the index unchanged, so this is
+  the same result.
+**Checked** (headless Chrome, ANGLE Metal, M5 Pro, shared with other agents; `tyrian-scratch/perf-gpu/`): TYRIAN t1000,
+GYGES t6300, SAVARA Y t1050 (the early-out taken), CAMANIS t3300 (a level filter), BRAINIAC t3475 and LAVA RUN t1500 (a
+smoothie hue), TYRIAN `?lighting=old`. Pixels at 1920x1080, the WebGL frame with the smoothies' history reset: origin/main's
+build against this one, twice each, no pixel more than 2 levels apart (max 1), apart from an 87x64 patch of sparks in
+TYRIAN that differs between any two page loads of either build; in-page (this build's ground recompiled as before, the
+same frame, sparks included) none at all, max 1, also at 3840x2160. GPU p25 per frame, before → after (min of 3-5
+alternating rounds; deltas under 0.3 ms are noise here): 1080p across builds TYRIAN 0.78 → 0.59 ms, GYGES 3.52 → 2.67,
+SAVARA Y 1.12 → 0.88, LAVA RUN 2.24 → 1.97, CAMANIS 1.37 → 1.14, BRAINIAC 1.43 → 1.37, `?lighting=old` 0.78 → 0.69 (no
+change in its shaders: noise); 4K in-page TYRIAN 2.42 → 1.64 (-32%), SAVARA Y 4.35 → 2.86 (-34%).
+**Options considered:** *a runtime branch on `groundSpecular`* (one program for both rigs, but the specular code stays
+in every ground shader); *editing three's chunks globally* (the models keep their specular, art rule 2).
+**Review:** fallback is reverting the five render files; `?lighting=old` still draws the old ground.

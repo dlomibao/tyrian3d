@@ -194,19 +194,82 @@ gl_FragColor.rgb = groundUntoed(gl_FragColor.rgb);
 /** The HD terrain's cutouts (painted over the ground) take the ground's specular scale. */
 export const CUTOUT_SPECULAR = /* glsl */ `
 #include <aomap_fragment>
+#ifdef GROUND_NO_SPECULAR
+reflectedLight.directSpecular = vec3(0.0);
+reflectedLight.indirectSpecular = vec3(0.0);
+#else
 reflectedLight.directSpecular *= groundSpecular;
 reflectedLight.indirectSpecular *= groundSpecular;
+#endif
 `;
+
+/**
+ * Whether the ground materials compile without specular (D233): the rig's ground specular is 0 (every
+ * rig since D205 but `?lighting=old`, or a dev `&lt=g.specular:` override), so the environment's
+ * reflection and the sun's highlight, which GROUND_SHEEN and CUTOUT_SPECULAR multiply by it, are not
+ * computed at all. Read as a material compiles; the View's applyGroundLight has run by then.
+ */
+export function groundSpecularOff(): boolean {
+  return GROUND_LIGHT_UNIFORMS.groundSpecular.value === 0;
+}
+
+/** patchGroundLight's mode, for the ground materials' customProgramCacheKey. */
+export function groundLightCacheKey(): string {
+  return groundSpecularOff() ? "|ground-nospec" : "|ground-spec";
+}
+
+/**
+ * The lines of three's chunks that compute the ground's specular radiance (D233): the environment's
+ * reflection and the sun's GGX highlight, replaced by zero. The indirect specular call stays: its
+ * multiscatter terms feed the diffuse's energy conservation.
+ */
+export const NO_SPECULAR_EDITS: readonly { chunk: string; from: string; to: string }[] = [
+  {
+    chunk: "lights_fragment_maps",
+    from: "vec3 iblRadiance = getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );",
+    to: "vec3 iblRadiance = vec3( 0.0 );",
+  },
+  {
+    chunk: "lights_physical_pars_fragment",
+    from: "vec3 specularBRDF = BRDF_GGX( directLight.direction, geometryViewDir, geometryNormal, material );",
+    to: "vec3 specularBRDF = vec3( 0.0 );",
+  },
+];
+
+/**
+ * The edited chunks, by include line; null if three's text changed (then the ground computes its
+ * specular and GROUND_NO_SPECULAR zeroes it, the same picture at the old cost).
+ */
+let noSpecularChunks: Map<string, string> | null | undefined;
+function noSpecularChunkTexts(): Map<string, string> | null {
+  if (noSpecularChunks !== undefined) return noSpecularChunks;
+  const chunks = THREE.ShaderChunk as unknown as Record<string, string>;
+  noSpecularChunks = new Map();
+  for (const e of NO_SPECULAR_EDITS) {
+    const text = chunks[e.chunk] ?? "";
+    if (!text.includes(e.from)) {
+      console.warn(`lighting: three's ${e.chunk} changed; the ground computes its specular again (D233)`);
+      return (noSpecularChunks = null);
+    }
+    noSpecularChunks.set(`#include <${e.chunk}>`, text.replace(e.from, e.to));
+  }
+  return noSpecularChunks;
+}
 
 /**
  * Give a ground material's shader (onBeforeCompile) the ground's light (GROUND_LIGHT_UNIFORMS): the
  * sun's, hemisphere's and environment's shares, and Neutral's toe undone. Its specular takes
- * `groundSpecular` through GROUND_SHEEN (paletteMaterial.ts) or CUTOUT_SPECULAR, which the caller puts in.
+ * `groundSpecular` through GROUND_SHEEN (paletteMaterial.ts) or CUTOUT_SPECULAR, which the caller puts
+ * in; with none (groundSpecularOff), it isn't computed (D233), and the material's
+ * customProgramCacheKey must take groundLightCacheKey().
  */
 export function patchGroundLight(shader: THREE.WebGLProgramParametersWithUniforms): void {
   Object.assign(shader.uniforms, GROUND_LIGHT_UNIFORMS);
+  const off = groundSpecularOff();
   shader.fragmentShader = shader.fragmentShader
-    .replace("#include <common>", `#include <common>\n${GROUND_LIGHT_PARS}`)
+    .replace("#include <common>", `#include <common>\n${off ? "#define GROUND_NO_SPECULAR\n" : ""}${GROUND_LIGHT_PARS}`)
     .replace("#include <lights_fragment_end>", GROUND_LIGHT_END)
     .replace("#include <tonemapping_fragment>", GROUND_UNTOE);
+  if (!off) return;
+  for (const [include, text] of noSpecularChunkTexts() ?? []) shader.fragmentShader = shader.fragmentShader.replace(include, text);
 }

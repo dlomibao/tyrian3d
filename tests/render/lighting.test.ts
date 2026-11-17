@@ -10,8 +10,10 @@ import {
   GROUND_SUN_SHARE,
   LIGHTING_RIGS,
   SUN_UP_COS,
+  NO_SPECULAR_EDITS,
   applyGroundLight,
   groundLight,
+  groundSpecularOff,
   lightingModeFromSearch,
   lightingRig,
   patchGroundLight,
@@ -146,5 +148,55 @@ describe("patchGroundLight", () => {
     const under = { uniforms: {} } as unknown as Parameters<typeof groundTileMaterial>[2];
     const blend = compile(groundTileMaterial(palette, atlas, under));
     expect(blend.fragmentShader).not.toContain("groundUntoed");
+  });
+});
+
+describe("the ground without specular (D233)", () => {
+  const physical = () =>
+    ({
+      uniforms: {} as Record<string, THREE.IUniform>,
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+    }) as THREE.WebGLProgramParametersWithUniforms;
+  const chunks = THREE.ShaderChunk as unknown as Record<string, string>;
+
+  test("three's chunks still have the lines it replaces", () => {
+    for (const e of NO_SPECULAR_EDITS) expect(chunks[e.chunk]).toContain(e.from);
+  });
+
+  test("the current rig compiles the ground without the environment's reflection and the sun's highlight", () => {
+    applyGroundLight(LIGHTING_RIGS.new);
+    expect(groundSpecularOff()).toBe(true);
+    const shader = physical();
+    patchGroundLight(shader);
+    const f = shader.fragmentShader;
+    expect(f).toContain("#define GROUND_NO_SPECULAR");
+    for (const e of NO_SPECULAR_EDITS) {
+      expect(f).not.toContain(`#include <${e.chunk}>`);
+      expect(f).toContain(e.to);
+      expect(f).not.toContain(e.from);
+    }
+    // The indirect specular call stays: its multiscatter terms keep the diffuse as it was.
+    expect(f).toContain("computeMultiscattering( material.dfg");
+    expect(f).toContain("#include <lights_fragment_end>");
+  });
+
+  test("?lighting=old (ground specular 1) compiles as before, under another program key", () => {
+    const palette = { texture: new THREE.DataTexture(), screenHue: { uniforms: {} } } as unknown as PaletteTexture;
+    const atlas = { texture: new THREE.DataTexture(), tileUv: new THREE.Vector2(1, 1) } as unknown as TileAtlas;
+    const m = groundTileMaterial(palette, atlas);
+    applyGroundLight(LIGHTING_RIGS.new);
+    const keyNew = m.customProgramCacheKey();
+    applyGroundLight(lightingRig("?lighting=old"));
+    try {
+      expect(groundSpecularOff()).toBe(false);
+      expect(m.customProgramCacheKey()).not.toBe(keyNew);
+      const shader = physical();
+      patchGroundLight(shader);
+      expect(shader.fragmentShader).not.toContain("GROUND_NO_SPECULAR");
+      for (const e of NO_SPECULAR_EDITS) expect(shader.fragmentShader).toContain(`#include <${e.chunk}>`);
+    } finally {
+      applyGroundLight(LIGHTING_RIGS.new);
+    }
   });
 });
