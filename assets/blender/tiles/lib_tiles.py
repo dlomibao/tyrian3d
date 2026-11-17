@@ -590,7 +590,7 @@ def _data_image(name, rgb, alpha=None):
     return img
 
 
-def rock_material(name, ch, ramps=rh.RAMPS, bands=None, alpha=None):
+def rock_material(name, ch, ramps=rh.RAMPS, bands=None, alpha=None, ground=True):
     """The HD rock material `name` with its texture from `ch` (lib_rock_hd.compose): R the shade,
     G the ramp code, B the height (the game's bump), sampled on the "rock" UV map. Marked
     `tyrian_rock_ramps` (the palette ramps the G code steps through; the game draws it with
@@ -599,7 +599,10 @@ def rock_material(name, ch, ramps=rh.RAMPS, bands=None, alpha=None):
     second texture (lib_rock_hd.band_texture, on the emission slot, which the game reads as data),
     their keys in `tyrian_rock_bands`, row by row, BAND_DEPTH rows each. `alpha` (the texture's size,
     0..1): the rock's coverage, in the texture's alpha; the game draws it translucent by it
-    (`tyrian_rock_fade`: an enemy's rock fading into the island under it)."""
+    (`tyrian_rock_fade`: an enemy's rock fading into the island under it). `ground`: marked
+    `tyrian_rock_ground`, the game lights it as the ground (D205's share of the lights, no blue sky,
+    no sheen; D223), so the island rock shows the palette colours of its texture as the terrain
+    beside it does; False keeps the models' light (the TORM waterfall, toned for it, D212)."""
     mat = bpy.data.materials.get(name)
     if mat is not None:
         return mat
@@ -622,6 +625,8 @@ def rock_material(name, ch, ramps=rh.RAMPS, bands=None, alpha=None):
     mat["tyrian_plain"] = True
     if alpha is not None:
         mat["tyrian_rock_fade"] = True
+    if ground:
+        mat["tyrian_rock_ground"] = True
     if bands:
         keys, rgb = rh.band_texture(bands)
         btex = nt.nodes.new("ShaderNodeTexImage")

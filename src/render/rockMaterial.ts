@@ -15,8 +15,16 @@
 // With the Options terrain look "original" (terrainStyle.ts) the same texture is drawn one colour per
 // original 2x pixel, whole shades and ramps, without the bump: the pixel look of the islands, as the
 // original look draws the ground from its MMPX tiles.
+//
+// The island rock is ground, so a material marked `tyrian_rock_ground` (lib_tiles.rock_material: the
+// island tiles, the structures' rock, the rock round the enemies' machines) takes the ground's share
+// of the lights (D205, lighting.ts patchGroundLight): sun and white environment summing to its
+// palette colour facing up, no blue hemisphere, no sheen, Neutral's toe undone. Under the models'
+// light it came out about a third brighter, bluer than the terrain beside it (D222, D223). One
+// without the mark (the TORM waterfall, toned for the models' light, D212) keeps the models' light.
 
 import * as THREE from "three";
+import { CUTOUT_SPECULAR, patchGroundLight } from "./lighting";
 import type { PaletteTexture } from "./paletteTexture";
 
 /** Texels per 2x pixel of the original art in the rock textures (lib_rock_hd.TEX / 2). */
@@ -24,6 +32,13 @@ const TEXELS_PER_CELL = 4;
 /** How far the texture's height raises the surface for the bump (three.js bumpScale). */
 export const ROCK_BUMP = 5;
 const MAX_RAMPS = 4;
+/**
+ * The ground's light on the rock, scaled up by this (D223): the bump tilts its normals away from the
+ * up-facing light the ground's share is calibrated on (D205), which took about a tenth of it off
+ * (NOSE DRIP t3300, linear, with and without the bump). Only in the current rig (where the ground
+ * undoes the toe); `?lighting=old` draws the rock as before.
+ */
+export const ROCK_GROUND_GAIN = 1.1;
 
 /** What a rock material is made from (to clone it with its own hue). */
 interface RockInfo {
@@ -35,6 +50,8 @@ interface RockInfo {
   fade?: boolean;
   /** A structure's cell (row, column in its pattern): its bands are those of that cell's neighbours. */
   cell?: [number, number];
+  /** Lit as the ground (`tyrian_rock_ground`, D223), not as the models. */
+  ground?: boolean;
   palette: PaletteTexture;
   source: THREE.MeshStandardMaterial;
   hue: { value: number };
@@ -81,6 +98,11 @@ export function rockRamps(m: THREE.Material): readonly number[] | undefined {
 
 /** The sides of a tile, in the order of the `rockBands` instance attribute. */
 export const ROCK_SIDES = ["left", "right", "up", "down"] as const;
+
+/** Whether a rock material takes the ground's light (`tyrian_rock_ground`, D223) instead of the models'. */
+export function rockGroundLit(m: THREE.Material): boolean {
+  return info.get(m)?.ground === true;
+}
 
 /** Whether a rock material has edge bands (a per-tile island model, D84): its mesh needs `rockBands`. */
 export function hasRockBands(m: THREE.Material): boolean {
@@ -247,6 +269,14 @@ function makeRock(i: RockInfo): THREE.MeshStandardMaterial {
         .replace("#include <common>", "#include <common>\nattribute vec4 rockBands;\nvarying vec4 vRockBands;")
         .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRockBands = rockBands;");
     }
+    if (i.ground) {
+      // The ground's light (D205): its share of the sun and environment, its specular scale (none).
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <aomap_fragment>",
+        `${CUTOUT_SPECULAR}\n{\n  float rockGain = mix(1.0, ${ROCK_GROUND_GAIN.toFixed(3)}, groundUntoe);\n  reflectedLight.directDiffuse *= rockGain;\n  reflectedLight.indirectDiffuse *= rockGain;\n}`,
+      );
+      patchGroundLight(shader);
+    }
   };
   if (i.bands) m.defines = { ROCK_BANDS: "" };
   if (i.fade) {
@@ -254,7 +284,7 @@ function makeRock(i: RockInfo): THREE.MeshStandardMaterial {
     m.defines = { ...m.defines, ROCK_FADE: "" };
     m.transparent = true;
   }
-  m.customProgramCacheKey = () => `rock-hd${i.bands ? "-bands" : ""}${i.fade ? "-fade" : ""}`;
+  m.customProgramCacheKey = () => `rock-hd${i.bands ? "-bands" : ""}${i.fade ? "-fade" : ""}${i.ground ? "-ground" : ""}`;
   info.set(m, { ...i, hue });
   return m;
 }
@@ -281,9 +311,10 @@ export function rockMaterial(source: THREE.MeshStandardMaterial, palette: Palett
     };
   }
   const fade = source.userData.tyrian_rock_fade === true || source.userData.tyrian_rock_fade === 1;
+  const ground = source.userData.tyrian_rock_ground === true || source.userData.tyrian_rock_ground === 1;
   const c = source.userData.tyrian_rock_cell;
   const cell: [number, number] | undefined = Array.isArray(c) && c.length === 2 ? [Number(c[0]), Number(c[1])] : undefined;
-  return makeRock({ map, ramps: (source.userData.tyrian_rock_ramps as number[]).map(Number), bands, fade, cell, palette, source, hue: { value: -1 } });
+  return makeRock({ map, ramps: (source.userData.tyrian_rock_ramps as number[]).map(Number), bands, fade, cell, ground, palette, source, hue: { value: -1 } });
 }
 
 /** A copy of a rock material with its own hue (an enemy clone flashes on its own). */

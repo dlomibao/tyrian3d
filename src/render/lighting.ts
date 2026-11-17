@@ -8,8 +8,9 @@
 //
 // The models, the lit sprites and the rocks keep the sun and the hemisphere as they were (their art was
 // made and reviewed under them, and their sheen is the sun's highlights and the environment's
-// reflections, art rule 2), with a little less environment (MODEL_ENVIRONMENT). The ground materials
-// take their own share of the same lights (GroundLight, as uniforms): the sun's diffuse and the
+// reflections, art rule 2), with a little less environment (MODEL_ENVIRONMENT). The ground materials,
+// and since D223 the island rock (rockMaterial.ts, `tyrian_rock_ground`), take their own share of
+// the same lights (GroundLight, as uniforms): the sun's diffuse and the
 // environment's (white) diffuse summing to GROUND_LIGHT facing up, no hemisphere (its sky is blue), no
 // specular (the paintings carry their own highlights), and Neutral's toe undone on their colour
 // (GROUND_UNTOE), so a palette colour lit 1.0 shows as itself, darks included.

@@ -3,6 +3,7 @@
 // tile's neighbours; an enemy clone flashes on its own; the Options terrain look switches it.
 import * as THREE from "three";
 import { describe, expect, test } from "vitest";
+import { GROUND_LIGHT_UNIFORMS } from "../../src/render/lighting";
 import { colourFrame, rigModel } from "../../src/render/modelFrames";
 import { PaletteTexture } from "../../src/render/paletteTexture";
 import {
@@ -11,6 +12,7 @@ import {
   hasRockBands,
   isRockMaterial,
   rockBandSlot,
+  rockGroundLit,
   rockLookIsHd,
   setRockLook,
 } from "../../src/render/rockMaterial";
@@ -88,6 +90,51 @@ describe("rock material", () => {
     expect(shader.fragmentShader).toContain("rockTexel(vMapUv)");
     expect(shader.fragmentShader).not.toContain("#include <bumpmap_pars_fragment>");
     expect(shader.fragmentShader).toContain("rockBumpH( vBumpMapUv + dSTdx )");
+  });
+
+  test("island rock marked tyrian_rock_ground takes the ground's light; unmarked rock keeps the models' (D223)", () => {
+    const compile = (m: THREE.Material) => {
+      const shader = {
+        uniforms: {} as Record<string, { value: unknown }>,
+        vertexShader: "#include <common>\n#include <begin_vertex>",
+        fragmentShader:
+          "#include <common>\n#include <map_pars_fragment>\n#include <bumpmap_pars_fragment>\n#include <map_fragment>\n#include <aomap_fragment>\n#include <lights_fragment_end>\n#include <tonemapping_fragment>",
+      };
+      (m.onBeforeCompile as (s: typeof shader, r: unknown) => void)(shader, null);
+      return shader;
+    };
+    const lit = tile();
+    lit.mat.userData.tyrian_rock_ground = true;
+    adoptRockMaterials(lit.root, new PaletteTexture());
+    const ground = (lit.root.children[0] as THREE.Mesh).material as THREE.Material;
+    expect(rockGroundLit(ground)).toBe(true);
+    const g = compile(ground);
+    // The shared ground uniforms (applyGroundLight sets them from the rig), not copies.
+    expect(g.uniforms.groundSun).toBe(GROUND_LIGHT_UNIFORMS.groundSun);
+    expect(g.uniforms.groundHemi).toBe(GROUND_LIGHT_UNIFORMS.groundHemi);
+    expect(g.uniforms.groundSpecular).toBe(GROUND_LIGHT_UNIFORMS.groundSpecular);
+    expect(g.fragmentShader).toContain("reflectedLight.directDiffuse *= groundSun;");
+    expect(g.fragmentShader).toContain("iblIrradiance *= groundEnvironment;");
+    expect(g.fragmentShader).toContain("reflectedLight.directSpecular *= groundSpecular;");
+    expect(g.fragmentShader).toContain("groundUntoed(gl_FragColor.rgb)");
+    // The bump's share back, in the current rig only.
+    expect(g.fragmentShader).toContain("reflectedLight.indirectDiffuse *= rockGain;");
+    expect(g.uniforms.groundUntoe).toBe(GROUND_LIGHT_UNIFORMS.groundUntoe);
+    // The rock's own colour patch is still there.
+    expect(g.fragmentShader).toContain("rockTexel(vMapUv)");
+    // A clone (an enemy's own hue) keeps the ground light.
+    expect(rockGroundLit(cloneRockMaterial(ground))).toBe(true);
+
+    const plain = tile();
+    adoptRockMaterials(plain.root, new PaletteTexture());
+    const model = (plain.root.children[0] as THREE.Mesh).material as THREE.Material;
+    expect(rockGroundLit(model)).toBe(false);
+    const p = compile(model);
+    expect(p.uniforms.groundSun).toBeUndefined();
+    expect(p.fragmentShader).toContain("#include <lights_fragment_end>");
+    expect(p.fragmentShader).not.toContain("groundSun");
+    // Different programs.
+    expect(ground.customProgramCacheKey()).not.toBe(model.customProgramCacheKey());
   });
 
   test("the terrain look switches between smooth and pixel rock", () => {
