@@ -13,7 +13,9 @@ What the tiles paint, and how it is built (pattern px, y down; 1 unit = 12 px; z
 - the brown channels (tiles 365/367/379/385/387/389/366/376, a strip 16-18 px wide through each cell's
   centre, rounded at the turns): recessed 1 px under the deck, floored with the ASTEROID? station
   kit's dirt (lib_l1kit.Kit.dirt, D148: the art's dark earth with its rust mud, not pavers);
-- the boulders' facets in the kit's ramp by their face to the sun (lib_l1kit.facet_index, D148);
+- the boulders: rounded lumps of small flat chips in the asteroid belt rim rock's ramp (lib_l1kit.rim_ramp,
+  D216: the art's brightness under each chip, its face to the art's light and its height, matched to the
+  rim band's own shades), plain matte, as the belt's rock beside the junction (D148's sun ramp read lighter);
 - the stem's open end: it runs on through the pattern's row 10 (the base complex's row 0, tiles
   363 389 364) down to the base's kerb comb at JOIN_PY (py 299), where the base model starts (its
   JOIN_Y); the channel is the base's own strip (STEM_X), its floor climbs three sluice steps to the
@@ -229,16 +231,21 @@ def box(b, x0, y0, x1, y1, z0, z1, mat, chamfer=0.0, drop=0.0):
     prism(b, poly, [], z0, z1, mat, chamfer=chamfer, drop=drop)
 
 
-def boulder(b, cx, cy, rx, ry, angle, z0, z1, mat, rng, sides=7):
-    """A faceted boulder: base ring, a wide shoulder, a narrower upper ring and a small, off-centre
-    top facet (lit from the upper left, as the art), all slightly irregular: rock, flat-shaded.
-    `mat` is a function of a face's normal (the station kit's facet ramp, D148) or a slot."""
+BOULDER_PROFILE = [(0.0, 1.0), (0.3, 0.99), (0.56, 0.91), (0.78, 0.74), (0.92, 0.5), (1.0, 0.24)]  # D216: rounder
+
+
+def boulder(b, cx, cy, rx, ry, angle, z0, z1, mat, rng, sides=7, into=None):
+    """A faceted boulder: rings up a rounded profile (BOULDER_PROFILE) to a small, off-centre top
+    facet (leaning to the light, upper left, as the art), all slightly irregular: rock, flat-shaded.
+    `mat` is a function of a face's normal or a slot. `into` (a bmesh): build there, not merged (the
+    caller shades all the boulders' chips at once, lib_l1kit.rim_ramp)."""
     ca, sa = math.cos(angle), math.sin(angle)
     h = z1 - z0
-    prof = [(0.0, 1.0), (0.42, 0.99), (0.78, 0.76), (1.0, 0.3)]
+    prof = BOULDER_PROFILE
     jit = [1.0 + (rng.random() - 0.5) * 0.28 for _ in range(sides)]
     tw = [(rng.random() - 0.5) * 0.35 for _ in range(sides)]
-    bm = bmesh.new()
+    bm = bmesh.new() if into is None else into
+    first = len(bm.faces)
     rings = []
     shift = (-0.18 * rx, -0.18 * ry)  # the top leans to the light (upper left in pattern px)
     for k, (fz, sc) in enumerate(prof):
@@ -259,11 +266,14 @@ def boulder(b, cx, cy, rx, ry, angle, z0, z1, mat, rng, sides=7):
             j = (i + 1) % sides
             bm.faces.new((a[i], a[j], c[j], c[i]))
     bm.faces.new(list(reversed(rings[0])))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.normal_update()
-    for f in bm.faces:
+    bm.faces.ensure_lookup_table()
+    mine = [bm.faces[i] for i in range(first, len(bm.faces))]
+    bmesh.ops.recalc_face_normals(bm, faces=mine)
+    for f in mine:
+        f.normal_update()
         f.material_index = mat_of(f.normal)
-    b._merge(bm)
+    if into is None:
+        b._merge(bm)
 
 
 def brick_field(field, bw, bh, gap, make, grid, phase=0, min_w=2.2):
@@ -457,6 +467,7 @@ def build(bake=True, views=None):
     lumg = np.where(grid >= 0, lum[np.maximum(grid, 0)], 0.0)
     stones = lt.hills(lumg, rock & live & (grid >= 2), sigma=1.6, floor=0.17)
     nr = 0
+    bbm = bmesh.new()  # every boulder, shaded together in the belt rock's ramp (D216)
     for ys, xs in stones:
         if len(ys) < 5:
             continue
@@ -474,11 +485,17 @@ def build(bake=True, views=None):
         vi = int(min(idx["rock"] + 2, max(idx["rock"] - 1, vi)))
         r = (rx + ry) / 2
         top = min(ROCK_TOP, BED + 0.08 + 0.034 * r + 0.03 * rng.random())
-        # each facet by its face to the sun (the kit's ramp, 3..8 round the median 5), shifted by
-        # this stone's own index from the art
-        shade = (lambda vi_: (lambda n_: m(int(min(10, max(2, kit.facet_index(n_) + vi_ - 5))), roughness=0.85)))(vi)
-        boulder(b, cx, cy, rx, ry, ang, BED - 0.06, top, shade, rng, sides=rng.choice((6, 7)))
+        # (vi, the stone's own index from the art: the ramp below ranks by the art's brightness instead)
+        boulder(b, cx, cy, rx, ry, ang, BED - 0.06, top, 0, rng, sides=2 * rng.choice((6, 7)), into=bbm)
         nr += 1
+    x0, x1, y0, y1 = b.x(0.0), b.x(1.0), b.y(0.0), b.y(1.0)
+    info = []
+    for f in bbm.faces:
+        c, n_ = f.calc_center_median(), f.normal
+        info.append(((n_.x, n_.y, n_.z), ((c.x - x0) / (x1 - x0), (c.y - y0) / (y1 - y0)), c.z, f.calc_area() * max(n_.z, 0.0)))
+    for f, i in zip(bbm.faces, kit.rim_ramp(info, np.maximum(grid, 0), lumg, rock & live)):
+        f.material_index = m(i, roughness=0.85, plain=True)
+    b._merge(bbm)
     print(f"boulders {nr}")
 
     coll = common.reset_collection("pipe-junction")

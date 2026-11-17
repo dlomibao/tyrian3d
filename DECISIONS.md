@@ -11674,3 +11674,68 @@ bevelled rim blocks (`lib_l1bld.rim_rocks`), lighter and blockier beside these; 
 repeats every 28 px, as the art does. A rim cell under an opaque ground enemy's sprite is left out (D86's rule).
 
 **Cost:** one Opus agent.
+
+## D216 — Rock polish: the arch's left leg becomes a few broad slabs on the sprite's own cracks with rounded crests and a wider pale crown; the asteroid rim's boulders part on dark gutters with crisper chips; the seven ASTEROID? bases' rim stones take the belt rock's ramp and rounder chips (follows D148, D175, D209, D211)
+
+2026-11-17
+
+**Problem:** D209 and D211 left these open. On the arch, the left leg (the `arch-leg-left` tile model, 162 and 241 above it)
+read as fluted organ-pipe columns: seven traced vertical cracks and four "flutes", each column domed. The sprite
+draws a few big irregular slabs there, with diagonal, branching dark cracks and a pale lit upper-left face. Side and
+oblique views showed a comb of spiky fins, and on SURFACE the pale crown band was narrower than the sprite's. On the
+asteroid belt, the rim boulders read softer and less separate than the tile art, and on ASTEROID? the seven `l1bld`
+bases (D141, D148) kept their own lighter, blockier rim stones next to the new rock.
+
+**Decision:**
+- **The arch** (`lib_arch_rock.py`; the arch, the edge rocks, the wall stretch and both leg tiles rebuilt):
+  - *Left leg:* the flutes (L3-L6) and the outer-edge line L0 are gone. The main cracks are traced on the
+    sprite's and leg tiles' dark crack pixels: the knuckle's inner crack and the lit face's crack run down-left
+    to the leg's top break `D_join` (the dark row 59-61 across the tiles) and the knee `D_outer`. Under them the
+    foot is three blocks split by the tiles' two big dark slots (L1 at columns 11-16, `L2b_foot` at 27-30), with
+    shallow diagonal breaks (`B_l1`-`B_l4`) where the art's cracks branch. That makes six slabs where there were
+    about eleven columns. The right leg keeps its two flutes, R3 and R4.
+  - *No fins:* a slab's bulge is capped at `DOME_W` (0.55) times its half width, and the bulge field is blurred
+    over `DOME_SMOOTH` (1.1 px) so its crest is round. The crest was the distance field's crease, which drew a
+    sharp ridge on every narrow slab.
+  - *Pale crown:* over the crown (crest envelope >= 16.5) the outer shoulder rises over `RO_CROWN` 6.5 px
+    instead of 11, so the sprite's pale band sits on the broad top and not on a north slope the tilted camera
+    foreshortens. The pale tone (>= 24.5) is also carried up to 3 px further toward the opening, 0.35 index
+    dimmer per px. Crack floors are 2.5 indices darker, up from 1.5; the tone smoothing had blurred the sprite's
+    dark crack lines.
+  - The silhouette field is unchanged. Top-view IoU on the rule grid is the same as D209's: whole 0.9913,
+    per-piece rectangles 0.9868-1.0. Per model (its own cells against its own pixels) it is 0.9931-1.0, with
+    the left leg at 0.9941. Triangles are the same, 20,904. The glbs and JSON contracts are unchanged; only the
+    geometry and tone are new.
+- **The belt rim** (`lib_rim_rock.py`, the twelve `rim-*.glb`):
+  - Each boulder's dome now starts `CREVICE` (0.9 px) inside its stone where the stone meets other rock, which
+    leaves a gutter down to the bed between two boulders. There is no gutter toward space. Where a gutter would
+    open the rock that D211's domes covered, its floor stays `GUTTER_MIN` above the outline's level, so the
+    outline is kept: top-view coverage against main is 0.964-0.989 per tile after the seam pass.
+  - A low chip (< 0.075) over the art's dark crevice pixels takes the art's crevice index, 2. The outline's
+    ring is excluded.
+  - Chips are larger (16 degrees and 2.2 px, up from 13 degrees and 1.6 px). The rank leans more on facing the
+    light: art brightness 0.42 (was 0.55), light 0.38 (was 0.25), height 0.2.
+  - D211's seam rule still holds: all 57 neighbour pairs match exactly (mismatch 0).
+- **The ASTEROID? bases** (`lib_l1kit.py`, `l1bld_pipe_junction.py`, the seven `l1bld-*.glb`):
+  - The rim stones' chips are shaded by `lib_l1kit.rim_ramp`, the belt rock's ramp: the art's brightness under
+    each chip, its face to the art's light and its height, ranked with lib_rim_rock's weights and matched to the
+    art's own shades in the rim band with its dark bias. Each grey is one plain matte material (roughness 0.85).
+    D148's sun ramp (`facet_index`, 3..8, a flat top already 7) was a step or two lighter than the belt.
+  - Each stone (`Kit.rim_stone`) is rings up a rounded profile (`RIM_RINGS`) over D148's same foot and heights.
+  - The pipe junction's own boulders get a six-ring profile with twice the sides, shaded together by the same ramp.
+  - The kerb posts, the pebbles and every other part are unchanged. Stone heights, enemy-cell caps and feet
+    are D148's.
+  - Top-view IoU: base complex 0.9888, cross pad 0.9807, bunker 0.9834, light bridge 0.9846, ring dome 0.9793,
+    red bar 0.9755, pipe junction 0.993. The glbs grow 9-15% (base complex 2.87 -> 3.23 MB, meshopt).
+
+**Result** (`&compare=1`, original | main | new): on SURFACE t1800 and DESERTRUN t300 the left leg reads as a lit
+knuckle face over a broken top row and three dark-cracked foot blocks, not pipes. The left crown's pale band is
+broader, and front and side views have no comb of fins. On ASTEROID1 t1525 the belt's boulders part on dark lines,
+with belt luma over a fixed belt box at 58 original, 64 main and 61 new (p5 24 / 26 / 23). On ASTEROID? the bases' rims now read as the belt's grey rock, no longer as light angular
+blocks. Captures are in `tyrian-scratch/rock-polish/final/` (`summary.png`; not in git, D3).
+
+**Open:** the right leg keeps its two flutes and its ribbed crown cracks (R2-R4, C1-C6) in oblique views. The
+bases' stones have no ink outline (the belt's rim does, D211). Their height (0.36-0.47 on a 0.14 bed) stays above
+the belt's 0.30, because they ring a raised deck.
+
+**Cost:** one Opus agent.
