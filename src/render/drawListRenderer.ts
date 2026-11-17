@@ -43,7 +43,7 @@ import { PaletteTexture } from "./paletteTexture";
 import { passHeight } from "./passHeights";
 import { SpriteMeshCache } from "./spriteMesh";
 import { colourFrame, rigModel, showFrame, type FrameRig } from "./modelFrames";
-import { castsShadow, isModelHelper, setModelBlended } from "./modelPrep";
+import { castsShadow, isModelHelper, isShellMesh, OUTLINE_SHELL_LAYER, setModelBlended } from "./modelPrep";
 import { depthBandOf, drawnBox, prepareObliqueClone, type DepthBand } from "./obliqueView";
 import { FADE_ROCK_ORDER } from "./outlineHook";
 import { sheetCoverMaterial, type MaskCut } from "./screenFilters";
@@ -889,6 +889,14 @@ export class DrawListRenderer {
     u.blendShadeSheets.value = 1;
     if (drawn) u.blendShade.value = this.underShade!.target.texture;
     this.headlightShadeMap = drawn && headlight ? this.underShade!.target.texture : null;
+  }
+
+  /**
+   * Compile the programs renderUnderShade would draw `root`'s meshes with, without drawing (the
+   * level's warm-up and the models that load later, D91, D235).
+   */
+  compileUnderShade(renderer: THREE.WebGLRenderer, root: THREE.Object3D, camera: THREE.Camera, scene: THREE.Scene): Promise<unknown> {
+    return this.underShade?.compileAsync(renderer, root, camera, scene) ?? Promise.resolve();
   }
 
   /**
@@ -1903,7 +1911,12 @@ export class DrawListRenderer {
       if (!mesh.isMesh) return;
       mesh.castShadow = castsShadow(mesh);
       mesh.receiveShadow = !isModelHelper(mesh);
-      // Own materials, so one clone can turn translucent (invulnerability) without the others.
+      // Drawn by the outline pass and the screen filters' mask only (D235).
+      if (isShellMesh(mesh)) mesh.layers.set(OUTLINE_SHELL_LAYER);
+      // Own materials, so one clone can turn translucent (invulnerability) without the others. One
+      // per mesh even where meshes share a source material (D235): three sorts opaque draws by
+      // material, and shared clones reordered a model's faces, which changed pixels where two lie
+      // at one depth (GYGES).
       const clone = (m: THREE.Material) => (isRockMaterial(m) ? cloneRockMaterial(m) : m.clone());
       mesh.material = Array.isArray(mesh.material) ? mesh.material.map(clone) : clone(mesh.material);
       const own = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -1924,6 +1937,8 @@ export class DrawListRenderer {
       o.updateMatrix();
       o.matrixAutoUpdate = false;
     });
+    // Hidden, the whole clone is left out of three's per-frame matrix update (hideClone).
+    object.updateMatrixWorld = updateMatrixWorldIfVisible;
     this.root.add(object);
     return { object, roll: 0, shift: 0, materials, rig: rigModel(object), blended: false, paletteVersion: -1, hue: -1, frame: Number.NaN };
   }
@@ -1960,6 +1975,17 @@ export class DrawListRenderer {
 function hideClone(c: ModelClone): void {
   c.object.visible = false;
   c.object.matrixWorldAutoUpdate = false;
+}
+
+/**
+ * A pooled clone root's updateMatrixWorld: nothing while it's hidden (D235). matrixWorldAutoUpdate
+ * false (hideClone) only skips the root's own matrix: three r186 still walks its parts, and the
+ * root's parent's update forces every part's world matrix to be multiplied again, about 1,100-1,350
+ * of a frame's matrix products in BRAINIAC and LAVA RUN. Shown again, placeModel moves the root
+ * (its matrix and its parts' world matrices are recomputed in the next update).
+ */
+function updateMatrixWorldIfVisible(this: THREE.Object3D, force?: boolean): void {
+  if (this.visible) THREE.Object3D.prototype.updateMatrixWorld.call(this, force);
 }
 
 /**

@@ -165,6 +165,9 @@ function makeDecal(sprite: DecodedSprite): Decal | null {
     opacity: DARKEN,
     depthWrite: false,
     side: THREE.DoubleSide,
+    // A flat quad shows one face: three's two passes for a translucent two-sided material (back
+    // faces, then front) drew the same pixels, and looked its program up twice a frame (D235).
+    forceSinglePass: true,
     userData: { outlineParameters: { visible: false } },
   });
   return { material, w: sprite.width, h: sprite.height };

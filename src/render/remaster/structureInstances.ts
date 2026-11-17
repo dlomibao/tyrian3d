@@ -33,7 +33,7 @@
 
 import * as THREE from "three";
 import { colourFrame, rigModel, type FrameRig } from "../modelFrames";
-import { isModelHelper } from "../modelPrep";
+import { isModelHelper, OUTLINE_SHELL_LAYER } from "../modelPrep";
 import { depthBandOf, obliqueUniforms, patchOblique } from "../obliqueView";
 import { hasRockBands, ROCK_SIDES, rockBandSlot, rockCell } from "../rockMaterial";
 
@@ -134,6 +134,7 @@ export class StructureInstances {
         im.frustumCulled = false;
         im.castShadow = !inked;
         im.receiveShadow = !inked;
+        if (inked) im.layers.set(OUTLINE_SHELL_LAYER); // the outline pass and the mask only (D235)
         im.count = 0;
         this.group.add(im);
         parts.push({ mesh: im, capacity: 4, count: 0, bands, cell: tag?.cell, when: tag?.when });

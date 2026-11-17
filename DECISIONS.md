@@ -14021,3 +14021,49 @@ gathers their atlases on the GPU. In the original look (or when the video fails)
 30 Mbps) on a black stage.
 **Review:** a cold load of the deployed site, and the same with the zip missing; episode 3's ending with
 `&sprites=original`. Fallback: revert the source files and drop the zip step from the deploy script.
+## D235 — CPU per frame: one world-matrix update, hidden clones and outline shells left out, the under-shade's model programs shared and warmed; the picture unchanged (follows D91, D146, D193, D204, D206)
+2026-11-17
+A CPU scout (`tyrian-scratch/perf-scout/cpu/NOTES.md`) found the main thread doing the same work several times a
+frame, and the under-shade pass (D204) compiling programs mid-level. Each change below leaves the picture as it was
+(pixel diff 0) and the sim untouched.
+**Decision:**
+- **Under-shade programs.** A pal_<index> shade and a rock shade (`modelShadeMaterial`, underShade.ts) take their
+  shade, bank and ramps as uniforms under fixed program keys (`under-shade-model`, `under-shade-rock`) instead of
+  baking them into the source: a program per index and ramp set compiled the first time it showed under a blended
+  layer (TYRIAN: 75 in its first 20 s of play). `UnderShadePass.compileAsync` compiles the pass's programs in the
+  level's warm-up and for models that load later (`View.warmUp`, `warmLate`) with stand-in materials, so the pass's
+  own materials are still made by the frames, in the same order: three sorts equal render orders by material id, and
+  making them in the warm-up reordered the pass's draws and changed one texel where two faces lie at one depth.
+- **Hidden pooled clones** get an `updateMatrixWorld` that returns while the clone is hidden
+  (`updateMatrixWorldIfVisible`, drawListRenderer.ts). `matrixWorldAutoUpdate = false` (D91) only skipped the root's
+  own matrix; three r186 still walked the parts and the draw list root's update forced each part's product.
+- **One world-matrix update per frame** (`View.renderFrame`): after `draws.update`, then `matrixWorldAutoUpdate` off
+  for the frame's renders (the under-shade pass, the main one, the filters' mask and effects), restored after.
+- **Outline pass** (outlineEffect.js): one walk of the scene sets the outline materials and finds the `outlineSkip`
+  objects; the swapped objects keep their own material and onBeforeRender on themselves and are restored from a list
+  (no third walk); the cache is keyed by the material, not its uuid.
+- **Outline shells off the main pass.** The game's model clones' shells (and the instanced rim shells, D211) are on
+  `OUTLINE_SHELL_LAYER` (28), which the camera enables only for the outline pass and the screen filters' mask (the
+  mask draws them with its override material, so it keeps them). In the main pass they wrote no colour and no
+  depth. The other renderers' models (backdrop, viewer, destruct) keep their shells on layer 0.
+- **Hygiene:** the shadow decals draw in one pass (`forceSinglePass`: a flat quad, so three's back-then-front passes
+  drew the same pixels); the sim's background rows look up their tile ids once per level instead of joining
+  the map's 128 shapes into a key every row (draw list unchanged); the HUD formats the score and the sidekick
+  key only when they change.
+**Not done:** sharing a cloned material among the meshes of one clone that share a source material (GYGES 612
+source materials, 671 clones). three sorts opaque draws by material id, so sharing reordered a model's faces and
+changed a pixel where two lie at one depth (one pixel, 7 levels, in a GYGES hit-flash frame).
+**Measured** (headless Chrome, Metal, 1920x1080, `tyrian-scratch/perf-cpu/`):
+- Pixel diff, before vs after, deterministic captures (`bin/detshot.mjs`: a virtual clock, a seeded Math.random
+  but for three's uuids, the page frozen 90 frames after the harness starts): TYRIAN t1000, GYGES boss t6250, a
+  GYGES boss hit flash t6123, BRAINIAC t3475, LAVA RUN t1500, CAMANIS t3300 (the last three screen-filtered), a
+  TYRIAN hit flash on damaged enemies (t1027 `&hurt=1`): 0 pixels differ.
+- Programs compiled in 20 s of play after `&skip` (dev server, `getProgramInfoLog` calls): TYRIAN 78 -> 5, CAMANIS
+  43 -> 2, LAVA RUN 29 -> 2, none of them an under-shade program (before: 75, 42 and 28 `under_shade_model`); scene world updates 1.7 / 1.3 / 4.9 a frame -> 1.
+- View.render CPU per frame (frozen frame, GPU synced before each, 10 rounds of 40 frames, 3 interleaved pairs of
+  page loads, median of the rounds): TYRIAN 4.21 -> 3.29 ms, GYGES 13.59 -> 11.49, BRAINIAC 2.48 -> 2.12,
+  LAVA RUN 2.71 -> 1.71, CAMANIS 1.83 -> 1.49.
+**Review:** play a level with blended layers (TYRIAN, CAMANIS) and a screen-filtered one; fallback is reverting
+the files of each item on its own (underShade.ts with View.warmUp/warmLate's `compileUnderShade`; the clone's
+`updateMatrixWorld`; renderFrame's update; outlineEffect.js; the shell layer in modelPrep.ts, drawListRenderer.ts,
+structureInstances.ts, view.ts and screenFilters.ts).

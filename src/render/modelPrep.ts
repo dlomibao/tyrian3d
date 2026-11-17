@@ -4,6 +4,20 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
+/**
+ * The camera layer the game's outline shells are on (D235): drawn only by the renders that need
+ * them, the outline pass and the screen filters' mask (View, ScreenFilterPass), not the main pass,
+ * where they wrote no colour and no depth (a draw call each for nothing). Set on the game's model
+ * clones and instanced shells; the other renderers' prepared models keep their shells on layer 0.
+ */
+export const OUTLINE_SHELL_LAYER = 28;
+
+/** Whether a mesh is a prepared model's outline shell (by its material, prepareModel's). */
+export function isShellMesh(mesh: THREE.Mesh): boolean {
+  const m = mesh.material;
+  return !Array.isArray(m) && m?.userData.outlineShell === true;
+}
+
 /** renderOrder of a translucent model (invulnerable ship), after the particles (1) and glows (2). */
 export const BLENDED_MODEL_ORDER = 3;
 

@@ -29,7 +29,23 @@ const PLAY_BOTTOM = 184;
 
 const tileIdCache = new Map<string, string[]>();
 
+/** The level (g.lvl) `levelIds` holds the tile ids of, per layer (D235). */
+let idsLevel: unknown = null;
+const levelIds: (string[] | null)[] = [null, null, null];
+
+/**
+ * The tile ids of a layer's map bytes, for the draw list. Looked up once per level (g.lvl, whose
+ * mapSh never changes): keyed by the joined mapSh, every row of every tick built that key (D235).
+ */
 function tileIds(layer: 0 | 1 | 2): string[] {
+  if (g.lvl !== idsLevel) {
+    idsLevel = g.lvl;
+    levelIds.fill(null);
+  }
+  return (levelIds[layer] ??= lookupTileIds(layer));
+}
+
+function lookupTileIds(layer: 0 | 1 | 2): string[] {
   const lvl = g.lvl;
   const cacheKey = `${lvl.shapesFile}|${layer}|${lvl.level.mapSh[layer].join(",")}`;
   let ids = tileIdCache.get(cacheKey);
