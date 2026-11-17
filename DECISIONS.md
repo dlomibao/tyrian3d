@@ -12378,3 +12378,108 @@ Every shape is traced from its own frame, crisp, and the ink and the bands are r
 - `lib_b094.py` has no importer left (the coordinator deletes absorbed libs, D170).
 
 **Cost:** one Fable agent (the user asked for it by name).
+
+## D222 — 2026-11-17 QA terrain round: GYGES's tusks become smooth horn and SAVARA's pink foam turns to the water's blue; NOSE DRIP's and TYRIAN's rock is the island-rock models, and the contour mottle under the hues (CAMANIS, SAVARA IV) is the renderer's shade pick, both reported (QA walkthrough 2026-11-17; follows D84, D138, D184, D193, D198, D203, D205)
+
+2026-11-17
+
+**Problem** (`tyrian-scratch/qa-all/{e1,e2,e3,e4a,e4b,demos}/REPORT.md`):
+1. **GYGES (2.2) t300, the big tusks** (E2 M2): `shapesx` layer 2, 14 tiles (281, 286, 291, 292, 295, 296, 301, 302, 305, 306,
+   312-315; mirror pairs, all only on 2-2) are painted as cracked, mottled bark with black specks. The original is a smooth
+   tan horn (bank 10, 160-175) with one long highlight and a dark rim.
+2. **NOSE DRIP (4.16) t3300, the plateau rock** (E4 B-L2): grey, cool cobbles with small tan patches.
+3. **SAVARA IV (4.3) t4800, the mud** (E4 A): fine contour lines and a few cyan flecks.
+4. **SAVARA (1.8) t1050** (E1 L4): a pink foam line along the cliff base.
+5. **TYRIAN (demo 1)** (demos L3): the rock islands paler, cooler and less tan.
+6. **CAMANIS (3.1) t6850, under its level filter** (E3 L4): the HD water reads as a contour mottle, not diagonal ripples.
+
+**What was found:**
+- **2 and 5 are not HD terrain.** The plateau and the islands are layer-2 tiles 120-142, drawn by the D84 island-rock models
+  (`shapesz-t120`..`t142`, `lib_rock_hd.py`, `rockMaterial.ts`). With `&terrain=original` NOSE DRIP t3300 shows the same rock
+  (route 2, 50 structures; `hdTiles` 0). The `shapesz` 0:95-119 tiles in the report are the ground under NOSE DRIP's water,
+  which D198 edited.
+  - Measured on the 4K captures: NOSE DRIP's plateau is mean (108, 101, 93) in the original and (112, 109, 107) in 3D. Warm pixels
+    are 28% against 18.5%, and pixels bluer than red 0% against 62%.
+  - Two causes, both in the models' path:
+    - Less tan: the D84 texture gives each stone its majority ramp and draws the mortar grey. Tan and brass cover 17-30% of each
+      tile's opaque pixels in the original against 14-23% in the cached textures, 13 tiles.
+    - The cool cast: the models' light (hemisphere sky `0x9fb8ff` x1.2, `lighting.ts`; `rockMaterial` envMapIntensity 0.6) on the
+      grey ramp. That ramp is neutral in the palette, (105, 109, 105) at shade 8.
+  - They show on every level that draws these tiles: 1-9, 1-15, 3-8 and 4-16 (layer 2), and 1-6 and 3-3 (layer 1).
+- **3 and 6 are the hue path's shade pick.** Under JE_filterScreen and the water hues the shader takes a texel's shade from its
+  nearest raw palette index (D193, D205). Banks 3 and 8, the water and the ice, have bank 13 between their entries, and bank 13's
+  shade numbers run about three below theirs at the same brightness.
+  - So any smooth painted gradient hops between banks, and its shade jumps by about three steps along the hops: the contour
+    lines. The paintings are fine: read along their own bank, they show the original's diagonal ripple.
+  - CAMANIS tile 275 (1,372 cells): a third of its texels read as bank 13. Its shade is mean 7.51, sd 1.58 as read, against the
+    original's 6.69, sd 0.93 and 6.71, sd 0.90 along bank 8. Every CAMANIS layer-0 tile is 18-47% off-bank.
+  - SAVARA IV's tile 24 (D138's field): 24% of its texels read off-bank.
+  - `qa-fix-terrain/crops/6_camanis_275_filter_sim.png` and `3_savara4_tile24_filter_sim.png` show original | as read |
+    along its bank.
+
+**Decision:** two derived-art edits, no Gemini, no code. The rest is reported.
+1. **GYGES's tusks** (`bin/tusk.py`), worked over one tusk arc in its map context (2-2, rows 371-377), so the horn is continuous
+   across tiles:
+   - **Colour.** The horn's colour is the original's own pixels (bank 10 and the index-1 rim beside them), 8x nearest, then a
+     Gaussian at 5 texels normalised over the horn, so black and the head's blue don't bleed in. It replaces the painting
+     under a soft mask of the horn (2 texels).
+   - **Alpha.** Within 2 px of the horn the alpha is re-derived in context, as D78 does it: the signed distance to the original
+     silhouette, blurred at 4 texels so the thin tips keep their width, with a 2+2-texel ramp. Colour is bled under alpha 0.
+   - **The head.** Its texels (bank 6) keep their painting.
+   - **Storage.** New lossless image `shapesx/2-4.webp` (188 KB, written with `exact`); the 14 layer-2 rects point at it.
+2. **SAVARA's coast** (`bin/foam.py`), `shapesy` layer 0 tiles 21 (the cliff base), 1 and 2 (the beach edge). These are drawn on
+   1-8, 1-12, 1-17 and 3-10, and not on SAVARA IV.
+   - Texels that are pink or lavender (hue 290-372°, R over G, saturation under 0.5, not dark) within 5 px of the water (the
+     original's bank 3) move to bank 3's entry at their own luminance, under a soft weight.
+   - Texels that would still read as an exempt bank under a water hue go further onto the ramp.
+   - Pinkish texels: 21 1,172 -> 65, 1 145 -> 21. Texels changed by more than 4 levels: 21 2,550, 1 306, 2 97.
+   - Exempt texels in the touched zone: 21 1,057 -> 200, 1 105 -> 52, 2 76 -> 0.
+   - **Storage.** New lossless image `shapesy/0-2.webp` (111 KB); the three rects point at it.
+
+Every other file and rect is byte for byte as before; the old texels stay unused in `2.webp`, `2-2.webp` and `0.webp`.
+
+**Not done:**
+- **The island rock (2, 5)**, for a models round, outside the terrain atlases:
+  - in `lib_rock_hd.fields`, let a mixed stone keep its tan share (or a lower warm threshold), and keep the mortar's ramp
+    between two warm stones;
+  - give the rock material the ground's light share (D205) instead of the models' blue sky;
+  - rebuild the 42 rock users (16 tiles, 12 structures, 14 enemy pieces).
+- **The hue path (3, 6), for the renderer** (`src/render/remaster/terrainMaterial.ts terrainPalette`, not changed here):
+  - Under a hue, take the shade along the tile's own main bank. `drawHdTile` already fills the pool's `instBank` for every kind;
+    the shader declares it only for the blend sheets.
+  - Read the shade from the brightness on that bank's raw ramp (`hueBlend.ts ShadeLut`/`rampShade`, as `underShade.ts` does
+    for the raw palette). Keep the nearest index only for choosing the exempt banks.
+  - This was simulated, not tried in the engine.
+- **A painting-side fix for tile 24 was built, measured and dropped** (`bin/field24fix.py`, `qa-fix-terrain/after_rejected_field24/`):
+  - Tile 24 got its own 42 sub-tiles (patch + offset baked), each texel moved toward bank 3's entry at its shade until it reads
+    right.
+  - At mip 0 the off-bank texels went 24% -> 0. But a bilinear sample between two neighbouring bank-3 entries crosses bank 13's
+    cell, so the contours came back as crisp one-texel lines.
+  - SAVARA IV t4800 improved: dark-line pixels 0.073 -> 0.042 and 0.040 -> 0.020, cyan pixels 1,900 -> 1,151.
+  - t300, under the blue filter, got worse: dark-line pixels 0.015 -> 0.092. It also cost 1.15 MB.
+  - No painting can avoid bank 13 between bank 3's entries, so the renderer fix above is the only full one. CAMANIS's 60 tiles
+    were left alone for the same reason.
+
+**Options considered:**
+- *Gemini for the tusks:* D184's Gemini horns are what came back as bark. The original's own shading is exactly "smooth tan
+  horn with one highlight", and it keeps the outline and colours (art rule 1).
+- *Desaturating the foam only:* leaves a grey line. The original's shallow water is bank 3's light blue.
+- *Toning the HD `shapesz` 0:96-119 toward tan (the brief's premise):* those tiles are the water bed; it would change nothing on
+  the plateau.
+
+**Checked** (`?debug=play&episode=E&main=N&difficulty=D&seed=1&skip=T&freezeAt=T&compare=1`, 3840x2160; before = origin/main
+5f965b9a, or `&terrainart=` from a copy of its atlases; `qa-fix-terrain/{before,after,crops}/`):
+- **GYGES t300:** smooth, glossy tan tusks with the original's highlight and rim (`crops/1_gyges_t300_tusks.png`:
+  original | before | after).
+- **SAVARA t1050:** the foam line is the water's blue (`crops/4_savara_t1050_foam.png`).
+- **SAVARA 1.12 t1500:** pinkish pixels in the 3D playfield 949 -> 219.
+- **SAVARA V 1.17 t1000:** changes only at the shore; its remaining pink pixels are the red enemy models.
+- **NOSE DRIP t3300 and CAMANIS t6850:** unchanged, by design.
+- **`terrain_hd.py check`:**
+  - `shapesx`, 2-2, layer 2: 7,960 edges, ratio 0.340 -> 0.349. Edges with a changed tile (269): 0.666 -> 0.623, bands
+    0.534 -> 0.619 (the horn's inside is smoother, so the band step weighs more). Kept edges 0.333, unchanged.
+  - `shapesy`, 1-8, 1-12, 1-17 and 3-10, layer 0: 32,344 edges, ratio 0.570, unchanged. Edges with a changed tile (1,465):
+    0.715 -> 0.714, bands 0.471.
+- **Tests:** `tests/render/terrainArt.test.ts` (22) and `opaqueCover.test.ts` (6) pass.
+
+**Cost:** one Opus agent, no workflow, no Gemini, no Blender. About 30 headless captures.
