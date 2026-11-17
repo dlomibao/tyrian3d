@@ -5,6 +5,7 @@
 //   &episode=E&main=N              the episode and episode-script level (mainLevel) to play
 //   &front=ID&power=P&rear=ID      weapon ports (item numbers, as in the item screen's lists)
 //   &left=ID&right=ID              sidekicks (options)
+//   &sidekicks=1                   hold both sidekick buttons too, so sidekicks with ammo fire (D214)
 //   &ship=ID                       the player's ship (item number: 1 USP Talon, 2 SuperCarrot, 3 Gencore
 //                                  Phoenix, 5 MicroCorp Stalker, 10 U-Ship, 11 Silver Ship, 12 Nort Ship)
 //   &cycle=S                       change the front weapon every S seconds (through a few favourites)
@@ -111,6 +112,7 @@ export async function runPlayHarness(view: View): Promise<void> {
   const armorPlan = parseArmorPlan(params.get("armor"));
   const steer = params.get("steer");
   const hurt = num("hurt", 0) > 0;
+  const sidekickFire = num("sidekicks", 0) > 0;
   const cycleTicks = num("cycle", 0) * (1000 / CLASSIC_TICK_MS);
   // The harness has no audio: the songs the level asks for (D157) go to a log, `tyrianHarness.music`
   // (`plays`: [song, tick] pairs; set `playing = false` to end a song that doesn't loop).
@@ -126,6 +128,7 @@ export async function runPlayHarness(view: View): Promise<void> {
     const armor = armorAt(armorPlan, t);
     p.armor = armor >= 0 ? armor : Math.max(p.armor, solid ? 28 : 10);
     simInput.fire = true;
+    simInput.leftSidekick = simInput.rightSidekick = sidekickFire;
     simInput.left = steer === "left" || (steer !== "right" && Math.floor(t / 50) % 2 === 0);
     simInput.right = !simInput.left;
     if (cycleTicks > 0 && t > 0 && t % Math.round(cycleTicks) === 0) nextWeapon();
