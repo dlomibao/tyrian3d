@@ -12258,3 +12258,123 @@ used as they are (no renderer change).
 - TORM's top and bottom rows animate one frame apart (the C's), a faint step at row 28, as in the original.
 
 **Cost:** one Fable agent (asked for by the user).
+## D213 — The saw rotor is traced crisp from its own frames: a dark plate, the steel on it as slim chamfered bars cut into the sprite's tone bands, a slot wherever the sprite inks between tines, a blue cabochon hub; frame 3 gets its own frame-tagged copy (ends D192's and D209's hold; follows D17, D51, D74, D90, D126, D176, D177, D190)
+
+2026-11-17
+
+`assembly-newsh-hash-195` (pieces `newsh-hash-157`, `-159`, `-195`, `-197`; SAWBLADES 3.9 and IXMUCANE 3.4) was held at
+5.5 through D192's run and two fix passes and again in D209: its blades read as four or five fat forked arms, the last
+build's top was mottled, and frame 3 failed the IoU rule (0.78). The user asked for one more attempt, diagnosis first.
+
+**Diagnosis** (measured from `reference/models`, the sim and the game's render):
+- *What it is.* Two four-claw stars stacked 45° apart round a square blue gem. Frame 0 is the grabber's frame 0
+  (`assembly-newsh-hash-41`: all 700 of its non-hub pixels are identical in the rotor) drawn over its frame 2 (588 of
+  656 pixels show); frame 1 is the grabber's frame 3 (632 of 632) over its frame 1 (595 of 700). A claw is a stem and
+  two straight prongs, 3 px and 2 px wide between their ink, so the rotor is sixteen slim tines. Frame 0 is four exact
+  quarter-turn copies (its mask and 1,314 of its 1,345 indices map onto themselves turned 90° about pixel (24, 27));
+  frame 1 nearly (mask 0.9956).
+- *Why it rotates.* The turn is in the frames: frame 1 is frame 0 turned 22.5°, half the stars' 45° pitch. The types
+  (430-433) have `animate 0` and start on the darkest frame; events drive the rest. Stepped through `tyrianHarness`
+  (seed 1, difficulty 2, 4,500 ticks, `newsh#.shp` draws only): every rotor shows frame 4 for 30 ticks, frame 3 for 2,
+  frame 2 for 3, then frames 0 and 1 alternately, one tick each, for the rest of its life (SAWBLADES, 17 rotors: 510 /
+  34 / 51 ticks, then 815 + 811; IXMUCANE, 3 rotors: 90 / 6 / 9, then 81 + 78). Frames 2, 3 and 4 are frame 0 two, four
+  and six palette steps darker on the same opaque mask, and frame 3 is that drawing exactly 1 px lower (the masks
+  differ by 0 pixels once it is moved back). On IXMUCANE it waits dark under the cliff layer, lights up and launches.
+- *Its tones are the blades' own.* A tine is drawn bright edge, dark body, mid back edge (`b79`; the thin one `b5`;
+  the diagonal ones `ab357`), and the bright edge is always the outer one: the tine that points up has it on its left,
+  its half-turn copy that points down on its right. It is a ground cutting bevel, not light from the upper left.
+- *Why the 3D read as forked hands.*
+  1. The ink between the tines is inside D74's inner mask. Only ring ink next to transparency is border; frame 0 has
+     112 ink pixels among its 1,001 inner pixels (frame 1 100 of 911), each of them a tine's outline over the star
+     under it. Every earlier build filled the inner mask as one solid, and the game's outline is an inverted hull, so
+     it draws the silhouette only: those lines were gone and neighbouring tines fused into arms.
+  2. A tine reads slim in the sprite because of its bands (1 px of grey 162 beside 1-2 px of 40-93). The sun is at
+     (-6, 20, 8.4): a 20° facet changes a face's light by about ±15%, where the bands differ two- to fourfold. Main's
+     tubes are one grey; the last build's facets were blotches that did not follow the sprite's bands.
+  3. A blurred trace (the grabber's Gaussian field; tried here in 2D before building) rounds a 3 px bar into a worm.
+     The tines need straight edges and chisel tips.
+  4. Frame 3: `-f3` serves frames 3 and 4, and one geometry cannot sit 1 px lower on one of them (the unshifted masks
+     alone score 0.771 against frame 3).
+- *Renderer (not changed).* `outlineEffect.js` pushes the hull by `thickness × w` in clip space, and the canvas spans
+  the window (`View.setViewport` only shifts the projection), so the ink is 0.0045 × half the canvas: up to 4.3 px
+  sideways and 2.4 px up and down at 1920×1080, whatever the playfield's size on screen. The compare view draws the
+  playfield at 2.55 px per sprite pixel against the play view's 5.33 (measured on the gem's 9 px), so in the view the
+  reviews are made in the ink is about twice as heavy as in play, for every model: about 1.4 sprite px beside a tine
+  (measured once, by hand, on a 3840×2160 zoom) against the sprite's 1 px ring, which closes the 2 px gaps between
+  tines. An outline scaled to the playfield's pixel size and corrected for aspect would fix that; it touches every
+  model, so it is a follow-up, not part of this.
+
+**Decision:** `assembly-newsh-hash-195.py` is rewritten (numpy and mathutils only; it no longer uses `lib_b094.py`).
+Every shape is traced from its own frame, crisp, and the ink and the bands are real geometry.
+- **Plan.** The inner mask as polygons: the middles of the pixel steps, split into straight runs (Douglas-Peucker),
+  each run's least-squares line, neighbouring lines met in sharp corners (`vectorise`). That plan is a 0.03-unit plate
+  in the sprite's ink (pal_1).
+- **Steel.** The plate's steel pixels (indices 3-13), traced the same way, stand on it as bars 0.138 units high with a
+  0.3 px chamfer. So every ink line between tines is a slot down to the dark plate, as wide as the sprite draws it,
+  and the plan is still covered from above. (The IoU rule's top view counts the plate: the steel and the gem alone
+  cover 889 of frame 0's 1,001 inner pixels, the inner ink being the rest.)
+- **Bands.** The steel's top is cut along the sprite's tone steps: five classes (index cuts 4.5 / 6.5 / 8.5 / 10.5),
+  specks under 3 px joined to their surroundings, each class one pal_ material (metallic 0.6, roughness 0.24-0.46,
+  F0 raised through Specular IOR Level 0.75, D176). D176's rule applies: a 3 px bar under a near-overhead sun cannot
+  shade itself into those bands, so they are cut and painted. The classes are painted up to a step and a half above
+  their mean index, tuned against the original in game (below).
+- **Frame 1** is the same drawing at 22.5°: irregular stairs, dithered tones, ink as one-pixel diagonal chains.
+  Traced like frame 0 it came out serrated, beaded and blotchy. So its edges are fitted looser (0.5 px against 0.26);
+  its ink is stroked (a 1.16 px slot along the chain of ink pixel centres; the ring's own ink is not stroked: it
+  nibbled the steel's edge); and its tones are averaged 2 px along the nearest long edge, traced as a field between
+  the pixel centres, and cut where each class keeps the share of the steel it has in the sprite.
+- **Hub.** The blue pixels as a low glossy cabochon (pal_153, glow 0.55, D126) with the sprite's white glint as a flush
+  spot; the ink ring round it is the plate.
+- **Frames.** `<piece>` covers frames 0 and 2 (frame-tagged palette, two steps darker, D17); `-f2` frame 1; `-f3` holds
+  two frame-tagged copies with their own shells (`common.frame_part`, as the grabber's `-f3`): `.a` frame 4 (six steps
+  darker) and `.b` frame 3 (four steps darker, built 1 px lower). No `spriteModels` JSON changes; the pieces are cut
+  with `common.split_assembly` as before.
+- **Ink.** D90's shell, made from a plain 0.07-unit prism of the plan (under the steel's top and chamfers: made at
+  the steel's height, folds of it drew hairlines across the blades), cut open at the piece seams.
+
+**Result.**
+- *IoU* (rule, whole-assembly grid, top views rendered from the exported glbs with the shells left out and each
+  frame's own tagged nodes; `iou_rule_grid`, sub-pixel `iou_rule` in brackets):
+
+  | Frame (sprite index of piece 157) | Model | Main (568c4718), measured the same way | D209's held build, as it reported | Now |
+  |---|---|---|---|---|
+  | 0 (157) | `<piece>` | 0.819 | 0.9795 | 1.0 (0.951) |
+  | 1 (161) | `-f2` | 0.743 | 0.9817 | 1.0 (0.916) |
+  | 2 (165) | `<piece>` | 0.819 | 0.9795 | 1.0 (0.951) |
+  | 3 (229) | `-f3` `.b` | 0.705 | 0.78 | 1.0 (0.951) |
+  | 4 (233) | `-f3` `.a` | 0.819 | 0.9795 | 1.0 (0.951) |
+
+  The grid figure is 1.0 because the plate is the traced inner mask; the sub-pixel figure is what the straight-line
+  fit leaves of the pixel steps.
+
+- *In game* (`&compare=1`, SAWBLADES t2667 frame 0 and t2660 frame 1, 3840×2160; luma of the steel's pixels, original
+  | new): frame 0 mean 108 | 108-111 (two captures of the same glbs differed), median 107 | 102, 90th percentile 164 |
+  160-168; frame 1 mean 102 | 107, median 93 | 97, 90th percentile 142 | 153. Frame 0 reads as the sprite's saw:
+  sixteen slim tines with their bevel bands, the square gem, no spokes. Frame 1 reads as eight steel claws with
+  streaked bands; its tines are less distinct than the sprite's, whose frame 1 separates them by dark tones more than
+  by ink. The dark frames (IXMUCANE t60, t71), the hit flash (t74) and the piece seams were checked in captures.
+- *Weight.* Per piece 1,948-2,476 triangles and 5-8 materials, plus a 1,763-2,061 triangle shell; 56-66 KB per glb,
+  122-125 KB for the four `-f3` (two copies), 0.99 MB for the twelve (meshopt, D206) against main's 0.25 MB.
+- *Captures* (not in git, D3): `tyrian-scratch/fable-rotor/final/` (`summary.png`; `lv19-t2667`, `lv19-t2660`,
+  `lv19-t2800`, `lv4-t100`, `lv4-t60` as original | main | new).
+
+**Options considered:**
+- *Two real stacked stars with an outline shell each* (the ink where one star crosses the other drawn by the upper
+  star's hull): the grabber's own inner masks stacked cover only 0.928 of frame 0's inner mask (0.956 of frame 1's),
+  the hull's depth would have to clear the lower star everywhere, and the tilted camera shifts the layers against
+  each other. One plate with slots has the same top view and none of that.
+- *Parametric bars* (a centreline and a width per tine, turned 22.5° for frame 1): frame 0's mask turned as a raster
+  matches the other poses at 0.77-0.87 only; the frames are redrawn, not rotated.
+- *A blurred field trace, or tone bands averaged per edge:* the first rounds the tines, the second loses the
+  contrast that makes them read slim (both tried in 2D).
+- *A new `-fN` JSON for frame 3, or a ruling that the jolt is an offset* (D209's two): not needed, a frame-tagged
+  copy keeps the contract.
+
+**Open:**
+- Frame 1 is the weaker frame (above). The sprite alternates the two every tick, so in play they blend.
+- The bands are the sprite's tones cut into the steel and painted, by D176's rule; they do not come from the light.
+- The outline's weight in the compare view (renderer note above).
+- The twelve glbs are four times main's bytes; the shells are about as heavy as the models.
+- `lib_b094.py` has no importer left (the coordinator deletes absorbed libs, D170).
+
+**Cost:** one Fable agent (the user asked for it by name).
