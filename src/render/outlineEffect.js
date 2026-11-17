@@ -89,6 +89,14 @@ class OutlineEffect {
 			outlineAlpha: { value: defaultAlpha }
 		};
 
+		// The thickness of every outline without one of its own, from the next render on (D224: the
+		// view keeps the ink one size against the playfield, whatever part of the canvas it fills).
+		this.setDefaultThickness = function ( thickness ) {
+
+			uniformsOutline.outlineThickness.value = thickness;
+
+		};
+
 		const vertexShader = [
 			'#include <common>',
 			'#include <uv_pars_vertex>',
@@ -311,6 +319,8 @@ class OutlineEffect {
 			const outlineParameters = originalMaterial.userData.outlineParameters;
 
 			material.uniforms.outlineAlpha.value = originalMaterial.opacity;
+			// The default thickness can change at run time (setDefaultThickness, D224).
+			material.uniforms.outlineThickness.value = uniformsOutline.outlineThickness.value;
 
 			if ( outlineParameters !== undefined ) {
 

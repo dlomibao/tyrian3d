@@ -191,3 +191,17 @@ describe.skipIf(!hasData("tyrian.hdt", "tyrian4.lvl"))("ordnance frames (D169)",
     expect([...frames].sort((a, b) => a - b)).toEqual([...ORDNANCE_FRAMES].sort((a, b) => a - b));
   });
 });
+
+describe("explosion crowds (D224)", () => {
+  test("births within reach and in the last quarter second count, by weight", async () => {
+    const { crowdWeight, crowdCount } = await import("../../src/render/vfx/remasteredFx");
+    const ring = new Float32Array(4 * 4).fill(-1e9);
+    ring.set([100, 100, 10, 1, 112, 100, 10, 0.25, 100, 160, 10, 1, 105, 100, 9.5, 1]);
+    // (112, 100) and itself count; (100, 160) is 60 px off; (105, 100) started 0.5 s before.
+    expect(crowdWeight(ring, 100, 100, 10.1)).toBeCloseTo(1.25);
+    expect(crowdWeight(ring, 100, 100, 10.4)).toBe(0);
+    expect(crowdCount(2.3, 0)).toBe(2);
+    expect(crowdCount(2.3, 0.8)).toBe(3);
+    expect(crowdCount(0.2, 0.5)).toBe(0);
+  });
+});

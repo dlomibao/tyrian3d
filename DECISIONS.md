@@ -12785,3 +12785,107 @@ Two causes, both in the models' path:
 
 **Cost:** one Opus agent, no workflow, no Gemini. One Blender rebuild (about 4 minutes at -j 2) and about 25 headless
 captures.
+## D224 — 2026-11-17 QA renderer round: crowded explosions share their sparks, flash, glow and smoke; hued HD terrain reads its shade along the tile's own banks; a later model beside a sheet no longer holds it down; no effect glows under a top cloud; damage that darkens an enemy dulls its gloss; ink keeps one size against the playfield (QA walkthrough 2026-11-17; follows D35, D87, D129, D169, D181, D183, D193, D199, D204, D205, D222)
+
+2026-11-17
+
+**Problem** (`tyrian-scratch/qa-all/{e1,e2,e3,e4a,e4b,demos}/REPORT.md`, `qa-fix-flat/item5_*`, `qa-fix-terrain/crops/`):
+1. Big or clustered explosions opened as a white-hot starburst with long white spark rays (the SAVARA boss death,
+   demo 2; DELIANI t7210-7213, twelve large explosions at once). The original is a solid red-orange fireball.
+2. Under a hue (CAMANIS's JE_filterScreen, SAVARA IV) the HD terrain drew contour lines (D222's finding).
+3. GYGES t6300: the horn (a blended background-2 sheet) drew under the arm's balls, so it looked translucent.
+4. IXMUCANE t4800/t3300: boss pieces poke through the boulder pile; the red ship draws whole beside the dome.
+5. NOSE DRIP t5550: an orange smear at a cloud's lower-left edge.
+6. WINDY t2681: the blocks' edges show as seams in the cloud.
+7. IXMUCANE t4050: the damaged egg `newsh8-140` on the intact `newsh8-102` read as a glossy silver egg.
+8. DESERTRUN t1050: heavy black ink along the arch's crown.
+
+**Causes and decisions:**
+1. **Explosions** (`vfx/remasteredFx.ts`). Every quarter of a large explosion threw 4 sparks, 2 embers, 2 debris, a
+   smoke puff, a flash and a glow, and all its sparks start on one point: 16 rays crossing, the "starburst". The
+   flashes were thinned only within 14 px, and a large explosion's quarters stand 14 px apart vertically, so two
+   flashed. The per-sprite fireball glows (radius 2x the sprite, core x2.5, drawn as if twice) added up. Additive red
+   over the red painting saturates red first, so the stack goes yellow and then white, and Neutral tone mapping
+   desaturates the HDR core further.
+   - **Crowd share.** Each fireball birth counts the explosion births within 40 px in the last 0.25 s (a fireball
+     1, a large explosion's quarter 0.25, itself left out, every birth of the batch counted before any spawns):
+     share = 1 / (1 + that). A lone small fireball has share 1 and is drawn as before; a lone large explosion's
+     quarters 0.57; DELIANI's row about 0.2.
+   - Sparks spawn their count x share², embers, debris and smoke x share (stochastic rounding). The flash alpha is
+     x √share.
+   - The flash's thinning reach is the flash's own size when larger than 14 px, so a large explosion flashes once.
+   - The fireball glows are held to the frame's end and dimmed by their overlaps as the shot halos are (D169's
+     flushHalos, now `flushHeld`): touch 0.8, crowd 0.5.
+   - Smoke had to go with the share: with the glows dimmed, demo 2's c2780 cluster read as dark smudges until it did.
+2. **Hued terrain** (`remaster/terrainMaterial.ts`, `hueBlend.ts`). D222's proposal, as specified. Under a hue a
+   recoloured texel's shade is its brightness along the original tile's own banks (`instBank`, now declared for
+   every kind), read on the raw palette's ramps (`RawShades`: the raw palette texture and its ShadeLut, now shared
+   with `underShade.ts`). With a second bank, the ramp whose colour there is nearer the painting's is used, mixed
+   over a small band, as the D204 shade pass does. The shade is fractional, mixed between two entries of the hue's
+   bank. The nearest raw index still picks the bank, which decides whether a hue applies (the exempt banks).
+3. **GYGES** (`sheetLift.ts`). The horn tile at (199, 36) had a SkyEnemies boss piece (low 0.36) ending 1 px left of
+   it, counted through the 4 px lean margin, so the tile settled half way (0.9, the base) under the balls
+   (top 1.08). Now only an earlier model counts within the margin (its top leans); a later one counts only where its
+   footprint overlaps, as what could reach under the sheet is its foot. Every horn tile now sits over the balls.
+   - Still differing: the ball models' tops lean on screen (D5/D6), so the crossing isn't where the sprites put it.
+     Under the horn the C's blend shows the balls' shading in the horn's bank, as the C does.
+4. **IXMUCANE: not changed.** At t4800 the boss groups 161, 199, 237, 275 show 28-168 pixels each past the boulders
+   in the C, so D183 rightly keeps them. Their 3D models poke through gaps in the boulder models, where the boulder
+   sprites have pixels. The original shows a speck of the same red light (`crops/4_*`). At t3300 the ship's cap and
+   right edge show in the C, so it is drawn whole.
+   - A fix needs per-model clipping by the later sprites' pixels: a depth-only silhouette of each covering sprite,
+     at the covered model's top, drawn after the ground and before the covered models. Left for a round of its own
+     (opaque draw order, the outline and shade passes).
+5. **NOSE DRIP** (`screenFilters.ts`, `starCover.ts`, `remasteredFx.ts`). The smear is two player shots' halos
+   (`tyrian.shp#7` 58/60, at (63-71, 70-84)), under the Background2Top cloud. The cloud's depth cover (D199) cut at
+   alpha 0.5, so the painted rim let the halo through, and the halo spilled past the cloud's edge.
+   - The cover now cuts at alpha 0.1 (`SHEET_COVER_CUT`).
+   - A `TileCover` of the top sheets' painted pixels (StarCover's map, generalised) tells the effects what lies
+     under a cloud. A shot, hit, fireball or smoke there gets no halo, glow, flash or sparks; its sprite stays,
+     under the cover. Superpixels (drawn over the cloud in the C) are untouched.
+6. **WINDY: not changed.** With the under-shade pass off the block outlines get stronger, and with it on they are
+   the blocks' palette shades averaged into the cloud's bank: the C's blend, which shows the sprites' dark edges and
+   the ground gaps between blocks too (the original panel has the same faint lines). The vertical line is the gap
+   between the red and the orange block.
+7. **Damaged egg** (`damage/damageShader.ts`). The damage textures darkened the diffuse colour, but specular and
+   environment reflection were untouched, so a near-black shell kept a white sheen. Now an enemy's damage (not the
+   player ship's wear, D90/D156) keeps gloss in proportion to the brightness it left (`dmgGloss`): roughness goes
+   toward 1, and specular, F90, clearcoat and sheen are scaled down. A cut's inside has none. The egg now reads
+   dark and cracked.
+8. **Ink** (`view.ts`, `outlineEffect.js`). The renderer did cause it. OutlineEffect's thickness is in clip
+   space, a share of the canvas. The full-window play view's playfield fills 0.895 of the canvas's height, but the
+   comparison view's right half fills 0.44 (474 of 1080 px), so ink was about 2x as heavy against the sprites'
+   1-px edge there.
+   - The thickness is now scaled by the playfield's share (`outlineThickness`, never heavier than the tuned 0.0045,
+     at least a quarter of it), set on resize (`setDefaultThickness`).
+   - What's left on the crown is the model's own dark edge, for the model agents.
+
+**Measured** (4K, `compare=1`; white = every channel >= 225, fire = r >= 150, g <= 0.62r, b <= 0.35r, yellow = r >= 200,
+g > 0.62r, b <= 0.5r; 1080p px; original | before | after):
+
+| Region | white | fire | yellow |
+|---|---|---|---|
+| DELIANI t7210 cluster | 33 / 931 / 44 | 4296 / 4445 / 5682 | 27 / 380 / 229 |
+| DELIANI t7211 cluster | 36 / 461 / 12 | 13932 / 14000 / 12895 | 36 / 767 / 199 |
+| demo 2 c4997 boss death (overhead) | 27 / 1159 / 1 | 7650 / 7691 / 9913 | 90 / 1733 / 32 |
+| demo 2 c2780 whole playfield (overhead) | 603 / 582 / 400 | 18081 / 9795 / 17015 | 63 / 803 / 119 |
+
+- CAMANIS t6850 water: luma 146.4 (sd 11.8) original, 156.1 (19.7) before, 146.1 (10.6) after; the contours are gone
+  (the D222 simulation's look).
+- SAVARA IV t4800 mud: luma 78.0 (30.1) original, 65.9 (34.6) before, 78.4 (30.1) after; no contour lines.
+
+**Regressions checked** (playfield mean luma, before and after): LAVA RUN t300 (lava_filter) 52.1 and 52.1; SIDE EXIT
+t1800 33.0 and 32.6; TYRIAN hard t6300 (headlight) 85.1 and 85.1; TYRIAN hard t300 (explosions in the shade) 55.1 and
+55.1; TYRIAN t1800 76.6 and 76.7; SAVARA t1050 70.6 and 70.7; IXMUCANE t3300 and t4800, WINDY t2681 and GYGES t6300
+unchanged in the mean. Small explosions (TYRIAN X 3.8 t300) look as before (`crops/1_regress_*`).
+
+**Checked:** `?debug=play&episode=E&main=N&difficulty=D&seed=1&skip=T&freezeAt=T&compare=1` at 3840x2160; demo 2 overhead
+held at curLoc 2780, 4867 and 4997 (`demofreeze.mjs`; the particles are random). Before = origin/main 262053c1 served
+from a copy. All in `tyrian-scratch/qa-fix-render/{before,after1,after2,final,crops}/`. Tests: `vfx.test.ts` (crowd
+weight and counts), `paletteLut.test.ts` (the hued shade along the tile's banks), `sheetLift.test.ts` (the later
+model's footprint), `starCover.test.ts` (TileCover), `screenFilters.test.ts` (the cover's cut),
+`damageShader.test.ts` (the gloss), `outlineHook.test.ts` (the thickness rule).
+
+**Not done:** IXMUCANE (4) and WINDY (6), above. The arch's crown ink is the model's.
+
+**Cost:** one Opus agent, no workflow, no Gemini, no Blender. About 70 headless captures, two at a time.

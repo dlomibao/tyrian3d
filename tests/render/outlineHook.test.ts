@@ -129,3 +129,12 @@ describe("the outline pass's own render (outlineEffect.js, D193)", () => {
     expect(target.samples).toBe(4);
   });
 });
+
+describe("outline thickness against the playfield (D224)", () => {
+  test("the tuned play view keeps its ink; the comparison view's half-height playfield gets half", async () => {
+    const { outlineThickness, OUTLINE_PLAYFIELD_SHARE } = await import("../../src/render/view");
+    expect(outlineThickness(OUTLINE_PLAYFIELD_SHARE)).toBeCloseTo(0.0045);
+    expect(outlineThickness(474 / 1080)).toBeCloseTo(0.0045 * (474 / 1080) / OUTLINE_PLAYFIELD_SHARE);
+    expect(outlineThickness(1)).toBeCloseTo(0.0045); // never heavier than tuned
+  });
+});

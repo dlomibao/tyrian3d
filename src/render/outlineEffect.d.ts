@@ -5,4 +5,6 @@ export type { OutlineEffectParameters } from "three/addons/effects/OutlineEffect
 export declare class OutlineEffect extends ThreeOutlineEffect {
   /** Compile the outline materials `scene` would draw with, without drawing (D91). */
   compileAsync(scene: Object3D, camera: Camera, targetScene?: Scene | null): Promise<unknown>;
+  /** The thickness of every outline without one of its own, from the next render on (D224). */
+  setDefaultThickness(thickness: number): void;
 }

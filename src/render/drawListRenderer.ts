@@ -61,7 +61,7 @@ import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
 import { VFX_LAYER, vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
 import { EXPLOSION_SHEET_ID, flatExplosionFade } from "./vfx/explosionFrames";
-import { dominantBank, NdcRect, topBanks, UNDER_GRAB_ORDER, UnderGrab, UnderGrabHook } from "./hueBlend";
+import { dominantBank, NdcRect, RawShades, topBanks, UNDER_GRAB_ORDER, UnderGrab, UnderGrabHook } from "./hueBlend";
 import { UnderShadePass } from "./underShade";
 import { decodeSprite2 } from "../data/sprites";
 import { RemasterGroundAtlas } from "./remaster/groundAtlas";
@@ -76,14 +76,14 @@ import { modelHeightFromUrl } from "./modelHeight";
 import { placeFlatQuad, SPRITE2X2_PARTS, spriteArtModeFromSearch, type FlatQuad, type ReadyFrame, type SpriteArt, type SpriteArtMode, type SpriteArtSheet } from "./spriteArt";
 import { ART_HUE_BLEND, SpriteArtLayer } from "./spriteArtLayer";
 import { SparkScreen } from "./sparkScreen";
-import { StarCover } from "./starCover";
+import { StarCover, TileCover } from "./starCover";
 import { coverHeight, MODEL_COVER_OVERLAP, sheetHeight, type PlacedExtent } from "./sheetLift";
 import { BG_KEY_LAYER } from "../sim/backgrnd";
 import { MAP_SIZES, TILE_HEIGHT, TILE_WIDTH } from "../data/levels";
 import { terrainStyle as currentTerrainStyle, type TerrainStyle } from "../core/terrainStyle";
 import { parseTileId, type TerrainTileset } from "./remaster/terrainArt";
 import { TerrainArtSet } from "./remaster/terrainLoader";
-import { terrainDepthMaterial, terrainMaterial, type TerrainKind } from "./remaster/terrainMaterial";
+import { terrainDepthMaterial, terrainLevelUniforms, terrainMaterial, type TerrainKind } from "./remaster/terrainMaterial";
 
 /** How backgrounds are drawn: the original tiles extruded (D8) or remastered (D34). */
 export type BackgroundStyle = "original" | "remaster";
@@ -499,6 +499,8 @@ export class DrawListRenderer {
   private readonly viewDir = new THREE.Vector3();
   /** Which star pixels background 1 hides (D127). */
   private readonly starCover = new StarCover();
+  /** background2over 2's painted pixels, which hide the effects' glows under them (D224). */
+  private readonly topCover = new TileCover((d) => d.pass === Pass.Background2Top);
   /** The screen under the sparks, for their colour in the original look (D147). */
   private readonly sparkScreen = new SparkScreen();
   /**
@@ -539,7 +541,9 @@ export class DrawListRenderer {
   /** The same for black-space ground tiles, which receive no shadows (D181). */
   private readonly hdSpacePools = new Map<THREE.Material, Pool>();
   private readonly hdMaterials = new Map<THREE.Texture, Map<TerrainKind, { material: THREE.Material; depth?: THREE.Material }>>();
-  private readonly terrainLevel = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
+  /** The raw palette's ramps the HD terrain's hued shades are read along (D224). */
+  private readonly terrainRaw = new RawShades(this.palette);
+  private readonly terrainLevel = terrainLevelUniforms(this.terrainRaw);
   /** tileId → [tileset, tile number] (null: not a tileset tile). */
   private readonly tileIds = new Map<string, [string, number] | null>();
   /** The current level's maps for the HD terrain's variants, and its tileset. */
@@ -902,6 +906,7 @@ export class DrawListRenderer {
     let instances = 0;
     for (const mp of this.modelPools.values()) mp.used = 0;
     const fx = this.fx;
+    fx?.setTopCover(this.topCover, items);
     fx?.begin(dt * this.vfxTimeScale, camera);
     this.placedStructures.clear();
     this.structures.begin();
@@ -913,6 +918,7 @@ export class DrawListRenderer {
     this.artLayer.begin();
     this.terrainLevel.levelFilter.value = this.palette.screenFilter;
     this.terrainLevel.levelBrightness.value = this.palette.screenBrightness;
+    this.terrainRaw.update();
     this.hdTiles = 0;
     this.placedExtents.length = 0;
     this.solidTiles.length = 0;

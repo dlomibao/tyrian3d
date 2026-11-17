@@ -29,13 +29,17 @@ const SCREEN_MARGIN = 4;
  * The height for a sheet tile of pass `pass` at screen (x, y), w x h px, normally `base`: just above
  * the tops of the earlier passes' models it overlaps. If that would reach into a later pass's model
  * it overlaps, half way between the two (neither is fully right then, and neither is cut by much).
+ * An earlier model counts within SCREEN_MARGIN of the tile (its top leans); a later one only where
+ * its footprint itself overlaps the tile, as what could reach under the sheet is its foot, which
+ * doesn't lean: GYGES's boss pieces beside the horn tile had held it under the arm's balls (D224).
  */
 export function sheetHeight(base: number, pass: number, x: number, y: number, w: number, h: number, models: readonly PlacedExtent[]): number {
   let below = -Infinity;
   let above = Infinity;
   for (const m of models) {
     if (m.pass === pass) continue;
-    if (m.right + SCREEN_MARGIN <= x || m.left - SCREEN_MARGIN >= x + w || m.bottom + SCREEN_MARGIN <= y || m.top - SCREEN_MARGIN >= y + h) continue;
+    const margin = m.pass < pass ? SCREEN_MARGIN : 0;
+    if (m.right + margin <= x || m.left - margin >= x + w || m.bottom + margin <= y || m.top - margin >= y + h) continue;
     if (m.pass < pass) below = Math.max(below, m.high);
     else above = Math.min(above, m.low);
   }

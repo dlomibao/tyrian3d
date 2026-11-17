@@ -12,6 +12,8 @@ import {
   cutMaskMaterial,
   lavaFloorLoss,
   sheetCoverMaterial,
+  SHEET_COVER_CUT,
+  MASK_CUT_COVER,
   type MaskCut,
   WATER_WAVE,
   bankAtLuma,
@@ -306,6 +308,10 @@ describe("lava_filter's floor and the mask's see-through texels (D199)", () => {
     expect(m.polygonOffset && m.polygonOffsetFactor > 0 && m.polygonOffsetUnits > 0).toBe(true);
     expect(m.userData.maskCut).toBe(cut);
     expect(m.userData.outlineParameters.visible).toBe(false);
+    // It reaches the painted rim (D224); the mask cuts at one half.
+    expect(m.fragmentShader).toContain(`#define CUT_AT ${SHEET_COVER_CUT.toFixed(3)}`);
+    expect(cutMaskMaterial(cut).fragmentShader).toContain(`#define CUT_AT ${MASK_CUT_COVER.toFixed(3)}`);
+    expect(SHEET_COVER_CUT).toBeLessThan(MASK_CUT_COVER);
   });
 });
 

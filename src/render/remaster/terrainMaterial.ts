@@ -21,8 +21,10 @@
 // brightness recolour or scale it. Each texel's bank is the one of the raw palette's nearest
 // colour (PaletteTexture.indexLut), so water_filter leaves alone what the original's
 // (index & 0x30) == 0 banks drew (greys, cloud blue, and whatever else a palette keeps there, like
-// LAVA EXIT's salmon pink: D95, D111); untouched texels keep their painted colour. What can't reach
-// the art: palette animation and swaps (its colours aren't palette indices).
+// LAVA EXIT's salmon pink: D95, D111); untouched texels keep their painted colour. A recoloured
+// texel's shade is its brightness along the original tile's own banks (`instBank`, D224), as the
+// shade pass reads it (underShade.ts, D204). What can't reach the art: palette animation and swaps
+// (its colours aren't palette indices).
 
 import * as THREE from "three";
 import { GROUND_SHEEN, WATER_ALPHA } from "../paletteMaterial";
@@ -31,7 +33,7 @@ import { PALETTE_LUT_SIZE, type PaletteTexture } from "../paletteTexture";
 import { SCREEN_HUE_PARS } from "../screenHue";
 import { TILE_HEIGHT, TILE_WIDTH } from "../../data/levels";
 import { TERRAIN_MAX_LOD, TERRAIN_TINT_SCALE } from "./terrainArt";
-import { HUE_BLEND_PARS, type UnderGrab } from "../hueBlend";
+import { HUE_BLEND_PARS, SHADE_BINS, type RawShades, type UnderGrab } from "../hueBlend";
 import type { MaskCut } from "../screenFilters";
 import type { ShadeOut } from "../underShade";
 
@@ -62,6 +64,9 @@ const LEVEL_PARS = /* glsl */ `
 uniform float levelFilter;     // JE_filterScreen's hue, or -99
 uniform float levelBrightness; // and its brightness (0 or -99: none)
 uniform sampler2D paletteLut;  // PaletteTexture.indexLut: sRGB cube cell -> nearest raw index
+uniform sampler2D terrainRawPalette; // the raw palette, before JE_filterScreen (RawShades, D224)
+uniform sampler2D terrainRawShades;  // and its ShadeLut: (brightness, bank) -> shade / 15
+varying vec2 vTerrainBanks;          // the original tile's two main banks (instBank: topBanks)
 ${SCREEN_HUE_PARS}
 float terrainClampValue(float v) {
   return v < 0.0 ? 0.0 : (v > 15.0 ? (v >= 31.0 ? 0.0 : 15.0) : v);
@@ -81,6 +86,32 @@ float terrainNearest(vec3 s) {
   ivec3 c = clamp(ivec3(s * ${L}.0), 0, ${L - 1});
   return floor(texelFetch(paletteLut, ivec2(c.r + ${L} * (c.b & 7), c.g + ${L} * (c.b >> 3)), 0).r * 255.0 + 0.5);
 }
+// The shade (0..15, fractional) along a bank's raw ramp that has brightness lum (hueBlend.ts hbShade).
+float terrainRampShade(float bank, float lum) {
+  vec2 uv = vec2((clamp(lum, 0.0, 1.0) * ${SHADE_BINS - 1}.0 + 0.5) / ${SHADE_BINS}.0, (floor(bank / 16.0 + 0.5) + 0.5) / 16.0);
+  return texture2D(terrainRawShades, uv).r * 15.0;
+}
+// The raw palette's colour (sRGB) at a fractional shade of a bank.
+vec3 terrainRawRamp(float bank, float shade) {
+  float v = clamp(shade, 0.0, 15.0);
+  float lo = min(floor(v), 14.0);
+  vec3 a = texture2D(terrainRawPalette, vec2((bank + lo + 0.5) / 256.0, 0.5)).rgb;
+  vec3 b = texture2D(terrainRawPalette, vec2((bank + lo + 1.5) / 256.0, 0.5)).rgb;
+  return terrainSrgb(mix(a, b, v - lo));
+}
+// A painted texel's shade along its tile's banks (D224): the brightness on the main bank's raw ramp;
+// with a second bank, the ramp whose colour there is nearer the painting's, mixed over a small band
+// where they're about as near (underShade.ts's terrainHd reads it so for the C's blends, D204).
+float terrainBankShade(vec3 srgb, float lum) {
+  float s = terrainRampShade(vTerrainBanks.x, lum);
+  if (vTerrainBanks.y != vTerrainBanks.x) {
+    float s2 = terrainRampShade(vTerrainBanks.y, lum);
+    float d1 = distance(srgb, terrainRawRamp(vTerrainBanks.x, s));
+    float d2 = distance(srgb, terrainRawRamp(vTerrainBanks.y, s2));
+    s = mix(s, s2, clamp(0.5 + (d1 - d2) * 8.0, 0.0, 1.0));
+  }
+  return s;
+}
 // The palette effects on a painted colour (linear RGB), as the index (bank and shade) it paints.
 vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   float lum = pow(max(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0), 1.0 / 2.2);
@@ -91,13 +122,14 @@ vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   // their painted colour. Chroma is measured in sRGB: in linear light every dark colour is near
   // grey, so SAVARA V's dark jungle greens and shore browns took the exempt grey bank and stayed
   // green and brown under its blue water (episode-1 QA).
-  // Under JE_filterScreen and the smoothies' hues the shade is the nearest index's too (D193,
-  // D205): the C keeps the original's value (index & 0x0f), and a bank's shades are not its
-  // luminance in sixteenths (CAMANIS's ice bank runs from luminance 0.3 to 1, so a texel of its
-  // shade 7 read as shade 9 and the filtered floor went pale; LAVA RUN's red lava, luminance 0.49 at
-  // full red, read 3-5 shades low under lava_filter's hue, 0.76x the original's brightness). The
-  // brightness's shade lifted the lava only while the ground was lit 1.7x (D205). A near-grey texel
-  // off bank 0 takes the grey shade of its brightness.
+  // Under JE_filterScreen and the smoothies' hues the C keeps the original's value (index & 0x0f),
+  // and a bank's shades are not its luminance in sixteenths (CAMANIS's ice bank runs from luminance
+  // 0.3 to 1; LAVA RUN's red lava is luminance 0.49 at full red: D193, D205). The shade is the
+  // texel's brightness along the original tile's own banks (D224), fractional, so a smooth painting
+  // stays smooth. The nearest index's shade (D193, D205) hopped wherever a gradient crossed another
+  // bank's entries: bank 13 sits between the water's and the ice's, about three shades lower at the
+  // same brightness, so CAMANIS's water and SAVARA IV's mud drew contour lines. The nearest index
+  // still picks the bank, which says whether a hue applies (the exempt banks).
   vec3 srgb = terrainSrgb(rgb);
   float chroma = max(srgb.r, max(srgb.g, srgb.b)) - min(srgb.r, min(srgb.g, srgb.b));
   float nearest = terrainNearest(srgb);
@@ -108,9 +140,12 @@ vec3 terrainPalette(vec3 rgb, float height, inout float water) {
   // The hues change only the bank, so whether one applies doesn't depend on the shade.
   float hued = screenHueIndex(index, height, water);
   if (hued != index || levelFilter > -98.5) {
-    float shade = bank == nearBank ? nearest - nearBank : lumShade;
+    float shade = terrainBankShade(srgb, lum);
+    float lo = min(floor(shade), 14.0);
+    float hueBank = floor(hued / 16.0) * 16.0;
     // The palette texture already holds the level filter and brightness (paletteTexture.ts).
-    return texture2D(paletteMap, vec2((floor(hued / 16.0) * 16.0 + shade + 0.5) / 256.0, 0.5)).rgb;
+    return mix(texture2D(paletteMap, vec2((hueBank + lo + 0.5) / 256.0, 0.5)).rgb,
+      texture2D(paletteMap, vec2((hueBank + lo + 1.5) / 256.0, 0.5)).rgb, shade - lo);
   }
   if (levelBrightness > -98.5 && levelBrightness != 0.0) {
     float s = lum * 15.0;
@@ -173,6 +208,25 @@ function uniformsFor(texture: THREE.Texture, scale: number) {
   };
 }
 
+/** The uniforms every HD terrain material shares, updated by the renderer each frame. */
+export interface TerrainLevelUniforms {
+  levelFilter: { value: number };
+  levelBrightness: { value: number };
+  /** The raw palette and its shade lookup (RawShades, D224); call its update() each frame. */
+  terrainRawPalette: { value: THREE.Texture };
+  terrainRawShades: { value: THREE.Texture };
+}
+
+/** Fresh shared uniforms: no level filter, the hued shades read along `raw`'s ramps. */
+export function terrainLevelUniforms(raw: RawShades): TerrainLevelUniforms {
+  return {
+    levelFilter: { value: -99 },
+    levelBrightness: { value: 0 },
+    terrainRawPalette: { value: raw.palette },
+    terrainRawShades: { value: raw.shades.texture },
+  };
+}
+
 /**
  * The material for one atlas and kind. `levelUniforms` (levelFilter, levelBrightness) are shared
  * and updated by the renderer each frame from the palette texture.
@@ -180,7 +234,7 @@ function uniformsFor(texture: THREE.Texture, scale: number) {
 export function terrainMaterial(
   palette: PaletteTexture,
   texture: THREE.Texture,
-  levelUniforms: { levelFilter: { value: number }; levelBrightness: { value: number } },
+  levelUniforms: TerrainLevelUniforms,
   opts: TerrainMaterialOptions,
 ): THREE.MeshStandardMaterial {
   const { kind, scale } = opts;
@@ -215,10 +269,13 @@ export function terrainMaterial(
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, palette.screenHue.uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${TERRAIN_VERTEX_PARS}\nvarying float vPassY;${blended ? "\nattribute vec2 instBank; // the original tile's main banks (D174, D204)\nvarying float vBank;" : ""}`)
+      .replace(
+        "#include <common>",
+        `#include <common>\n${TERRAIN_VERTEX_PARS}\nvarying float vPassY;\nattribute vec2 instBank; // the original tile's main banks (D174, D204, D224)\nvarying vec2 vTerrainBanks;${blended ? "\nvarying float vBank;" : ""}`,
+      )
       .replace(
         "#include <begin_vertex>",
-        `#include <begin_vertex>\n${TERRAIN_VERTEX_MAIN}\nvPassY = 0.0;\n#ifdef USE_INSTANCING\nvPassY = instanceMatrix[3][1];\n#endif${blended ? "\nvBank = instBank.x;" : ""}`,
+        `#include <begin_vertex>\n${TERRAIN_VERTEX_MAIN}\nvPassY = 0.0;\n#ifdef USE_INSTANCING\nvPassY = instanceMatrix[3][1];\n#endif\nvTerrainBanks = instBank;${blended ? "\nvBank = instBank.x;" : ""}`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(

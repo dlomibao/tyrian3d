@@ -110,6 +110,8 @@ vec3 dmgEmber = vec3(0.0);
 float dmgKeep = 1.0;
 vec3 dmgTintRgb = vec3(1.0);
 float dmgTake = 0.0;
+// How much of the surface's gloss is left (D224): an enemy's damage that darkened it dulls it too.
+float dmgGloss = 1.0;
 `;
 
 // After map_fragment: diffuseColor is the palette colour times the baked map (D65).
@@ -134,9 +136,14 @@ if (uDmgOn > 0.5) {
     float shade = clamp(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)) / lum0, 0.0, 1.6);
     vec3 changed = mix(diffuseColor.rgb * tint, paint * shade, t.a);
     float take = m.a * up;
+    float lumBefore = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
     diffuseColor.rgb = mix(diffuseColor.rgb, changed, take);
     diffuseColor.rgb *= 1.0 - 0.9 * m.g * up;
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03, 0.025, 0.02), rim);
+    // A charred or blackened shell is matte: the gloss goes with the brightness the damage took
+    // (IXMUCANE's cracked egg, newsh8-140 on the intact newsh8-102, read as a glossy silver egg).
+    // Not the player ship's wear (D90, D156), which keeps its look.
+    if (uDmgCover < 0.0) dmgGloss = clamp(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)) / max(lumBefore, 1e-3), 0.0, 1.0);
     dmgKeep = (1.0 - 0.9 * m.g * up) * (1.0 - rim);
     dmgTintRgb = mix(tint * tint, vec3(dot(paint, vec3(0.333))), t.a);
     dmgTake = take;
@@ -145,8 +152,25 @@ if (uDmgOn > 0.5) {
     // The inside of the hull, seen through a cut: charred, faintly glowing.
     diffuseColor.rgb = vec3(0.035, 0.03, 0.025);
     dmgKeep = 0.0;
+    dmgGloss = 0.0;
     dmgEmber = vec3(0.12, 0.03, 0.0);
   }
+}
+`;
+
+// The gloss the damage left (dmgGloss): rougher, and less specular, clearcoat and sheen.
+const FRAGMENT_GLOSS = /* glsl */ `
+if (uDmgOn > 0.5 && dmgGloss < 1.0) {
+  material.roughness = mix(1.0, material.roughness, dmgGloss);
+  material.specularColor *= dmgGloss;
+  material.specularColorBlended *= dmgGloss;
+  material.specularF90 *= dmgGloss;
+  #ifdef USE_CLEARCOAT
+  material.clearcoat *= dmgGloss;
+  #endif
+  #ifdef USE_SHEEN
+  material.sheenColor *= dmgGloss;
+  #endif
 }
 `;
 
@@ -177,7 +201,7 @@ export function patchDamage(material: THREE.Material, uniforms: DamageUniforms):
     damageSource(shader, uniforms);
     own.call(material, shader, renderer);
   };
-  material.customProgramCacheKey = () => `${ownKey()}|tyrian-damage-2`;
+  material.customProgramCacheKey = () => `${ownKey()}|tyrian-damage-3`;
   material.needsUpdate = true;
   return true;
 }
@@ -191,7 +215,8 @@ function damageSource(shader: THREE.WebGLProgramParametersWithUniforms, uniforms
   shader.fragmentShader = shader.fragmentShader
     .replace("#include <common>", `#include <common>\n${FRAGMENT_PARS}`)
     .replace("#include <map_fragment>", `#include <map_fragment>\n${FRAGMENT_COLOUR}`)
-    .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\n${FRAGMENT_EMISSIVE}`);
+    .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>\n${FRAGMENT_EMISSIVE}`)
+    .replace("#include <lights_physical_fragment>", `#include <lights_physical_fragment>\n${FRAGMENT_GLOSS}`);
 }
 
 /**

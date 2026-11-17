@@ -39,8 +39,21 @@ const DRAW_LIST_FRAME_MARGIN = 1.01;
 const MAX_BANK = THREE.MathUtils.degToRad(35);
 const GROUND_TILE_PX = 64;
 /** Dark outline around models, echoing the sprites' black edges. Thickness is relative to screen
- * size, so it looks the same at any resolution. */
+ * size, so it looks the same at any resolution, at the full-window play view's framing (the playfield
+ * OUTLINE_PLAYFIELD_SHARE of the canvas's height); scaled with that share (D224). */
 const OUTLINE = { defaultThickness: 0.0045, defaultColor: INK_OUTLINE };
+/**
+ * The share of the canvas's height the playfield fills in the play view the ink was tuned in (1080p,
+ * the frame interface: 966 of 1080 px). Outline thickness is clip-space, a share of the canvas, so
+ * where the playfield fills less of it (the comparison view's right half: 474 px, 0.44) the ink was
+ * twice as heavy against the sprites' 1-pixel edge; it now scales with the playfield's share.
+ */
+export const OUTLINE_PLAYFIELD_SHARE = 0.895;
+
+/** The outline thickness for a playfield filling `share` of the canvas's height (D224). */
+export function outlineThickness(share: number): number {
+  return OUTLINE.defaultThickness * Math.min(1, Math.max(0.25, share / OUTLINE_PLAYFIELD_SHARE));
+}
 const NO_OUTLINE = { outlineParameters: { visible: false } };
 const BACKGROUND = 0x05070d;
 
@@ -426,6 +439,8 @@ export class View {
       return new THREE.Vector2(p.x, p.y);
     });
     this.corners = ndc.map((p) => ({ x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h }));
+    const ys = this.corners.map((c) => c.y);
+    this.outline.setDefaultThickness(outlineThickness((Math.max(...ys) - Math.min(...ys)) / h));
     const hole = new THREE.Path(ndc);
     const outer = new THREE.Shape([new THREE.Vector2(-2, -2), new THREE.Vector2(2, -2), new THREE.Vector2(2, 2), new THREE.Vector2(-2, 2)]);
     outer.holes.push(hole);

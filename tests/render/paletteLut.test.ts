@@ -14,7 +14,8 @@ import {
   paletteLutCell,
   paletteLutOffset,
 } from "../../src/render/paletteTexture";
-import { terrainMaterial } from "../../src/render/remaster/terrainMaterial";
+import { terrainLevelUniforms, terrainMaterial } from "../../src/render/remaster/terrainMaterial";
+import { RawShades } from "../../src/render/hueBlend";
 import { hasData, readData } from "../data/dataDir";
 
 /** The LUT's index for an sRGB colour (0..255 channels), looked up as the shader does. */
@@ -93,7 +94,7 @@ describe.skipIf(!hasData("palette.dat"))("LAVA EXIT's palette (5)", () => {
 
 test("the HD terrain shader picks the index's bank from the lookup", () => {
   const pt = new PaletteTexture();
-  const level = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
+  const level = terrainLevelUniforms(new RawShades(pt));
   const m = terrainMaterial(pt, new THREE.Texture(), level, { kind: "ground", scale: 8 });
   const shader = {
     uniforms: {} as Record<string, { value: unknown }>,
@@ -103,18 +104,21 @@ test("the HD terrain shader picks the index's bank from the lookup", () => {
   m.onBeforeCompile(shader as never, {} as never);
   expect(shader.uniforms.paletteLut.value).toBe(pt.indexLut);
   expect(shader.fragmentShader).toMatch(/float bank = chroma < 0\.04 \? 0\.0 : nearBank;/);
-  // Under JE_filterScreen and the smoothies' hues the shade is the nearest index's value (D193, D205); for a grey
-  // off bank 0, the brightness's. The hue keeps its bank.
-  expect(shader.fragmentShader).toMatch(/if \(hued != index \|\| levelFilter > -98\.5\) \{\s+float shade = bank == nearBank \? nearest - nearBank : lumShade;/);
-  expect(shader.fragmentShader).toMatch(/float lumShade = clamp\(floor\(lum \* 15\.0 \+ 0\.5\), 0\.0, 15\.0\);/);
-  expect(shader.fragmentShader).toContain("floor(hued / 16.0) * 16.0 + shade");
+  // Under JE_filterScreen and the smoothies' hues the shade is the texel's brightness along its tile's own banks
+  // (instBank, D224), not the nearest index's (D193, D205), mixed between two entries of the hue's bank.
+  expect(shader.fragmentShader).toMatch(/if \(hued != index \|\| levelFilter > -98\.5\) \{\s+float shade = terrainBankShade\(srgb, lum\);/);
+  expect(shader.fragmentShader).toContain("float s = terrainRampShade(vTerrainBanks.x, lum);");
+  expect(shader.vertexShader).toContain("attribute vec2 instBank;");
+  expect(shader.vertexShader).toContain("vTerrainBanks = instBank;");
+  expect(shader.uniforms.terrainRawShades).toBeDefined();
+  expect(shader.uniforms.terrainRawPalette).toBeDefined();
   // The near-grey test is on the sRGB colour (dark saturated colours aren't grey).
   expect(shader.fragmentShader).toMatch(/vec3 srgb = terrainSrgb\(rgb\);\s+float chroma = max\(srgb\.r/);
 });
 
 test("HD blend sheets and cutouts carry their alpha for the screen filters' mask; the ground doesn't (D199)", () => {
   const pt = new PaletteTexture();
-  const level = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
+  const level = terrainLevelUniforms(new RawShades(pt));
   const texture = new THREE.Texture();
   const under = { uniforms: {} } as unknown as import("../../src/render/hueBlend").UnderGrab;
   for (const kind of ["blend", "cutout"] as const) {
