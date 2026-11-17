@@ -9,7 +9,8 @@
 //   the script's picture 5.
 // - "credits": JE_playCredits (mainint.c L2347-2518), after the last episode: the credits roll
 //   smoothly in the interface's type, the C's pictures fade in and out beside them and a ship
-//   weaves up the side.
+//   weaves up the side; the pictures and the ship are painted ones where public/art/credits/ has
+//   them (creditsArt.ts, D218).
 // - "nextEpisode": the next episode's name, from JE_nextEpisode (mainint.c L987-1000), as a title
 //   card over the 3D backdrop.
 // - "superArcadeCode": the next Super Arcade ship and its code (tyrian2.c L2603-2645), a card over
@@ -34,6 +35,7 @@ import { TYREND_ANIM, type LoadMapPause } from "../sim/tyrian2";
 import { SANextShip, SAShip } from "../sim/varz";
 import { h, title, ui } from "../ui";
 import { bankTint, openCinema, releaseCinema, STAGE_H, STAGE_W, type Cinema } from "./cinema";
+import { CreditsArt, loadCreditsArt } from "./creditsArt";
 import { BLACK } from "./fade";
 import { displayTextOver, drawPicture, paletteColors, pictureSource } from "./storyScreens";
 import { paletteRgb, Vga, type PressSource } from "./vga";
@@ -204,6 +206,10 @@ async function playCredits(stage: Cinema, host: EpisodeEndHost): Promise<void> {
     return;
   }
   const extraShapes = parseSpriteTable(estsc).sprites; // load_sprites_file(EXTRA_SHAPES, "estsc.shp")
+  // The painted pictures and ship (D218). The first picture gets a moment to decode, so it fades in
+  // painted (later ones swap in unseen); waiting here, before the C's timers start, keeps its timing.
+  const art = loadCreditsArt();
+  await Promise.race([art.then((a) => a?.pictures.get(0)), new Promise((r) => setTimeout(r, 1500))]);
 
   // Only the timers and the sprite blits of the C's screen are used: the credits are drawn on the stage.
   const v = new Vga({ input: stageInput(stage) });
@@ -219,6 +225,7 @@ async function playCredits(stage: Cinema, host: EpisodeEndHost): Promise<void> {
   stage.blank();
   stage.setSkip("skip");
   const view = new CreditsView(stage, credstr, colors, extraShapes);
+  void art.then((a) => view.setArt(a));
   await stage.fadeTo(0, BLACK, 2); // fade_palette(colors, 2)
 
   let songFaded = false;
@@ -280,12 +287,13 @@ async function playCredits(stage: Cinema, host: EpisodeEndHost): Promise<void> {
       if (shipxca > 0 && shipxc > 0) shipxwait = 1;
     }
 
-    let ship_sprite = g.res.items.ships[currentship].shipGraphic;
+    const shipGraphic = g.res.items.ships[currentship].shipGraphic;
+    let ship_sprite = shipGraphic;
     if (shipxc < -10) ship_sprite -= shipxc < -20 ? 4 : 2;
     else if (shipxc > 10) ship_sprite += shipxc > 20 ? 4 : 2;
 
     // blit_sprite2x2(shipx / 40, 184 - (ticks % 200), ship_sprite)
-    view.ship(ship_sprite, shipx, 184 - (ticks % 200));
+    view.ship(ship_sprite, shipGraphic, shipx, 184 - (ticks % 200));
 
     // The lines bottom_line - 10 .. bottom_line - 1 at y = 20 - (ticks / 3) % 20 + 20 k.
     view.roll(creditsRoll(ticks));
@@ -320,7 +328,10 @@ class CreditsView {
   private readonly rollEl: HTMLElement;
   private readonly noteEl: HTMLElement;
   private readonly shipEl: HTMLCanvasElement;
-  private readonly pictures: (HTMLCanvasElement | null)[];
+  /** The painted ship frame, shown instead of shipEl when the ship has every frame painted. */
+  private readonly shipImg: HTMLImageElement;
+  private readonly pictures: (HTMLCanvasElement | HTMLImageElement | null)[];
+  private art: CreditsArt | null = null;
   private shownPic = -1;
   private shipSprite = -1;
   private noteText: string | null = null;
@@ -343,6 +354,8 @@ class CreditsView {
     }
     this.noteEl = h("div", { class: "cinema-credits__note" });
     this.shipEl = h("canvas", { class: "cinema-credits__ship", attrs: { width: "24", height: "28" } });
+    this.shipImg = h("img", { class: "cinema-credits__ship is-hd", attrs: { alt: "" } });
+    this.shipImg.hidden = true;
     // Each picture once, at full brightness; the C's fade (fade - 15) becomes its opacity.
     this.pictures = shapes.map((pic) => {
       if (!pic) return null;
@@ -357,8 +370,28 @@ class CreditsView {
       h("div", { class: "cinema-credits", attrs: { "aria-label": "Credits", role: "marquee" } }, this.rollEl),
       ...this.pictures.filter((p): p is HTMLCanvasElement => p !== null),
       this.shipEl,
+      this.shipImg,
       this.noteEl,
     );
+  }
+
+  /** The painted art (D218), when it has loaded; null keeps the original pixels. */
+  setArt(art: CreditsArt | null): void {
+    this.art = art;
+    this.shipSprite = -1; // redraw the ship from the art
+  }
+
+  /** Picture `n`'s painting in place of its original pixels, if it has decoded (only while unseen). */
+  private paint(n: number): void {
+    const old = this.pictures[n];
+    const img = this.art?.picture(n);
+    if (!old || !img || old instanceof HTMLImageElement) return;
+    const el = img.cloneNode() as HTMLImageElement;
+    el.className = "cinema-credits__pic is-hd";
+    el.alt = "";
+    el.style.setProperty("--aspect", old.style.getPropertyValue("--aspect"));
+    old.replaceWith(el);
+    this.pictures[n] = el;
   }
 
   /** blit_sprite_hv(pic, 319 - width, 100 - height / 2, 0x0, fade - 15): picture `n` at fade 0..15. */
@@ -366,23 +399,36 @@ class CreditsView {
     if (n !== this.shownPic) {
       this.pictures[this.shownPic]?.style.setProperty("--o", "0");
       this.shownPic = n;
+      this.paint(n); // it starts at fade 0, so the swap isn't seen
     }
     this.pictures[n]?.style.setProperty("--o", String(Math.max(0, Math.min(1, fade / 15))));
   }
 
-  /** The ship: sprite `sprite` (2x2 tiles) at x shipx / 40 and y, in the C's 320x200 screen. */
-  ship(sprite: number, shipx: number, y: number): void {
+  /**
+   * The ship: sprite `sprite` (2x2 tiles; `shipGraphic` its level frame) at x shipx / 40 and y, in
+   * the C's 320x200 screen. Painted when every frame of that ship is (D218), else the original.
+   */
+  ship(sprite: number, shipGraphic: number, shipx: number, y: number): void {
     if (sprite !== this.shipSprite) {
       this.shipSprite = sprite;
-      this.scratch.clr256();
-      this.scratch.blitSprite2x2(0, 0, g.res.spriteSheet9.data, sprite);
-      const cut = this.scratch.cutOut(24, 28, this.colors);
-      const ctx = this.shipEl.getContext("2d")!;
-      ctx.clearRect(0, 0, 24, 28);
-      ctx.drawImage(cut, 0, 0);
+      const url = this.art?.shipPainted(shipGraphic) ? this.art.shipFrame(sprite) : undefined;
+      if (url) {
+        this.shipImg.src = url;
+      } else {
+        this.scratch.clr256();
+        this.scratch.blitSprite2x2(0, 0, g.res.spriteSheet9.data, sprite);
+        const cut = this.scratch.cutOut(24, 28, this.colors);
+        const ctx = this.shipEl.getContext("2d")!;
+        ctx.clearRect(0, 0, 24, 28);
+        ctx.drawImage(cut, 0, 0);
+      }
+      this.shipImg.hidden = !url;
+      this.shipEl.hidden = !!url;
     }
-    this.shipEl.style.setProperty("--x", String((shipx - 1) / 899));
-    this.shipEl.style.setProperty("--y", String(y / 200));
+    for (const el of [this.shipEl, this.shipImg]) {
+      el.style.setProperty("--x", String((shipx - 1) / 899));
+      el.style.setProperty("--y", String(y / 200));
+    }
   }
 
   /** Roll the lines `roll` lines on (creditsRoll). */

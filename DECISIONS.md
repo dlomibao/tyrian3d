@@ -11739,3 +11739,73 @@ bases' stones have no ink outline (the belt's rim does, D211). Their height (0.3
 the belt's 0.30, because they ring a raised deck.
 
 **Cost:** one Opus agent.
+## D218 — Remastered end credits: Gemini paints the credits' nine pictures and the credits ships' banking frames; each picture is cut back onto its original's silhouette in the C's greys, the original pixels stay the fallback and the `?sprites=original` look (follows D43, D210)
+
+2026-11-17
+
+**Decision:** JE_playCredits' pictures (estsc.shp, the EXTRA_SHAPES table: 140x160, 113x170, 116x159, 100x148,
+92x151, 85x161, 101x156, 53x156, 135x138) and the ship weaving up the side draw from painted high-resolution art
+where `public/art/credits/` has it.
+- **What they are** (looked at, D187's rule): scenes of the game seen from above, the player's fighter with its two
+  side pods at the bottom of each: 0, smoke puffs and trails under a tower pouring white smoke, a dark hull at the
+  left; 1, a fortress floor under a round turret with two guns; 2, an egg-shaped armoured airship over a dark sea,
+  two curled worms; 3, a horned insect boss over gravel; 4, a canyon of metal blocks to a domed turret, two columns of
+  smoke; 5, a drill machine, missile and fireballs by a cratered station in space; 6, cobblestones under boulders and
+  a creature, a trail of smoke; 7, a blade missile and a worm of dark spheres in space; 8, a mothership firing at the
+  fighter's three lasers.
+- **Grey:** blit_sprite_hv(..., hue 0, fade - 15) keeps only each pixel's low nibble, so every picture is drawn in
+  palette 6-1's first 16 colours, a neutral grey ramp (a low nibble of 0 is black, which `cutOut` leaves
+  transparent on the black stage). The prompts say monochrome; the cutter takes the answer's luminance and maps its
+  grey levels onto the original's (a quantile map over the picture), so the light and dark areas are the original's.
+- **Sheets** (`tools/credits_art.py sheets`, kept out of git, D3): two 1:1 sheets of the pictures on black
+  rectangles on neutral grey (0-4, 5-8), 5 input px per pixel, scaled bicubic (softened, D79's cure for copied
+  pixel blocks), each prompt naming every picture's objects; ~5 answer px per original pixel.
+- **Ship:** the credits pick ships[1..11] (shipGraphic 233, 119, 157, 195, 271, 81) and bank them, drawing
+  shipGraphic -4/-2/+2/+4 when |shipxc| > 10 / 20, about 47% of the time (simulated). D210 painted only the level
+  frames, so a ship drawn painted only when level would flip between painting and pixels every second or so. A
+  third sheet (3:4, 6 rows x 5) shows each ship's four banking frames round D210's painted level frame, which the
+  prompt says is finished and to match; the 24 frames are cut with `shop_icons.cut_icon` into
+  `public/art/credits/ships/` (the shop icons' format and scale, 98 KB). A ship draws painted only when all five of
+  its frames are (`CreditsArt.shipPainted`), so it never changes look as it banks.
+- **Gemini:** 6 requests (Nano Banana Pro, one chat each): the three sheets and three retries. Retry 1 (0, 1, 4,
+  input softened further, sigma 0.7 px): 1 and 4 had come back as copied pixel blocks, and in 0 the soft puffs and
+  trails became fireballs and flaming comets. Retry 2 (1 alone): retry 1 ran its two guns on as rods to the
+  right edge; the prompt says where they end. No usage warning.
+- **Cutter** (`tools/credits_art.py cut`): each picture is registered by zero-mean NCC of luminance (scale
+  0.95-1.05, aspect 0.98-1.02, priors toward the sheet's placement; every answer kept the geometry, scale 1.000,
+  shift under 1 answer px), resampled at 5 texels per original pixel, alpha the original's visible pixels with holes
+  of a pixel or two closed (smooth_alpha), so a picture's outline is the original's. One WebP per picture
+  (`picture-<n>.webp`, 19-90 KB, 532 KB in all) and `manifest.json`. The credits show a picture
+  `min(46cqh, 38cqw)` tall, ~400-500 CSS px on a laptop, so 5x (690-850 px tall) covers DPR 2.
+- **Fit:** pictures NCC 0.76-0.98 (median 0.94; lowest 3, the insect boss, whose speckled gravel was repainted as
+  stone chips, layout kept), grey error after the tone map (mean absolute, 0-255, at the original's pixels) 6.6-21.8;
+  banking frames NCC 0.78-0.99 (median 0.96), colour error median 21, the SuperCarrot's 43-45 (painted copper-orange
+  like D210's level frame rather than the sprite's flame yellow).
+- **Game side** (`src/app/creditsArt.ts`, `episodeEnd.ts` CreditsView): the manifests and the ship atlas load when
+  the credits start; the first picture is given up to 1.5 s to decode, before the C's timers start. A picture is swapped for its painting when it
+  becomes the current one (at fade 0, so the swap isn't seen) if it has decoded; the fade (`--o`) is unchanged.
+  Anything missing, not loaded or failed draws the original pixels; the look is D42's switch as D210 follows it
+  (`?sprites=original` or `?vfx=original`). Painted images get `is-hd` (`image-rendering: auto`).
+- **Fix in passing:** `.cinema-credits__ship` sits beside `.cinema-credits`, not in it, so it never had `--line`:
+  its width and `left` were invalid, the ship drew at its 24x28 canvas size and stayed at the left edge. It now
+  defines `--line` itself, so it is 1.2 lines wide and weaves across as the CSS meant (both looks).
+- **Harness:** `?debug=credits` (`src/debug/creditsHarness.ts`): the credits on their own, `&seed=`, `&episode=`,
+  `&speed=N` (the credits' clock N times faster, to reach later pictures).
+
+**Options considered:**
+- *Two sheets of pictures and a cutter onto the original silhouette (chosen):* D43/D210's approach; the
+  composition stays the original's and the set is painted in one style.
+- *One picture per request:* more resolution than the credits show (~11x), 9 requests.
+- *Use D210's level frame for every banking frame, or a CSS squash for the bank:* the sprite's banking poses would
+  be lost; the original pixels for the banks flip look every second.
+- *Gemini's colours:* the C draws these pictures grey; the colours would be invented.
+
+**Review:** `?debug=credits` with and without `&sprites=original` (`&speed=4` reaches the last picture in ~30 s).
+Captures: `tyrian-scratch/credits-art/shots/` (before-*, after-*, compare-*); contact sheet original | painted at
+`tyrian-scratch/credits-art/summary.png`. Known limits: the banking frames follow the sprites, which D210's level
+frames don't always (the Talon's and SuperCarrot's painted level frames have a different cockpit), so a ship's
+cockpit changes a little as it banks; picture 0's left hull and picture 2's worms are reinterpreted in detail.
+To redo a picture, add a `RETRIES` entry, `sheets --retry NAME`, send it, and `cut` again with all answers (a
+later sheet's picture wins).
+
+**Cost:** one Opus agent; 6 Gemini requests.
