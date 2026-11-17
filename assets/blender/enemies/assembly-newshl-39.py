@@ -21,8 +21,9 @@ The sprite's right side draws the gaps between core, tube, pipe and pod see-thro
 (the outline rule); the same gaps on the left are drawn dark and are channel floor (pal 3).
 
 Colours (median palette index per region, darkest / brightest 15% left out as lighting): cap 6, neck 4, lip 5, core
-6, pods 4, pipes 6, tube glow 115 (hot bands 118), clamp bands 112, channel floor 3, housing rim 7, dish 3. Satin
-steel as assembly-newshl-77 (metallic 0.7, roughness 0.25, Specular IOR Level 0.5); glows metallic 1 / rough 0.9.
+6, pods 4, pipes 6, tube glow 115 (hot bands 118), clamp bands 112, channel floor 3, housing rim 7 (its south side 2, its east side 4),
+dish 3. Satin steel as assembly-newshl-77 and the mothership (metallic 0.3, roughness 0.42, Specular IOR Level 0.5);
+glows metallic 1 / rough 0.9.
 
 Units: c, r = sprite px EDGES of the 48 x 56 assembly (col 3 spans c 3..4); X = (c - 24) / 12, Y = (28 - r) / 12,
 z in px / 12. The capsule axis is c = 24.5, z = 0 (top and bottom symmetric in height, as newshl-77; the underside
@@ -55,7 +56,9 @@ PX = 1 / 12
 AX = 24.5
 W, H = 48, 56
 
-STEEL = dict(metallic=0.7, roughness=0.25, spec=0.5)  # assembly-newshl-77's HULL (metallic 0.7, roughness 0.24)
+# Satin grey steel, as the mothership beside it (lib_newsh9_mothership FINISH["steel"]): at metallic 0.7 /
+# roughness 0.25 the cap drew luma 50 where the sprite's is 80 (TIME WAR t19050).
+STEEL = dict(metallic=0.3, roughness=0.42, spec=0.5)
 BODY = dict(metallic=0.1, roughness=0.45, spec=0.5)  # the body's greys: mostly dielectric satin, so the core spine
 #                                                    reads light grey in game (not the env's dark reflection)
 GLOW = dict(metallic=1.0, roughness=0.9)
@@ -448,7 +451,13 @@ def build(coll, sprite):
     tube = M(115, emit=1.0, **GLOW)
     hot = M(118, emit=1.0, **GLOW)
     band = M(112, metallic=0.8, roughness=0.45)
-    rim = M(7, **STEEL)
+    # The housing's rim is satin, not mirror steel, and its south side is the sprite's shadow (row 45 is ink,
+    # rows 46-47 the core in shade): as polished pal-7 steel its two south-facing chamfers (the rim's, row 45,
+    # and the rear lip's, row 47.7) mirrored light into the game camera, which looks from the south:
+    # two white bars under the panel where the sprite is darkest.
+    rim = M(7, **BODY)
+    rim_shade = M(2, metallic=0.2, roughness=0.8)
+    rim_east = M(4, **BODY)
     dish = M(3, **BODY)  # a flat dark-grey panel (satin): a glossy metal bowl read as a black ball in game
     vent = M(3, metallic=0.4, roughness=0.6)
     slat = M(6, **STEEL)
@@ -583,7 +592,10 @@ def build(coll, sprite):
     rows_ = [verts(hb, [P(c, r, base_z) for c, r in outer]),
              verts(hb, [P(c, r, zr - 0.3) for c, r in outer]),
              verts(hb, [P(c, r, zr) for c, r in upper])]
-    loft(hb, rows_, lambda i, k: rim, smooth=False, cap0=True, cap1=True, cap_mat=rim)
+    # rrect runs top right corner, right side (k 5), bottom right, bottom (k 11), bottom left, left (k 17), top
+    # left, top (k 23): the south wall and chamfer take the shade, the east ones pal 4 (the sprite's col 28)
+    loft(hb, rows_, lambda i, k: rim_shade if 8 <= k <= 14 else rim_east if 2 <= k <= 7 else rim, smooth=False,
+         cap0=True, cap1=True, cap_mat=rim)
     # the dark panel (the sprite's flat pal-3 block, rows 35-44, cols 21-28, lit rim on its left and top
     # edges): a shallow rounded-square recess with chamfered walls and a flat floor, not a bowl (a
     # concave metal bowl mirrored the dark environment and read as a black ball in game)
@@ -594,8 +606,8 @@ def build(coll, sprite):
         loft(cb, list(reversed(rings)), 0, smooth=False)
     cut_into(hb, dish_cut, dish, len(M.list) + 12)
     merge(bm, hb)
-    # rear lip of the housing (rows 46-47)
-    chbox(bm, 20.6, 28.4, 45.9, 47.7, 2.0, 6.95, 0.3, rim)
+    # rear lip of the housing (rows 46-47): in the housing's shade (the sprite's core there is pal 3-5)
+    chbox(bm, 20.6, 28.4, 45.9, 47.7, 2.0, 6.95, 0.3, M(4, **BODY))
 
     me = bpy.data.meshes.new(NAME)
     bm.normal_update()

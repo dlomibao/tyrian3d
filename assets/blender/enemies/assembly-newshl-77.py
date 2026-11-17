@@ -47,7 +47,9 @@ PX = 1 / 12
 AX = 24.5      # nacelle axis (edge coords)
 W, H = 48, 28  # assembly sprite size
 
-STEEL = dict(metallic=0.82, roughness=0.42, spec=0.5)
+# Satin grey steel, as the capsule's upper part (assembly-newshl-39) and the mothership beside it: at metallic
+# 0.82 the base drew luma 52 where the sprite's is 80 (TIME WAR t19050).
+STEEL = dict(metallic=0.3, roughness=0.42, spec=0.5)
 GLOW = dict(metallic=1.0, roughness=0.9)
 
 
