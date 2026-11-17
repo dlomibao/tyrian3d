@@ -77,6 +77,10 @@ ln -s ../model-shape/reference reference; ln -s ../model-shape/.shape .shape
    extracted from it, Gemini input sheets, review sheets). Derived art is public, with a
    CREDITS.md row naming the original authors (D3, D16, D41).
 7. Judge in the game's own render (headless captures), not only Blender (D53).
+8. **Player ships read as real ships from every angle**: the hangar, shop, viewer and banks show them
+   from the side, front and rear, not only top-down. Build and rework them through the flagship pipeline
+   (multi-view blueprint, competing designs, judge, strict review; PLAYBOOK) and judge in `?viewer=` free
+   angle. Never thin or resize a ship's parts to fit top-view pixels alone (D240).
 
 ## Shared resources
 - **Gemini**: one request at a time across all agents. Take the lock before each request:

@@ -95,6 +95,9 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   `?viewer=<name>` (top view with "Sprite over model"); `?debug=models&model=<name>&flash=1`;
   `?debug=play&seed=1&skip=T&freezeAt=T` at a tick where it is on screen;
   `MODEL_SWAP_REPORT=1` with `tests/render/modelSwap.test.ts` lists sprites still drawn extruded.
+- **Accept (player ships, also):** reads as a solid, real ship in `?viewer=` free angle (side, front, rear, three-
+  quarter) and in the hangar, judged beside the current model; no part thinner or smaller than the blueprint's side and
+  front views only to raise a top-view score (lesson 22, D240).
 - **Accept:** top-view IoU ≥ 0.95 at sprite resolution on every frame against the sprite's *inner*
   mask, its ink border left to the game's outline (`tools/sprite_mask.py <name> --measure top.png`,
   `iou_rule_grid`; [OUTLINE-BORDER.md](OUTLINE-BORDER.md), D74); a player ship's banking frames
@@ -446,3 +449,10 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
     The U-Ship matched the sprite pixel for pixel (D228: painted bands on a blade, a striped capsule) and "regressed
     in feel": a flat cut-out in the viewer, the hangar and the banks. Parts take the sprite's index per region; light and
     dark sides come from the model's own shape under the game's lights (D237).
+22. **Player ships must read well from every angle, so they go through the full flagship pipeline.** The U-Ship and
+    Silver Ship reworks (D228/D229, then D237/D238) were single agents refitting the model to the top-view sprite: they
+    took "corrections" (slimmer guns and yoke, a smaller pod) from pixels alone, skipped the multi-view blueprint,
+    competing designs, judge and strict review, and came out thinner and toy-like beside the blueprint-built ship the
+    user preferred: "reads the most like a real ship" (D240). A ship rework starts from the blueprint (side, front, rear
+    views), is judged in `?viewer=` free angle beside the current model, and never changes a part's thickness or size
+    only to fit top-view pixels.
