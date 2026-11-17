@@ -14379,3 +14379,153 @@ rule 2). No part is split into tone bands and no index is stepped to cancel the 
   `python tools/shop_icons.py models` after merging.
 - Not checked: the hit flash by eye (one frame of `?debug=models&flash=1` was captured, not a flashing one; the
   materials are `pal_` as before), `&armor=` wear, two-player mode, the title screen.
+
+## D239 — The loose asteroids are heaps of jagged stones with deep crevices: convex stones cut on the sprite's own masses, a dark core for the crevice floors, an occlusion bake that goes to black and a normal map; no tone is painted on a facet (user report; follows D74, D90, D118, D122, D125, D175, D211, D216; art rules 1, 2, 4)
+
+2026-11-17
+
+**User report:** "These asteroids don't look good" (a phone screenshot of ASTEROID1 at tick 600). `&compare=1` at
+3840x2160 shows why: the original draws a cluster of jagged rocks with deep dark crevices, pitted, near-white tops down
+to near-black gaps; ours were smooth, light-grey, low-poly lumps that read as clay.
+
+**Which models** (draw lists of ASTEROID1 1.5, ASTEROID2 1.6, ASTEROID? 1.21 and AST. CITY 3.15, whole levels, bot
+run, `tyrian-scratch/asteroid-crags/diag/sample-*.json`): the rocks in the screenshot are not `newshd-123`/`-5` but
+`assembly-newshd-39` (pieces 39, 41, 1, 3: three of them on screen at tick 600, on the ground, sky and top passes).
+The whole family, all `newshd.shp`:
+- 24 x 28: `newshd-123`, `-5`, `-43`, `-85`, `-18` (frames 18/55/93, the vent), `-229` (229/231/233/235, the crystal);
+- 2 x 2 assemblies: `assembly-newshd-39`, `assembly-newshd-45` (45, 47, 7, 9);
+- the heap the level opens on, drawn through a blue hue filter (filter 208): `assembly-newshd-89` (13, 49, 51, 53,
+  89, 91) with its four 1 x 1 edge pieces `newshd-15`, `-31`, `-34`, `-88`, which spawn with it and fill the concave
+  corners of its outline (ASTEROID1 ticks 8-200, 600-680, 860-912, 1122-1284);
+- 12 x 14: `newshd-114`, `-133`, `-152`, `-95`.
+
+**Diagnosis** (sprites from `reference/models`, `diag/sprite-diagnosis.png`; renders from the captures):
+- *What the sprites draw:* heaps of angular stones packed together, lit from the upper left: each stone a pale top
+  with a lit rim (the ring highlights are the edge of a flat top) and a shadowed flank, parted from its neighbours
+  by dark crevices one or two pixels wide. Inside the ink ring 10-14 % of the pixels are crevice (darker than their
+  5 x 5 neighbourhood by 12 and in the darkest 35 %); the stones are 6-12 px across (4 in `newshd-123`, about 10
+  in `assembly-newshd-39`, 24 in the heap); luminance p5 / p50 / p95 is 12 / 81-93 / 165-186, 21-35 % of the
+  pixels at or under 64, 1-4 % at or over 190, and neighbouring pixels differ by 14-30 (a mottled, pitted surface).
+  The small rocks are single dark blue-grey stones (median 58, half their pixels at or under 64) with one lit streak.
+- *Why ours read as clay:* (1) form: one closed body (D125) or stones meeting in hairline V grooves
+  (`assembly-newshd-39`, `newshd-123`/`-85`/`-229`), with broad near-level faces, so no surface was hidden from the
+  light; (2) light: under the game's rig more than half of an up-facing face's light is fill (sun 0.71 of the
+  albedo, hemisphere 0.18, environment 0.77: lighting.ts), so a face turned 45 degrees from the sun still gets
+  about 60 % of a lit one's (estimated from those shares, not measured): facets alone gave a spread of about 120
+  where the sprite has 170; (3) bake: `usp_talon.bake_maps`'
+  colour map is 0.48 + 0.62 x occlusion over a 0.16 unit reach, never under 0.48; (4) surface: smooth-shaded
+  bodies, no texture at the pixel scale. `assembly-newshd-39` at tick 600 measured p5 / p50 / p95 41 / 90 / 164,
+  19 % dark and 0.7 % light against the sprite's 12 / 81 / 186, 31 %, 2.8 %. D175 got the range back on the D125
+  rocks by painting the sprite's shades on flat facets, which is what art rule 2 rules out for a rebuild.
+
+**Decision:** one builder, `assets/blender/enemies/lib_crag_rock.py`; the light and dark come from the form.
+- **Stones.** The sprite's rock pixels are split into its bright masses: a watershed on the brightness blurred
+  0.7 px, with the crevice pixels 30 lower, masses merged across saddles shallower than 6 and under 12 px
+  (`assembly-newshd-45` from nine given centres, by cheapest path: its lower stones are dim and the watershed ran
+  them together). Each mass is one convex polyhedron cut from planes: a crown of two or three faces tilted 14-34
+  degrees apart, a ring of bevel faces and one of shoulders (random tangent planes of a dome over the stone's
+  pixels), a break or two, eleven sides leaning in 12-24 degrees that stand on the stone's own pixels and stop
+  short of the sprite's crevice pixels (a 1.2 px gap there; elsewhere two neighbours meet in a V groove), a closed
+  belly. The tallest stands 0.38 x sqrt(inner px) px, at most 10 px; a stone at the rim 60 % of that.
+- **Colour** (art rule 1): one matte palette material per stone (roughness 0.9, metallic 0), an index of its own
+  pixels: the one 0.7 of the way up their luminance, its lit top's, not D125's trimmed median, because the darker
+  half of a stone's pixels is the shadow and crevice the form now casts by itself (an early build of
+  `assembly-newshd-39` at the median rendered a median of 63 against the sprite's 81; the final one, at 0.7, 79). Checked per rock in the game's render, and set per model
+  where it missed: `newshd-5`/`-18` 0.82 with smaller masses (their lit patches are 2-4 px), `newshd-43` smaller
+  masses, `assembly-newshd-45` one index down with steeper sides (its faces are an even mid grey).
+- **Core.** A low faceted body lofted from the inner mask (`lib_newshd_rock.rock_body`, D74) in the crevice
+  pixels' own median index (4), 0.35 of the stones' height: the floor of every crevice and the round closed
+  underside (D122). The heap's outline is not star-shaped, so its core is one loft per piece, each grown 3 px into
+  its neighbours, joined. The stones are joined to the core with exact booleans (one manifold mesh, no hidden
+  faces) and cut to the core's outline.
+- **Pits.** The sprite's dark spots inside a stone (at most two each) and one more by chance per big stone are
+  dished out of it.
+- **Bake** (no concept projection, D50/D65; `bake` in the lib): a colour multiplier, 0.04 + 0.96 x (occlusion over
+  0.4 units)^1.8 x (occlusion over 0.05)^0.5, so a crevice floor comes out near black and a flank darkens toward
+  its foot, a little lighter on broken edges, darker in the pores and hollows of a procedural stone surface; and a
+  tangent normal map (256) of that same surface. No roughness map. An assembly's pieces are baked one by one with
+  the others in place; their cut faces get no texels (baked, they were black islands whose edge bled into the
+  islands beside them as a dark hairline cross along the seams; main's pieces show such a cross too, its cause
+  there not checked).
+- **Ink.** D90's shell from a sealed copy, kept out of the bake (D118), cut open at the pieces' seams.
+- **Contract:** the same `pal_<index>` materials, frames, pieces, pivots and export paths; `src/render/spriteModels`
+  is unchanged. `newshd-18` is `newshd-5`'s rock (read from that sprite) with the vent on a low plinth of the
+  stone's own rock (the rectangle crosses a crevice), lens and plate frame-tagged as before, the bed two index
+  steps under its stone on frame 93 as the sprite's pixels go; `newshd-229` is `newshd-123`'s rock with D123's three
+  crystals wedged between the stones. The heap is built whole from all ten sprites (`main_heap`) and cut into ten
+  models, 24 x 28 and 12 x 14; `newshd-15`/`-31`/`-34`/`-88`'s scripts run the heap's.
+- **Two bugs found on the way:** a script run with `--factory-startup` bakes with the factory scene's cube (2 units,
+  round the origin) in the scene: on a 4 x 4.7 unit rock its walls drew a dark square in the occlusion
+  (`main*` now start from an empty scene; the D125 builder's rocks are smaller than the cube and its reach is
+  0.16, so they were not checked); and the seam hairlines above.
+
+**Result** (`&compare=1`, 3840x2160; luminance inside each rock, p5 / p50 / p95, share at or under 64, share at or
+over 190; `tyrian-scratch/asteroid-crags/sheets/final-crops.png`):
+
+| Rock (frame) | sprite | main | new |
+|---|---|---|---|
+| assembly-newshd-39 (ASTEROID1 t600) | 12 / 81 / 186, .31, .028 | 41 / 90 / 164, .19, .007 | 25 / 79 / 190, .37, .050 |
+| assembly-newshd-45 (t475) | 12 / 93 / 165, .24, .008 | 25 / 109 / 187, .23, .040 | 26 / 101 / 150, .19, .000 |
+| heap 89 with a 39 over it (t80) | 12 / 132 / 199, .19, .052 | 41 / 114 / 198, .15, .124 | 26 / 114 / 202, .26, .119 |
+| newshd-123 (ASTEROID2 t6125, box includes floor) | 12 / 93 / 186, .22, .024 | 28 / 89 / 165, .30, .017 | 25 / 92 / 170, .33, .017 |
+| newshd-18 frame 93 (same) | 12 / 52 / 180, .52, .025 | 14 / 69 / 188, .45, .045 | 15 / 69 / 147, .47, .020 |
+
+| Model | stones, indices | top-view rule IoU, grid, per frame or piece | triangles rock + shell (was) | glb KB (was) | draws (was) |
+|---|---|---|---|---|---|
+| newshd-123 | 6: 8-10 | 0.9973 | 2460 + 3000 (6272) | 178 (153) | 4 (6) |
+| newshd-5 | 7: 8-12 | 1.0 | 2378 + 3000 (8332) | 178 (211) | 5 (15) |
+| newshd-43 | 7: 5-10 | 1.0 | 2294 + 2998 (8004) | 177 (193) | 6 (14) |
+| newshd-85 | 8: 5-9 | 1.0 | 2406 + 3000 (8594) | 182 (221) | 5 (6) |
+| newshd-18 | 7: 8-12 | 1.0 on 18, 55, 93 | 2772 + 3000 (8678) | 200 (228) | 11 (21) |
+| newshd-229 | 6: 8-10 | 0.9973 on 229, 231, 233, 235 | 2540 + 3000 (7608) | 191 (180) | 11 (11) |
+| assembly-newshd-39 | 16: 5-11 | whole 0.9984; 39 0.9964, 41 1.0, 1 0.9972, 3 0.9968 | 8490 in four (11430) | 448 (372) | 26 (19) |
+| assembly-newshd-45 | 9: 6-9 | whole 0.9962; 45 0.9934, 47 0.9976, 7 0.9888, 9 0.9952 | 7332 in four (29976) | 376 (1101) | 15 (52) |
+| assembly-newshd-89 + 15/31/34/88 | 36: 5-11 | whole 0.9985; 13 0.998, 49 1.0, 51 1.0, 53 1.0, 89 0.9955, 91 0.9977, 15 1.0, 31 0.9861, 34 0.9886, 88 1.0 | 18718 in ten (33153) | 1013 (768) | 51 (46) |
+
+The 24 glbs go from 3.52 to 3.03 MB (meshopt, D206), their triangles from 122 k to 67 k, their materials from 190
+to 134 draw calls; `assembly-newshd-39` and the heap grow (two maps a piece where the old pieces shared the look of
+one flat colour map). In ASTEROID1 the renderer's calls go 157 -> 199 at tick 600 (three `assembly-newshd-39` on
+screen) and 343 -> 299 at tick 80 (the heap), at 390 x 844.
+
+**The belt rim** (D211, D216, `lib_rim_rock.py`): it was made in the loose asteroids' D175 look, flat-shaded chips
+each one grey of the tile's ramp on COLOR_0, and it still is: beside the new asteroids (ASTEROID1 t1525) it reads
+as the same grey rock with the same ink, darker and finer-grained, as the original's belt is against its asteroids,
+but its tones are painted per chip where theirs are now cast. Bringing it over means a stone per boulder, an
+occlusion and normal bake per tile and seams that still match on all 57 neighbour pairs: not a small change to the
+lib, so it is listed, not done. The same holds for the seven `l1bld` bases' rim stones (D216).
+
+**Not done / open:**
+- `newshd-114`, `-133`, `-152`, `-95` stay on D175's builder. They are single stones 10 px across, not heaps, and
+  more than half of their pixels are the dark limb: as crag rocks (tried three ways, the last with the dark pixels
+  as the core's own face, `body`) they came out either as pale pebbles or as a black body with pale chips, further
+  from the sprite than D175's painted facets (D175's table: spread 156-196 against the sprites' 130-185). Their facets are still
+  painted tone, the thing this entry removes elsewhere. The tried scripts are in `tyrian-scratch/asteroid-crags/
+  held-small/`.
+- The highlights fall on the faces turned to the game's sun (lower left), where the sprite lights the upper left.
+- `newshd-5`/`-18`: the sprite is a dark rock with near-white sparkle (p95 180); the stones' lit tops reach 147.
+  Matte faces under this rig top out near 1.7 x their albedo, and the sprite's highlights are about 4.5 x its
+  median in linear light. On the bench the six single rocks render lighter and flatter than their sprites
+  (median 103-124 against 67-97, 14-26 % dark against 34-48 %; the bench resamples the sprites, so the sprite
+  side is approximate): fewer stones, fewer crevices.
+- The stones are many-sided boulders; the sprite's ring highlights (a flat top with a lit rim, or a crater) are
+  not modelled as such.
+- A piece's cut faces are untextured dark rock: seen only if a neighbour piece is destroyed first.
+- Not checked: the hit flash and the damaged frames in play (the materials and frames are the same kind as
+  before), the episode test (`TYRIAN_EPISODE_TEST=1`), frame time on a phone, levels 2.8, 1.28 and 3.10 where
+  some of these models also fly, and nobody has played it.
+
+**Options considered:**
+- *Keep D175's facet ramp and add crevices:* the range would still be paint.
+- *A stone's index at its trimmed median (D125):* too dark once the form casts its own shadow (above).
+- *One height field over the sprite, decimated:* no booleans, but the stones' edges land on the grid and it took
+  several times the triangles of planes.
+- *The darkest pixels as the core's own face (`body`):* kept in the lib, used by no model: on `newshd-123`/`-43`
+  it read as pebbles on a black base.
+
+**Review:** `sheets/final-*.png` in `tyrian-scratch/asteroid-crags/` (original | main | new for ASTEROID1 t80,
+t475, t600, t1525, ASTEROID2 t6125, ASTEROID? t3600, AST. CITY t1425; `final-crops.png`; `final-phone-*.png` at
+390 x 844 and 844 x 390; `final-viewer-free-angle.png`; not in git, D3). `tsc --noEmit` and the model tests pass.
+Fallback: `git checkout` the scripts and glbs of this entry; nothing else depends on the lib.
+
+**Cost:** one agent (Fable 5.2), no workflow, no Gemini: about 35 Blender build rounds (`-j 2`) and about 90
+headless captures.

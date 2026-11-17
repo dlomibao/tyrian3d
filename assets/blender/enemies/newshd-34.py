@@ -1,15 +1,16 @@
-"""newshd-34, rebuilt from design A in lib_b138 (D123): see lib_b138.py for what it is and how it is built.
+"""Rock-heap edge piece (newshd.shp frame 34, one 12 x 14 tile): the quarter under newshd-15.
 
-Run: blender --background --python assets/blender/enemies/newshd-34.py
+It is a stone or two of the drifting rock heap assembly-newshd-89 and spawns with it, so
+assets/blender/enemies/assembly-newshd-89.py builds the heap whole from all ten sprites and cuts
+this model out of it (D239), writing enemies/newshd-34 and its src/render/spriteModels entry. This
+script runs that one; with tools/build-models.sh list the assembly's script only (each of these
+rebuilds the whole heap).
+
+Run: blender --background --factory-startup --python assets/blender/enemies/newshd-34.py
 """
 
-import sys
+import runpy
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import lib_b138 as lib  # noqa: E402
-
-NAME = "newshd-34"
-
 if __name__ == "__main__":
-    lib.build(NAME, __file__)
+    runpy.run_path(str(Path(__file__).resolve().parent / "assembly-newshd-89.py"), run_name="__main__")

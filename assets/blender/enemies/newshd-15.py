@@ -1,16 +1,17 @@
-"""Rock sliver, lower-left corner (newshd.shp frame 15, a 1x1 edge piece of the drifting rock heap
-assembly-newshd-89).
+"""Rock-heap edge piece (newshd.shp frame 15, one 12 x 14 tile): the lower-left quarter of the
+heap's missing top-right piece.
 
-It is built and exported by assets/blender/enemies/newshd-31.py together with newshd-31 (the two
-are the heap's edge fillers and share one rock), which writes enemies/newshd-15 and its
-src/render/spriteModels entry. This script runs that one, so building either gives both;
-tools/build-models.sh with both listed builds twice, so list only one of them.
+It is a stone or two of the drifting rock heap assembly-newshd-89 and spawns with it, so
+assets/blender/enemies/assembly-newshd-89.py builds the heap whole from all ten sprites and cuts
+this model out of it (D239), writing enemies/newshd-15 and its src/render/spriteModels entry. This
+script runs that one; with tools/build-models.sh list the assembly's script only (each of these
+rebuilds the whole heap).
 
-Run: blender --background --python assets/blender/enemies/newshd-15.py
+Run: blender --background --factory-startup --python assets/blender/enemies/newshd-15.py
 """
 
 import runpy
 from pathlib import Path
 
 if __name__ == "__main__":
-    runpy.run_path(str(Path(__file__).resolve().parent / "newshd-31.py"), run_name="__main__")
+    runpy.run_path(str(Path(__file__).resolve().parent / "assembly-newshd-89.py"), run_name="__main__")

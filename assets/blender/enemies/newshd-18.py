@@ -1,63 +1,71 @@
-"""Large grey asteroid with a glowing vent (newshd.shp frames 18, 55, 93): a 3D version of its sprite.
+"""Large grey asteroid with a glowing vent (newshd.shp frames 18, 55, 93): a 3D version of its sprite,
+on the crag builder (lib_crag_rock, D239).
 
-The sprite is newshd-5's rock with a vent set into its right lobe (columns 18-20, rows 10-14): a red
-lens with darker corners, an orange cross and a yellow-white core on frame 18, the rock round it
-lit by the glow; a step cooler on frame 55; out on frame 93, where a dark scorched bed is left. So
-the rock is newshd-5's (built from its SPEC) with a shallow bed pressed into the lobe, and in it a
-plate lying in the rock face with a low lens dome on it, in the sprite's colours per region. The
-frames only cool the glow, so one model covers them all: the lens dims on frame 55
-(palette_material frames=) and is gone on frame 93 (common.frame_part), showing the scorched
-bed (pal_5); the rock round the vent takes the glow's pal_11 on frame 18 only, newshd-5's
-mid-tone pal_7 on the other two. Matte rock, AO/roughness bake, D90 outline shell.
+What it is: newshd-5's rock (built from that sprite with its seed, so the two are one stone) with a
+vent set into its right lobe (columns 18-20, rows 10-14): a red lens with darker corners, an orange
+cross and a yellow-white core on frame 18, the rock round it lit by the glow; a step cooler on frame
+55; out on frame 93, where a dark scorched bed is left. The bed is a low plinth of the stone's own
+rock joined into it there (the rectangle crosses a crevice, and a plate laid on the stones alone
+would bridge it), its top scorched; on it a plate with a low lens dome, in the sprite's colours per
+region. The frames only cool the glow, so one model
+covers them all: the lens dims on frame 55 (palette_material frames=) and is gone on frame 93
+(common.frame_part), showing the scorched bed (two index steps under its stone, as the sprite's
+pixels there go from frame 5 to frame 93); the faces of the stone round the vent take
+the glow's pal_11 on frame 18 only, the stone's own index on the other two.
 
     blender -b --factory-startup -P assets/blender/enemies/newshd-18.py -- [--no-bake] [--out file.glb]
-    (or tools/build-models.sh -j 2 assets/blender/enemies/newshd-18.py)
 """
 
-import importlib.util
 import math
 import sys
 from pathlib import Path
 
 import bmesh
+import bpy
+import numpy as np
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-import lib_newshd_rock as lib  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lib_crag_rock as lib  # noqa: E402
 
 common = lib.common
 
 NAME = "newshd-18"
-_spec = importlib.util.spec_from_file_location("newshd_5", HERE / "newshd-5.py")
-_rock5 = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_rock5)
-SPEC = _rock5.SPEC
+SPEC = {"seed": 5, "source": "newshd-5", "min_px": 6, "merge": 3.0, "blur": 0.5, "q": 0.82}  # newshd-5's
 
 # The vent's rectangle, pixel edges: columns 18-20, rows 10-14.
 C0, C1, R0, R1 = 18, 21, 10, 15
-SOCKET = 0.03          # socket depth below the rock face (units)
+PLATE = 0.012          # the plate's thickness on the bed (units)
 DOME_H = 1.0 / 12      # the lens's height above the plate
-SCORCH = 5             # the scorched bed frame 93 shows where the vent was
+SCORCH = 2             # the scorched bed frame 93 shows where the vent was: this many index steps
+                       # darker than its stone (the sprite: 9-10 -> 6, 8 -> 5, 6 -> 4)
 HALO = 11              # the rock lit by the glow round the vent on frame 18
+STATE = {}
 
 
 def face_plane(bvh, g):
-    """Least-squares plane z = a + b x + c y through the rock's top over the vent's rectangle."""
-    import numpy as np
+    """The plane the vent lies in: least squares through the higher two thirds of the rock's top over
+    the vent's rectangle (the stone's face, not the crevice beside it), held to a gentle slope and
+    lifted until no rock of the rectangle stands above it."""
     pts = []
-    for k in range(7):
-        for j in range(7):
-            u = C0 + (C1 - C0) * k / 6
-            v = R0 + (R1 - R0) * j / 6
+    for k in range(9):
+        for j in range(9):
+            u = C0 + (C1 - C0) * k / 8
+            v = R0 + (R1 - R0) * j / 8
             hit = bvh.ray_cast(Vector((g.x(u), g.y(v), 5.0)), Vector((0, 0, -1)))
             if hit[0] is not None:
                 pts.append(hit[0])
-    A = np.array([[1.0, p.x, p.y] for p in pts])
-    z = np.array([p.z for p in pts])
+    zs = sorted(p.z for p in pts)
+    keep = [p for p in pts if p.z >= zs[len(zs) // 3]]
+    A = np.array([[1.0, p.x, p.y] for p in keep])
+    z = np.array([p.z for p in keep])
     a, b, c = np.linalg.lstsq(A, z, rcond=None)[0]
-    return lambda x, y: a + b * x + c * y
+    k = min(1.0, 0.35 / max(math.hypot(b, c), 1e-6))
+    cx, cy = g.x((C0 + C1) / 2), g.y((R0 + R1) / 2)
+    b, c = b * k, c * k
+    z0 = max(p.z - b * (p.x - cx) - c * (p.y - cy) for p in pts) + 0.004
+    return lambda x, y: z0 + b * (x - cx) + c * (y - cy)
 
 
 def box(bm, corners, plane, top, bottom, mat=0):
@@ -73,40 +81,58 @@ def box(bm, corners, plane, top, bottom, mat=0):
     return faces
 
 
-STATE = {}
-
-
-def paint(sprite, g, obj):
-    """Press the vent's bed into the lobe (the rock under the rectangle down to a plane in its
-    face) and paint the scorched bed and the glow-lit rock."""
-    import bpy
+def paint(sprite, s, obj, info):
+    """The vent's bed: a low plinth of the stone's own rock joined into it, its top the vent's plane
+    (a frustum, a pixel wider at its foot, so it runs out into the stone and the crevice beside it),
+    scorched where the vent lies; and the glow-lit rock round it."""
+    coll = obj.users_collection[0]
     bvh = BVHTree.FromObject(obj, bpy.context.evaluated_depsgraph_get())
-    plane = face_plane(bvh, g)
+    plane = face_plane(bvh, s)
     STATE["plane"] = plane
-    x0, x1, y0, y1 = g.x(C0), g.x(C1), g.y(R1), g.y(R0)
-    m = 0.02
-    pressed = set()
-    for v in obj.data.vertices:
-        c = v.co
-        if x0 - m < c.x < x1 + m and y0 - m < c.y < y1 + m and c.z > plane(c.x, c.y) - SOCKET:
-            c.z = plane(c.x, c.y) - SOCKET
-            pressed.add(v.index)
-    obj.data.update()
-    obj.data.materials.append(common.palette_material(sprite, SCORCH, NAME, metallic=0.0, roughness=0.85))
-    obj.data.materials.append(common.palette_material(sprite, HALO, f"{NAME}-glow", metallic=0.05, roughness=0.72,
-                                                      frames={55: SPEC["mid"], 93: SPEC["mid"]}))
-    for p in obj.data.polygons:
+    x0, x1, y0, y1 = s.x(C0), s.x(C1), s.y(R1), s.y(R0)
+    m, f = 0.01, 1.0 / 12
+    # the stone under the vent: the one most of the rectangle lies on
+    lab = info["_maps"]["lab"]
+    under = lab[R0:R1, C0:C1].ravel()
+    k = int(np.bincount(under[under >= 0]).argmax())
+    pal = next(t["pal"] for t in info["stones"] if t["k"] == k)
+    stone = info["_mats"][pal]
+    scorch = common.palette_material(sprite, max(4, pal - SCORCH), f"{NAME}-bed", metallic=0.0, roughness=0.9)
+    halo = common.palette_material(sprite, HALO, f"{NAME}-glow", metallic=0.0, roughness=0.9, frames={55: pal, 93: pal})
+    pb = bmesh.new()
+    top = [(x0 - m, y0 - m), (x1 + m, y0 - m), (x1 + m, y1 + m), (x0 - m, y1 + m)]
+    foot = [(x0 - f, y0 - f), (x1 + f, y0 - f), (x1 + f, y1 + f), (x0 - f, y1 + f)]
+    up = [pb.verts.new((x, y, plane(x, y))) for x, y in top]
+    dn = [pb.verts.new((x, y, plane(x, y) - 0.45)) for x, y in foot]
+    pb.faces.new(up).material_index = 1
+    pb.faces.new(dn[::-1])
+    for i in range(4):
+        j = (i + 1) % 4
+        pb.faces.new((up[i], dn[i], dn[j], up[j]))
+    bmesh.ops.recalc_face_normals(pb, faces=pb.faces[:])
+    plinth = common.mesh_object(f"{NAME}_plinth", pb, [stone, scorch], coll, smooth=None)
+    lib._boolean(obj, plinth, "UNION")
+    bpy.data.objects.remove(plinth)
+    bpy.context.view_layer.update()
+    me = obj.data
+    slots = {mm.name: i for i, mm in enumerate(me.materials) if mm}
+    me.materials.append(halo)
+    hs = len(me.materials) - 1
+    for p in me.polygons:
         c = p.center
-        u, v = g.uv(c.x, c.y)
-        if any(i in pressed for i in p.vertices):
-            p.material_index = 1        # the vent's bed and its walls
-        elif p.normal.z > 0.3 and C0 - 1.6 < u < C1 + 1.6 and R0 - 1.6 < v < R1 + 0.6:
-            p.material_index = 2        # the rock the glow lights on frame 18
-        else:
-            p.material_index = 0
+        u, v = s.uv(c.x, c.y)
+        if p.material_index == slots.get(stone.name) and p.normal.z > 0.3 and C0 - 1.6 < u < C1 + 1.6 and R0 - 1.6 < v < R1 + 0.6:
+            p.material_index = hs        # the rock the glow lights on frame 18
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    bm.to_mesh(me)
+    bm.free()
+    for p in me.polygons:
+        p.use_smooth = False
 
 
-def parts(sprite, g, obj, coll):
+def parts(sprite, s, obj, coll):
     """The vent: a plate lying in the bed (red 119, darker 117 corners) and a low lens dome on it
     (the orange 122 cross, the yellow-white 126 core), a step cooler on frame 55, gone on 93."""
     plane = STATE["plane"]
@@ -119,12 +145,12 @@ def parts(sprite, g, obj, coll):
     ]
     RED, DARK, HOT, CORE = range(4)
     bm = bmesh.new()
-    x0, x1, y0, y1 = g.x(C0), g.x(C1), g.y(R1), g.y(R0)
+    x0, x1, y0, y1 = s.x(C0), s.x(C1), s.y(R1), s.y(R0)
     e = 0.004
-    box(bm, [(x0 + e, y0 + e), (x1 - e, y0 + e), (x1 - e, y1 - e), (x0 + e, y1 - e)], plane, -0.002, -SOCKET - 0.01, RED)
+    box(bm, [(x0 + e, y0 + e), (x1 - e, y0 + e), (x1 - e, y1 - e), (x0 + e, y1 - e)], plane, PLATE, -0.01, RED)
     for c, r in ((C0, R0), (C1 - 1, R0), (C0, R1 - 1), (C1 - 1, R1 - 1)):
-        cx0, cx1, cy0, cy1 = g.x(c) + e, g.x(c + 1) - e, g.y(r + 1) + e, g.y(r) - e
-        box(bm, [(cx0, cy0), (cx1, cy0), (cx1, cy1), (cx0, cy1)], plane, 0.002, -0.01, DARK)
+        cx0, cx1, cy0, cy1 = s.x(c) + e, s.x(c + 1) - e, s.y(r + 1) + e, s.y(r) - e
+        box(bm, [(cx0, cy0), (cx1, cy0), (cx1, cy1), (cx0, cy1)], plane, PLATE + 0.004, -0.01, DARK)
     plate = set(bm.faces)
     # the lens: a half ellipsoid on the plate, sheared onto the rock's slope
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
@@ -144,9 +170,9 @@ def parts(sprite, g, obj, coll):
         bm.faces.new((loops[-1][i], loops[-1][(i + 1) % sides], tip))
     bm.faces.new(list(reversed(loops[0])))
     for v in [w for loop in loops for w in loop] + [tip]:
-        v.co.z += plane(v.co.x, v.co.y) - 0.006
+        v.co.z += plane(v.co.x, v.co.y) + PLATE - 0.004
     bm.normal_update()
-    hx0, hx1, hy0, hy1 = g.x(19), g.x(20), g.y(13), g.y(12)
+    hx0, hx1, hy0, hy1 = s.x(19), s.x(20), s.y(13), s.y(12)
     for f in bm.faces:
         if f in plate:
             continue
