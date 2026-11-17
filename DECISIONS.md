@@ -14412,3 +14412,23 @@ blueprints and reviewed at 7.5-8.5/10 (ed97466d, refit in D89/D93).
 
 **Review:** look at `?viewer=ship-u-ship` free angle and the U-Ship in the hangar. Fallback: run the flagship
 pipeline for the U-Ship, with the pre-D228 model as the baseline its designs must beat at every angle.
+
+## D241 — The Silver Ship goes back to D118's model; the U-Ship and Silver Ship are reworked only through the full flagship pipeline (withdraws D229 and D238)
+
+**Date:** 2026-11-17
+
+**Decision:** `assets/blender/ships/ship-silver-ship.py`, `public/models/ships/ship-silver-ship.glb` and
+`src/render/spriteModels/ship-silver-ship.json` are restored as they were before D229 (b25e0a1f^, D118's model). The
+shop icon atlas (D226) is re-rendered. D229 and D238 were single-agent refits that skipped the flagship pipeline, the
+same shortcut D240 withdrew for the U-Ship. The user asked for every player ship reworked that way to be restored.
+The two ships the audit flagged as needing more than Opus gave them (U-Ship: thick rails, a fat loop, a barrel pod;
+Silver Ship: broader and rounder than the sprite, the three exhaust prongs missing) are then rebuilt through
+`tools/workflows/model-flagship.js` in full, with every stage on Fable at the user's request. Their designs must beat
+these restored models at every angle (CLAUDE.md art rule 8).
+
+**Options considered:**
+- *Restore now, rebuild through the pipeline (chosen):* the user's instruction. Production shows the reviewed model
+  while the rebuild runs.
+- *Keep D238 live until the rebuild lands:* production would keep a model made by the process the user rejected.
+
+**Review:** `?viewer=ship-silver-ship` free angle shows D118's model. Fallback: none needed; this is a restore.
