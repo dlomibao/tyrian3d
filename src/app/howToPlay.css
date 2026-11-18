@@ -1,0 +1,195 @@
+/* The "How to play" card (src/app/howToPlay.ts, D266): the goal, then the keyboard and touch
+   columns side by side and a gamepad line; the column for the device used last is lit, the others dim. */
+
+.ui-screen--howtoplay > .ui-panel {
+  max-width: 44rem;
+  padding: var(--ui-space-4) 1.4rem;
+  cursor: pointer;
+}
+
+.ui-screen--howtoplay .ui-title {
+  margin-bottom: var(--ui-space-2);
+}
+
+.htp-goal {
+  margin: 0 0 var(--ui-space-3);
+  font-size: var(--ui-text-sm);
+  line-height: 1.4;
+}
+
+.ui-panel .htp-goal {
+  margin: 0 0 var(--ui-space-3);
+}
+
+.htp-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-3);
+}
+
+.htp-col {
+  min-width: 0;
+  padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-3);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--ui-rule);
+  opacity: 0.55;
+  transition: opacity var(--ui-med) var(--ui-ease), box-shadow var(--ui-med) var(--ui-ease);
+}
+
+.htp-col .ui-label {
+  margin: 0 0 var(--ui-space-2);
+}
+
+.htp[data-lit="keys"] .htp-col[data-col="keys"],
+.htp[data-lit="touch"] .htp-col[data-col="touch"],
+.htp[data-lit="pad"] .htp-pad {
+  opacity: 1;
+  background: var(--ui-well);
+  box-shadow: 0 0 0 1px var(--ui-copper), 0 0 0 2px var(--ui-rim-ink);
+}
+
+/* Label left, caps right. */
+.htp-rows {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.3rem var(--ui-space-3);
+  align-items: center;
+  margin: 0;
+  font-size: var(--ui-text-sm);
+}
+
+.htp-rows dt {
+  color: var(--ui-ink-dim);
+  white-space: nowrap;
+}
+
+.htp-rows dd {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+}
+
+.htp-rows .ui-key {
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.htp-group {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.htp-or {
+  color: var(--ui-ink-faint);
+  font-size: var(--ui-text-xs);
+}
+
+.ui-panel .htp-note {
+  margin: var(--ui-space-2) 0 0;
+  font-size: var(--ui-text-xs);
+  line-height: 1.35;
+  color: var(--ui-ink-faint);
+}
+
+.ui-panel .htp-pad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem var(--ui-space-3);
+  margin: var(--ui-space-3) 0 0;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--ui-rule);
+  font-size: var(--ui-text-sm);
+  color: var(--ui-ink-dim);
+  opacity: 0.55;
+}
+
+.htp-pad__name {
+  font-family: var(--ui-font-display);
+  font-weight: 700;
+  font-size: 0.64rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--ui-copper);
+}
+
+.htp-pad__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  white-space: nowrap;
+}
+
+.htp-pad .ui-key {
+  font-size: 0.78rem;
+}
+
+.htp-foot {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--ui-space-3);
+}
+
+.htp-ok {
+  min-width: 10rem;
+}
+
+/* Phones, portrait: the columns stack, the lit one first; the dim one stays (one glance shows both). */
+@media (max-width: 34rem) {
+  .ui-screen--howtoplay > .ui-panel {
+    padding: var(--ui-space-3) var(--ui-space-4);
+  }
+
+  .htp-cols {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ui-space-2);
+  }
+
+  .htp[data-lit="touch"] .htp-col[data-col="touch"] {
+    order: -1;
+  }
+}
+
+/* Short landscape windows: tighter type and rows so the card fits a phone on its side. */
+@media (max-height: 30rem) {
+  .ui-screen--howtoplay > .ui-panel {
+    padding: var(--ui-space-2) var(--ui-space-4) var(--ui-space-3);
+  }
+
+  .ui-screen--howtoplay .ui-title {
+    font-size: 1.35rem;
+    margin-bottom: var(--ui-space-1);
+  }
+
+  .ui-panel .htp-goal {
+    font-size: var(--ui-text-xs);
+    margin-bottom: var(--ui-space-2);
+  }
+
+  .htp-rows {
+    gap: 0.15rem var(--ui-space-3);
+    font-size: var(--ui-text-xs);
+  }
+
+  .htp-col {
+    padding: var(--ui-space-1) var(--ui-space-3) var(--ui-space-2);
+  }
+
+  .htp-col .ui-label {
+    margin-bottom: var(--ui-space-1);
+  }
+
+  .ui-panel .htp-pad {
+    margin-top: var(--ui-space-2);
+    padding: var(--ui-space-1) var(--ui-space-3);
+    font-size: var(--ui-text-xs);
+  }
+
+  .htp-foot {
+    margin-top: var(--ui-space-2);
+  }
+}

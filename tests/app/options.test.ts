@@ -287,9 +287,9 @@ describe("the shop's Options and the title's Options (D99)", () => {
 describe("settings are reachable on every input from inside a game (D102)", () => {
   const read = (f: string) => readFileSync(join(__dirname, "..", "..", "src", f), "utf8");
 
-  test("the pause menu lists Resume, Options, Quit to title and opens the shared settings screen", () => {
+  test("the pause menu lists Resume, How to play, Options, Quit to title and opens the shared settings screen", () => {
     const pause = read("app/pause.ts");
-    expect(pause).toMatch(/PAUSE_ITEMS = \["Resume", "Options", "Quit to title"\] as const/);
+    expect(pause).toMatch(/PAUSE_ITEMS = \["Resume", "How to play", "Options", "Quit to title"\] as const/);
     expect(pause).toMatch(/showOptions\(host\)/);
     expect(read("app/run.ts")).toMatch(/showPause\(optionsHost\)/); // the same host as the title and the shop
   });

@@ -57,6 +57,7 @@ const SCREENS: Record<string, "panel" | "fits"> = {
   message: "panel",
   status: "panel",
   pause: "panel",
+  howtoplay: "panel", // the How to play card (D266): sized to fit a phone, the panel scrolls if it can't
   "title-code": "panel",
   "super-arcade": "panel",
   "super-tyrian": "panel",
