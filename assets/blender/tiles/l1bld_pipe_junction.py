@@ -320,6 +320,12 @@ def brick_field(field, bw, bh, gap, make, grid, phase=0, min_w=2.2):
 # --- the build ----------------------------------------------------------------------------------
 
 def build(bake=True, views=None):
+    if kit.PAINTED_FLOOR:
+        # D260: everything here is floor (slab, bed, deck, parapet comb, bricks, the channel's dirt and
+        # sluice); with the floor left to the HD terrain's painting nothing stands up, so there is no
+        # model: its tiles draw as the painting (no src/render/tileModels entry, no .glb).
+        print("pipe-junction: no model under lib_l1kit.PAINTED_FLOOR (D260): the painting is the junction")
+        return None, []
     b = lb.Building("pipe-junction")
     ts = b.ts
     grid = b.grid

@@ -169,6 +169,7 @@ def objects_of(s, k):
     bmesh.ops.recalc_face_normals(s.parts, faces=s.parts.faces)
     s._merge(k.g.bm)
     k.g.bm = bmesh.new()
+    kit.to_ground(s.parts)  # D260: the cross onto the painted floor
     return [lb.mesh_object(f"{lb.SHAPES}-{s.prefix}-{s.name}-parts", s.parts, s.pal.materials, coll)]
 
 

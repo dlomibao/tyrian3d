@@ -38,6 +38,9 @@ D246). The bed stays only under the deck, channels and parts, ending 1 px past t
 chamfer (lib_l1kit.PAINT_FOOT), and the deck's walls go down to the ground. The layout code below still
 runs (so the blasted hatches' random leaves, drawn after it, stay as they were) and gives the painted area.
 
+D260 (lib_l1kit.PAINTED_FLOOR): the deck, kerb, paving and channel dirt are the terrain's painting too;
+the lights, pods, hatches and turret are lowered onto it (lib_l1kit.to_ground).
+
 Only AO/roughness from the model's own bake (Building.bake_model, ground=0.0 occluder, D86, with the
 kit's worn finish lib_l1kit.GRIT: deeper occlusion, edge sheen, a grime mottle, D148); no
 concept projection ("bake": "model" in textures/shapesz-l1bld-base-complex/maps.json). No D51 outline shell
@@ -153,7 +156,7 @@ def build(bake=True):
 
     # materials (surface finish per part: satin metal, rough rubble and stone)
     m_bed = M(PAL_BED, roughness=0.95)
-    m_mortar = M(PAL_MORTAR, roughness=0.9)
+    m_mortar = M(kit.PAL_MORTAR_RELIEF if kit.FLOOR_RELIEF else PAL_MORTAR, roughness=0.9)
     m_house = M(PAL_HOUSING, roughness=0.4, metallic=0.55)
     m_lens = M(PAL_LENS, roughness=0.22, metallic=0.1, emission_strength=0.45)  # a dark red glass that glows a little
     m_lens_fat = M(PAL_LENS_FAT, roughness=0.22, metallic=0.1, emission_strength=0.45)
@@ -185,7 +188,7 @@ def build(bake=True):
     deck_mask = ero_disk(dil_disk(deck_mask, 4), 4) & fp & ~cav
     # at the join the deck runs straight across from the junction's stem end (JOIN_Y) down
     deck_mask = (deck_mask | (fp & box(JOIN_BOX[0], JOIN_Y, JOIN_BOX[2], JOIN_Y + 16))) & ~join
-    deck_loops = regions(deck_mask, tol=1.6, min_px=30)
+    deck_loops = regions(deck_mask, tol=1.6, min_px=30) if not kit.PAINTED_FLOOR else []  # D260: the painting is the deck
     for outer, holes in deck_loops:
         o = g.outer(outer)
         hs = [g.hole(h) for h in holes]
@@ -486,6 +489,7 @@ def build(bake=True):
 
 def main(bake=True, preview=None):
     s, g, coll, nposts, nplates, nrocks, fp, openm = build()
+    kit.to_ground(g.bm)  # D260: the parts onto the painted floor
     obj = lb.mesh_object("shapesz-l1bld-base-complex-parts", g.bm, s.pal.materials, coll)
     objects = [obj]
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)

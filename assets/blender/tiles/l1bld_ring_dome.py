@@ -475,6 +475,10 @@ def build(bake=True, preview=None):
         k.g = geo_cov
         k.paving(czone)
         for when, geo in (("open", geo_open), ("covered", geo_cov)):
+            kit.to_ground(geo.bm)  # D260
+            if not geo.bm.faces:  # D260: the covered lid was only paving (the painting now)
+                geo.bm.free()
+                continue
             o = lb.mesh_object(f"{lb.SHAPES}-{b.prefix}-{b.name}-cell-{BAND_ROW}-{c}-{when}", geo.bm, b.pal.materials, coll)
             o["tyrian_cell"] = [BAND_ROW, c]
             o["tyrian_when"] = when

@@ -15097,6 +15097,67 @@ tainted but not eligible (the bounds model a one-player full game); the hidden d
 "Share anonymous play stats" is on (default on), with a random id kept in the browser; the server stores only a
 country code (DB-IP Lite, CC BY 4.0) and a monthly-salted IP hash for rate limits.
 
+## D261 — ASTEROID?'s station floors are the painted terrain too: no 3D deck, kerb comb, paving or channel dirt; only what stands up is modelled, lowered onto the painting; the pipe junction has no model (amends D148, D216, D248)
+
+**Date:** 2026-11-18
+
+**Problem:** comparing the original, main and D248 at t900 the user said the base complex "looked flat and the
+original looked fine". The original's floor is a woven brick painting: a dark mortar line round each block, light
+and dark variation and shading inside every block, soft brown dirt in the channels. The `l1bld` kit (D148, D150)
+built it as uniform smooth grey plates 0.027 proud of a groove plate, a regular dashed kerb comb, and faceted
+dirt triangles; the plates lie almost flat, so the game's light gives them one tone. An earlier fix round that
+kept the 3D deck (deeper grooves, comb only on top edges, bricks to the edge) left the bricks clean uniform slabs.
+Its review also found a long dark vertical line between the floor's right brick column and the rim at t1800: the
+groove plate's step and its AO beside the deck's 4 px kerb strip.
+
+**Options** (both built and judged in the game render, `?debug=play&episode=1&main=21&seed=1&skip=T&freezeAt=T&compare=1`
+at 3840x2160, t900, t1800, t3510, and t900 with `&camera=steep`):
+- *(A) The floor is the HD terrain's painting (chosen).* The bases keep their tiles (layer 0, D248), and the
+  shapesz atlas paints every one of their tiles (`0.webp` and the rim atlas). Not building the floor shows it:
+  the woven bricks with their mortar lines and per-block shading, the comb, the soft mud. Hiding the models in
+  the harness first showed it reads close to the original.
+- *(B) A 3D deck with brick relief* (`lib_l1kit.FLOOR_RELIEF`, kept, off): no groove plate, each brick on the
+  deck 0.042 +- 0.009 proud with a +-0.006 lean, in the art's trimmed-median index under it, the deck in the
+  mortar line's index 2, and the channel dirt's colour blurred over 2.2 px with no pebbles. The mortar lines
+  turned dark and the seam's step went away, but the bricks still read as clean slabs. Most bricks' medians are
+  the same index, so the colour barely varies. The art's within-block shading, cracks and edge light are per-pixel
+  painting, which geometry at this scale can't carry without a painted texture (rule 4). It also kept about
+  52k triangles on the base complex.
+
+**Decision** (`lib_l1kit.PAINTED_FLOOR`, on; False rebuilds D248's deck):
+- `Kit.deck`, `bed`, `kerb`, `paving` and `dirt` build nothing. `channels` still returns its mask. The base
+  complex's inline deck is skipped the same way.
+- What stands up is built as before and then lowered by `FLOOR_DROP` (DECK_TOP - 0.01, so what stood on the deck
+  stands 0.01 over the painting, with no z-fight) by `lib_l1kit.to_ground`, which also drops the faces left
+  wholly under z 0 (part feet, the blasted hatches' cavities and embers, which the painting shows). The kept
+  parts are the base complex's lights, pods, round hatch, blasted hatch frames and turret; the bunker's collar,
+  coping and hatch frame; the cross pad's cross, capsules and core; the ring dome's dome, lights and orb sockets;
+  the red bar's rack and panes; and the light bridge's strip, hatches, turrets and orbs. The ring dome's
+  per-cell "covered" lids were only paving, so they are not exported. Each covered cell then shows the painting.
+- The pipe junction (slab, bed, deck, parapet comb, bricks, channel dirt, sluice) has nothing that stands up. It
+  has no model now: `src/render/tileModels/shapesz-l1bld-pipe-junction.json` and its `.glb` are deleted, and
+  its script prints and exports nothing while PAINTED_FLOOR is on. Its tiles draw as the painting.
+- The right-edge line at t1800 is gone with the deck (it is the painting's own edge now).
+- The remaining six tileModels JSON files are byte-identical. Top-view IoU against `model_mask` no longer means
+  anything, because the floor is the terrain's own draw.
+
+**Measured:** GLBs (meshopt) main → D261: base complex 2.17 MB → 0.48 MB (56.5k → 5.3k triangles), bunker 0.22 →
+0.13 MB, cross pad 0.38 → 0.32 MB, light bridge 0.58 → 0.48 MB, red bar 0.19 → 0.13 MB, ring dome 0.51 →
+0.32 MB, pipe junction 0.81 MB → none (4.85 → 1.84 MB over the seven). The cross pad's and ring dome's raw
+triangle counts are 6.8k and 8.9k. Draw calls were not measured.
+
+**Look:** the decks read as the original's woven brick, mortar and mud, at the tilted and steep cameras. The
+machinery stands on them in 3D. D248's open parallax point (the deck's top covering about 3 px of painted rock,
+its dark far wall and its shadow on the rim) is gone with the deck. The ground enemies (0.45) now stand 0.45 over
+the painting instead of 0.15 over the deck, as on every other painted floor. The red capsule lenses stay the
+model's darker domes, as on main.
+
+**Review:** sheets in `tyrian-scratch/station-floor/sheets/` (`compare-t{900,1800,3510,900steep}.png`, original |
+main | A | B; `zoom-t900-main-A-B.png`, `zoom-t1800-right-edge-orig-main-A-B.png`, `final-other-bases.png`
+t2370 / t2650 / t3300), captures in `shots/` (not in git, D3). Fallback: `PAINTED_FLOOR = False`, restore the
+pipe junction's JSON and rebuild the seven `l1bld_*.py`.
+
+**Cost:** one Opus agent; about 30 headless captures, three Blender builds of the seven scripts (about 35 s each with -j 2).
 ## D259 — Walkthrough round 3 model fixes: GYGES drill cap, eye pods, EYESPY shell, SAWBLADES pebbles, IXMUCANE cracked egg, ASTCITY slab
 
 **Date:** 2026-11-18
