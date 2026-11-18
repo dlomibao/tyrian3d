@@ -15333,3 +15333,12 @@ the ship appears); hard-coded default keys (wrong after a rebind).
 Start New Game, Load Game, High Scores, **Play Stats**, Options, Music. Play Stats opens `stats/` in a new tab
 (`noopener`), so the game and its music keep running in this one. Shortcuts follow the other entries: key S, pad RB
 (button 5, not a navigation intent; `TITLE_PAD.stats`). Without the API the entry isn't there.
+
+## D268 — The How to play card adds a tip: upgrade the ship before flying (amends D266)
+
+**Date:** 2026-11-18
+
+**Decision** (the user's call: new players tend to jump straight in): under the goal, a "Tip:" line set off with a copper
+rule: "Upgrade your ship before you fly: open Upgrade Ship in the game menu and spend your credits. A stronger front
+gun makes the early levels far easier." "Upgrade Ship" is the game menu's own row name. The card still fits 390x844
+without scrolling (checked).
