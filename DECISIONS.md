@@ -14432,3 +14432,61 @@ these restored models at every angle (CLAUDE.md art rule 8).
 - *Keep D238 live until the rebuild lands:* production would keep a model made by the process the user rejected.
 
 **Review:** `?viewer=ship-silver-ship` free angle shows D118's model. Fallback: none needed; this is a restore.
+
+## D243 — An airborne model's shadow shifts count its height from the background-2 or -3 surface under it, so a tank on a platform casts its shadow at its tracks (extends D133, D171)
+
+**Date:** 2026-11-18
+
+**Problem** (user report): under the overhead camera the tanks on TYRIAN's floating platforms looked as if they flew.
+In TYRIAN (`&episode=1&main=1`) the platforms with roads and rock are background 3 (`Background3`, 2.1), and the vehicles on them are
+top enemies (slots 50-74, `TopEnemies`, 2.5), which scroll with background 3. `isAirborne` (D171) is a pass test, so
+they got the airborne drop, and both D133's and D171's shifts counted their height from the ground (0). On a raised
+surface at r that misplaces the shadow twice: it lands (sun.z + lift.z)·r further down, and D133's (G - A)·h/C.y no
+longer cancels the surface's own lift along its camera ray, so it drifts (G - A)·r/C.y out from the aim point.
+Measured overhead at t4200 (shadow pixels: shadows on minus enemy shadows off, centroid from the model's screen
+point): the road tanks' shadows 10-11 px below them and -8 / +3 / +9 px aside from left to right across the screen;
+the vehicle on the rock at t4200 15.5 px below. The C draws no enemy shadows (D171). The suspected cause, sky
+enemies over background 2, is not it in TYRIAN: its background 2 is the blended ice clouds only.
+
+**What decides "on a surface".** Not the enemy data: the C's `enemyground` (explosiontype bit 0) is true for TYRIAN's
+spinning rings that fly about at 4-5 px/tick and false for the road tanks (types 15, 32-34, 40). Not the slot group
+or the motion: top and sky enemies all scroll with their layer, flyers and vehicles alike. What the shadow lands on is
+the surface drawn under the model, so that is the test.
+
+**Decision:** the renderer keeps this frame's non-blended background-2 and -3 tiles (`SurfaceTiles` in `sun.ts`,
+filled in draw order in `DrawListRenderer.update`). For an airborne model (above the ground enemies' pass), the
+surface is the highest of them lower than the model's pass with an opaque pixel under the model's screen centre, else
+the ground. Both shifts count the model's height from it: D133's term uses (anchor height - surface) / C.y and D171's
+air term (height - surface). On that surface the shadow then falls (sun.x, AIR_SHADOW_DROP) × (h - r) / (1 - r/C.y)
+from the model under every camera, the same anywhere on screen: a top enemy 0.4 over a background-3 platform casts it
+about 1.5 px right and below, at its tracks. Over the ground (r = 0) nothing changes: flyers keep D171's drop and
+ground enemies are not touched (they are never airborne). Blended sheets (TYRIAN's ice clouds) are not surfaces.
+
+**Options considered:**
+- *Classify the enemy as grounded (enemy data, motion, or a `tyrian_grounded` model tag) and drop D171's shift for
+  it:* the data and the motion don't separate vehicles from flyers (above); a model tag is a hand call for some
+  hundreds of models, and a tagged tank's shadow would still drift out at the screen's edges (D133's term on a raised
+  surface), and an untagged flyer over a platform keeps the doubled drop.
+- *Count from the height of the layer the enemy group scrolls with:* right on the platform, but a top enemy over open
+  ground would have its shadow lifted ~9 px up the screen, away from it.
+- *Surface under the model (chosen):* one rule for every model and level, no data or tags, exact for the receiver it
+  is over.
+
+**Costs:** a flyer over a surface now has its shadow as close as its height above that surface says. In HARVEST
+(`&episode=4&main=11`), whose ground is all background 3 drawn under the sky enemies (`Background3Under`, 1.25), the purple spheres
+(newsh5 #47, sky, 1.65) went from ~14 px below them to under them; DELIANI's girder turrets (newshc #49, sky over
+background 2 at 0.9) likewise sit on the girder. A model straddling a platform's edge takes the surface under its
+centre, so its shadow jumps when the centre crosses the edge. The player ship's shadow-map shadow (only when the C
+draws no decal, D171) also counts from a surface under it. A per-model scan of the frame's surface tiles (a few
+thousand cheap tests a frame at most).
+
+**Checked:** `tyrian-scratch/platform-shadows/`: `sheet_overview.png` (TYRIAN t3000, t4200, t4400; original via
+`&compare=1` | before | after, overhead, 15° and steep) and `sheet_zoom.png`; per-model measurements in
+`before/`, `after/` (`*_diff.png`; `tools/measure.mjs`, `tools/shadowdiff.py`). Unchanged: the rings over the ground
+at t700 and the hover tanks over the grass at t5400 (D171's drop), the ground enemies at t700. Other levels
+(`levels/`, `surfaces_e*.txt` from `tools/surfaces.mjs`, the bot's first 6000 ticks of every section): models over a
+surface in TYRIAN, TYRIAN X, GYGES, SAVARA, DELIANI, New Deli, GRYPHON, HARVEST, CORE, BRAINIAC and NOSE DRIP.
+Test: `tests/render/flyerShadows.test.ts` (shadows on a raised surface).
+
+**Review:** look at TYRIAN's road platforms (t4200) and HARVEST under `&camera=overhead`. If a flyer over a surface
+should read higher, the fallback is a floor on the air term for models over a surface, not the ground's count.
