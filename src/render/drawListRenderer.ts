@@ -14,10 +14,10 @@
 //   frames (MODEL_OVERRIDES), and whole enemies, all of whose tiles become one model
 //   (setSpriteModels, D15), and sprites drawn on their own, like sidekicks (D49). preloadLevel
 //   loads a level's models before it starts. Each object (an enemy, a ship, a sidekick) is drawn
-//   one way for its life (D54): as its model if that had loaded when it appeared; held back (drawn
-//   as nothing) for up to HOLD_MS while it loads; else as its extruded sprite, even after the model
-//   arrives. So a sprite never pops into its model. Which way a sprite is drawn is decided by
-//   sprite2Route.ts.
+//   as its model if that had loaded when it appeared; held back (drawn as nothing) for up to
+//   HOLD_MS while it loads (D54); else as its extruded sprite until the model arrives, then the
+//   model (D250: a late load swaps once, rather than leaving the object a sprite for its life).
+//   Which way a sprite is drawn is decided by sprite2Route.ts.
 //   Materials named pal_<index> take their colour from the live palette.
 //
 // - Remastered backgrounds (setBackgroundStyle("remaster"), D34): the ground is upscaled 4x
@@ -55,7 +55,7 @@ import { damageModeFromSearch } from "./damage/damageMode";
 import { ShipCondition } from "./damage/shipDamage";
 import { artListsSprite, Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
-import { SurfaceTiles, airShadowShift, isAirborne, rayRoll } from "./sun";
+import { SurfaceTiles, airHeight, airShadowShift, isAirborne, rayRoll } from "./sun";
 import { ShadowDecals } from "./shadowDecals";
 import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
@@ -370,14 +370,14 @@ const PRELOAD_CONCURRENCY = 6;
 
 /**
  * How one object (an enemy, a ship, a sidekick: the draws sharing an object key) is drawn while
- * its model is shown or due (D54). Decided when the object first needs a model and kept for its
- * life, so it never pops from sprite to model.
+ * its model is shown or due (D54). Decided when the object first needs a model; one drawn as its
+ * sprite because the model was late turns into the model when it arrives (D250).
  */
 const enum ObjectLook {
   /** Its model was still loading when it appeared: drawn as nothing for up to HOLD_MS. */
   Holding,
   Model,
-  /** Its model wasn't there in time (or failed): the extruded sprite for its whole life. */
+  /** Its model wasn't there in time (or failed): the extruded sprite, until the model arrives (D250). */
   Sprite,
 }
 
@@ -1177,13 +1177,11 @@ export class DrawListRenderer {
           // A star shows only where background 1 left the screen black (D127).
           if (d.pass === Pass.Starfield && this.starCover.hides(items, d.x, d.y)) continue;
           if (d.spark) {
-            // A spark (JE_drawSP): remastered, a glowing point flying on; else the C's plus, its
-            // brightness mixed with the screen under it (D147).
-            if (fx) {
-              if (d.spark.centre) fx.spark(d.x, d.y, d.pass, d.spark);
-              continue;
-            }
-            this.addSolid(this.sparkScreen.color(items, i), d.x, d.y, 1, 1, d.pass, cam, frame);
+            // A spark (JE_drawSP): the C's plus, its brightness mixed with the screen under it
+            // (D147); remastered, its centre also glows softly in that colour (D252).
+            const c = this.sparkScreen.color(items, i);
+            if (fx && d.spark.centre) fx.spark(d.x, d.y, d.pass, d.spark, c);
+            this.addSolid(c, d.x, d.y, 1, 1, d.pass, cam, frame);
             instances++;
             break;
           }
@@ -1866,10 +1864,11 @@ export class DrawListRenderer {
       if (key !== null) this.objects.set(key, o);
     }
     o.seen = frame;
-    if (o.look === ObjectLook.Holding) {
-      if (pool.source) o.look = ObjectLook.Model;
-      else if (pool.failed || now - o.since > HOLD_MS) o.look = ObjectLook.Sprite;
-    }
+    // Its model in: drawn as the model from now on, also after a hold that ran out (D250): a load
+    // late past HOLD_MS (a slow network, a level started before its models were in) swaps the
+    // extruded sprite for the model once, rather than leaving the object a sprite for its life.
+    if (pool.source) o.look = ObjectLook.Model;
+    else if (o.look === ObjectLook.Holding && (pool.failed || now - o.since > HOLD_MS)) o.look = ObjectLook.Sprite;
     if (o.look === ObjectLook.Model && !pool.source) return pool.failed ? ObjectLook.Sprite : ObjectLook.Holding;
     return o.look;
   }
@@ -2001,7 +2000,8 @@ export class DrawListRenderer {
     const airborne = isAirborne(base);
     const surface = airborne ? this.surfaces.under(cx, cy, base) : 0;
     const ks = (ha - surface) / cam.y;
-    const air = airborne ? h - surface : 0;
+    // A sky enemy over a surface keeps at least SKY_AIR_FLOOR of air under it: it flies (D257).
+    const air = airborne ? airHeight(d.pass, h, surface) : 0;
     this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * ks + this.airShadow.x * air, (gz - this.shadowRef.z) * ks + this.airShadow.y * air);
     this.placedExtents.push({
       pass: d.pass,

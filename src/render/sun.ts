@@ -50,6 +50,26 @@ export function airShadowShift(camera: THREE.Vector3, aim: THREE.Vector3, out: T
 }
 
 /**
+ * The least height a sky enemy over a surface counts in its air term (D257, D243's fallback). A sky
+ * enemy flies: HARVEST's purple spheres (newsh5 #47) keep one frame and cross the ground at their own
+ * speed (1 px a tick down the screen while the ground scrolls 2, drifting sideways), and its whole
+ * ground is background 3, under them at 1.25 against their 1.65. Counted from that surface their
+ * shadows sat at their feet, so they read as rolling on it. Top enemies (TYRIAN's tanks on its
+ * platforms, the same 0.4 over them) keep D243's count: they are the vehicles on those platforms.
+ */
+export const SKY_AIR_FLOOR = 1;
+
+/**
+ * The height an airborne model's air term (airShadowShift, D171) counts: its height `h` over the
+ * surface under it (D243), at least SKY_AIR_FLOOR for a sky enemy over a raised surface (D257).
+ */
+export function airHeight(pass: Pass, h: number, surface: number): number {
+  const air = h - surface;
+  const sky = pass === Pass.SkyEnemies || pass === Pass.SkyEnemiesOver;
+  return sky && surface > 0 ? Math.min(h, Math.max(air, SKY_AIR_FLOOR)) : air;
+}
+
+/**
  * The background-2 and -3 tiles drawn this frame, the surfaces an airborne model can be over (D243).
  *
  * A model at height h over a surface at height r (lifted along its own camera rays, D6) has its shadow

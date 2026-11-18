@@ -36,7 +36,7 @@ import { playAttractDemo } from "./attractDemo"; // [demos]
 import { TITLE_IDLE_MS } from "./idle"; // [demos]
 import { hasDemos, setNextDemo } from "../sim/demo"; // [demos]
 // port-story: the screens between levels and the level fades.
-import { BLACK, levelFade } from "./fade";
+import { BLACK, fadeInLevel, levelFade } from "./fade";
 import { closeStoryScreens, playStoryScreens } from "./storyScreens";
 import { showTrentWin } from "./arcade"; // [arcade]
 import { takeStorySteps } from "../sim/story";
@@ -53,6 +53,9 @@ import { gameOverLines, levelCompleteLines } from "./twoPlayer";
 import { consoleBridge, inPlace, installDebugConsole, showDebugConsole, takeConsoleJump } from "./consoleBridge";
 import { JE_initEpisode } from "../sim/episodes";
 import { CompareView, compareFromUrl } from "./compareView";
+// The shared high-score list and play reports (src/scores/; inert without VITE_SCORES_API).
+import * as shared from "../scores/session";
+import { sharedHighScores } from "./sharedScores";
 
 /** D158: the side-by-side comparison's original half, with `?compare=1`. */
 let compareView: CompareView | null = null;
@@ -117,6 +120,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
   const pauseButton = new PauseButton(() => (controls.pauseRequested = true)); // ui-framework
   const cheats = new CheatKeys(() => controls.active); // [cheats]
   applyCheatParams(location.search); // [cheats] ?loot: params.c LOOT
+  shared.initScoresSession(); // run records in saves, and the URL's taints (?loot, ?seed, ?debug)
   // [destruct] The DESTRUCT code opens Destruct (src/destruct/, loaded when first needed); the title's
   // music comes back when it closes.
   destructHook.open = async () => {
@@ -174,7 +178,7 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       currentMusicStyle: () => music.style,
       // [high scores] the title menu's High Scores (JE_highScoreScreen)
       highScoresLabel: g.miscText[50]?.trim() || undefined,
-      onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode }),
+      onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode, difficultyNames: difficultyNamesByLevel(names.difficultyName) }),
       idleMs: demos ? TITLE_IDLE_MS : undefined, // [demos]
       destructReady: () => destructHook.open !== null, // [destruct]
       // [arcade] what the codes typed at the title start
@@ -223,6 +227,9 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
     // [arcade] newGame() for the chosen mode (1 Player Full Game or Arcade, 2 Player Arcade), or a
     // Super Arcade or Super Tyrian game (src/sim/arcade.ts).
     if (!choice.loaded) startNewGame({ ...choice, mode: consoleStart ? "fullGame" : gameplay });
+    // The shared list: a new run (and its token), or the loaded game's run record.
+    if (!choice.loaded) void shared.startRun(g.episodeNum, g.initialDifficulty, shared.currentMode());
+    else shared.loadedRun();
     if (consoleStart?.section) g.mainLevel = consoleStart.section; // D109
     onPlay();
     // port-story: JE_loadMap's pictures, text and fades play where the C would have drawn them.
@@ -242,24 +249,28 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
           await story(); // port-story
           // The item screen's backdrop draws in the game's canvas, under the level fade: clear it.
           levelFade().set(0);
+          shared.shopStart();
           await inPlace("shop", () => runItemScreen({ files, ...optionsHost }));
+          shared.shopEnd();
         },
         async (pause) => {
           await story(); // port-story: e.g. the screens before `]Q[`
           closeStoryScreens();
           // [high scores] JE_nextEpisode's JE_highScoreCheck (mainint.c L958-962)
-          if (pause === "highScoreCheck") return highScoreCheck({ ...names, sfx, music }, g.initial_episode_num);
+          if (pause === "highScoreCheck") return highScoreCheck({ ...names, sfx, music, shared: sharedHighScores(g.initial_episode_num, "episode") }, g.initial_episode_num);
           await screens(pause);
         },
       );
       if (!loaded) {
         // [high scores] Quitting is how a game ends here, since a game over retries (D11, D14).
-        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music }, choice.episode);
+        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music, shared: sharedHighScores(choice.episode, "quit") }, choice.episode);
+        shared.endRun();
         break; // quit from the item screen: back to the title
       }
       await story(); // port-story: the screens after the item screen, and fade_black(50)
       if (!g.doNotSaveBackup) JE_saveGame(lastLevelSlot(), "LAST LEVEL    "); /*Save backup game*/
       startLevel();
+      shared.levelStart();
       await preloadLevelModels(view); // D54: the level's models before its first tick
       view.draws.resetInterpolation();
       music.play(g.levelSong - 1);
@@ -270,14 +281,15 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       if (compare) compare.visible = true;
 
       // port-story: JE_main's fade_palette(colors, 50) (tyrian2.c L716). The C fades in before the
-      // first frame; here the level starts under the fade.
-      levelFade().set(1, BLACK);
-      void levelFade().fade(0, 50, BLACK);
+      // first frame; here the level starts under the fade, which leaves the playfield to the sim's
+      // own levelBrightness fade-in (D254).
+      void fadeInLevel(view.playfieldCornersOnWindow());
 
       controls.active = true;
       pauseButton.visible = true; // ui-framework
       const huds = { update: () => (hud.update(), hud2.update()) }; // [two-player]
       const outcome = await playLevel(view, controls, sfx, music, huds, pauseButton, cheats, optionsHost);
+      shared.levelEnd(outcome);
       view.resetResolution(); // the menus draw at full resolution (D91)
       controls.active = false;
       controls.release();
@@ -303,7 +315,8 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       if (outcome === "quit") {
         // ui-framework: "Quit to title" on the pause screen (src/app/pause.ts). [high scores] As
         // quitting from the item screen, it ends the game, so its score is checked.
-        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music }, choice.episode);
+        if (highScoreCheckDue(choice.episode)) await highScoreCheck({ ...names, sfx, music, shared: sharedHighScores(choice.episode, "quit") }, choice.episode);
+        shared.endRun();
         break;
       }
 
@@ -324,10 +337,14 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
           g.onePlayerAction = false;
           g.player[0].items.super_arcade_mode = SA_NONE;
         }
-        if (g.bonusLevelCurrent && !g.playerEndLevel) g.mainLevel = g.nextLevel;
+        if (g.bonusLevelCurrent && !g.playerEndLevel) {
+          g.mainLevel = g.nextLevel;
+          shared.bonusLevelSkipped(g.lvlFileNum, shared.lastLevelTicks()); // the path goes on past it
+        }
       }
       g.doNotSaveBackup = false;
     }
+    shared.endRun();
     // [arcade] Super Tyrian beaten at Lord of Game: the C quits with JE_tyrianHalt's message (opentyr.c L907-911).
     if (g.trentWin) {
       g.trentWin = false;
@@ -423,6 +440,7 @@ function playLevel(view: View, controls: Controls, sfx: SoundEffects, music: Mus
         cheats.poll(); // [cheats] JE_mainKeyboardInput, at the end of the C's frame
         const result = tick();
         b.ticks++;
+        shared.levelTick(); // the play report's damage, superbombs and losses
         sfx.playQueue(g.soundQueue);
         levelMusic.tick();
         view.setDrawList(drawList);

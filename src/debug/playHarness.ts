@@ -22,7 +22,9 @@
 //   &bg=original                   the original's tiles instead of the remastered backgrounds (D34, D48)
 //   &stress=N                      add N extra copies of the tick's shots (bullet-hell load test)
 //   &preload=0                     start without waiting for the level's models (D54); with &skip=,
-//                                  the harness otherwise waits for all of them before fast-forwarding
+//                                  the harness otherwise waits for all of them before fast-forwarding.
+//                                  Without it, a level that follows (the bot finished one) waits too,
+//                                  as the game's does (for all of them inside the fast-forward, D250)
 //   &solid=1                       the bot not invulnerable (its armour kept topped up instead), so the
 //                                  ship draws opaque rather than translucent
 //   &interface=frame|minimal       the HUD (D61); &camera=overhead|tilted|steep
@@ -93,17 +95,22 @@ export async function runPlayHarness(view: View): Promise<void> {
   JE_drawOptions();
   clearSimInput();
   // The level's models before its first tick (D54); `&preload=0` skips it, to see what a level
-  // started without them looks like.
-  if (num("preload", 1) !== 0) await preloadLevelModels(view, (text) => (overlay.textContent = text ?? ""));
-  else view.draws.setLevelDamage(levelDamageFrames()); // D87 (preloadLevel sets it otherwise)
-  // A start part-way in (`&skip=`) shows tiles a real run would only reach once the level's later
-  // models had loaded in the background: wait for all of them, so the first frame looks as it would.
-  if (num("preload", 1) !== 0 && num("skip", 0) > 0) {
+  // started without them looks like. A start part-way in (`all`: `&skip=` still to run) shows what
+  // a real run would only reach once the level's later models had loaded in the background: wait
+  // for all of them, so the first frame shown looks as it would.
+  const preload = num("preload", 1) !== 0;
+  const levelModels = async (all: boolean) => {
+    await preloadLevelModels(view, (text) => (overlay.textContent = text ?? ""));
+    if (!all) return;
     await view.draws.preloadLevel(levelModelInfo());
     await view.warmUp(); // and warmed, as preloadLevelModels warms what it waited for (D91)
-  }
+  };
+  if (preload) await levelModels(num("skip", 0) > 0);
+  else view.draws.setLevelDamage(levelDamageFrames()); // D87 (preloadLevel sets it otherwise)
 
   let t = 0;
+  /** The next level's models while they load (D250): no tick runs meanwhile, as in run.ts. */
+  let loading: Promise<void> | null = null;
   let paused = false;
   const stress = num("stress", 0);
   const solid = num("solid", 0) > 0;
@@ -144,7 +151,11 @@ export async function runPlayHarness(view: View): Promise<void> {
     if (r.levelOver || r.gameOver) {
       loadLevel(files, episode, g.nextLevel > 0 && r.completed ? g.nextLevel : g.mainLevel);
       startLevel();
-      void view.draws.preloadLevel(levelModelInfo()); // not waited for: the harness keeps ticking (D54)
+      // The next level waits for its models as the game's does (run.ts, D54), not ticking on with
+      // them still loading (D250: its first enemies were held, then drawn as sprites). In the
+      // fast-forward, for all of them, as at a start part-way in.
+      if (preload) loading = levelModels(t < num("skip", 0)).finally(() => (loading = null));
+      else void view.draws.preloadLevel(levelModelInfo());
       view.draws.resetInterpolation();
     }
     if (stress > 0) addStressShots(drawList.items, stress, t);
@@ -155,7 +166,10 @@ export async function runPlayHarness(view: View): Promise<void> {
     favourite = (favourite + 1) % FAVOURITES.length;
     p.items.weapon[0].id = FAVOURITES[favourite];
   };
-  for (let i = num("skip", 0); i > 0; i--) step(i <= 2, i <= COMPARE_HISTORY_TICKS);
+  for (let i = num("skip", 0); i > 0; i--) {
+    step(i <= 2, i <= COMPARE_HISTORY_TICKS);
+    if (loading) await loading; // a level ended in the fast-forward: the next one's models (D250)
+  }
 
   window.addEventListener("keydown", (e) => {
     if (e.code === "KeyV") view.draws.setVfxMode(view.draws.vfxMode === "remastered" ? "original" : "remastered");
@@ -178,7 +192,7 @@ export async function runPlayHarness(view: View): Promise<void> {
   view.renderer.info.autoReset = false;
   startLoop(CLASSIC_TICK_MS, {
     update: () => {
-      if (paused || t === freezeAt) return;
+      if (paused || t === freezeAt || loading) return;
       step(true);
     },
     render: (alpha) => {

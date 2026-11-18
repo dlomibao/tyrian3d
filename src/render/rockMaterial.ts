@@ -37,8 +37,11 @@ const MAX_RAMPS = 4;
  * up-facing light the ground's share is calibrated on (D205), which took about a tenth of it off
  * (NOSE DRIP t3300, linear, with and without the bump). Only in the current rig (where the ground
  * undoes the toe); `?lighting=old` draws the rock as before.
+ * D251: 1.1 left the rock about 8% under the original's brightness (NOSE DRIP from t5550 on, 0.92 by
+ * luma; probably the stones' modelled cushions, which tilt away from that light too, not measured
+ * apart). 1.3 brings it to 0.99-1.02 of the original there, still lit as the ground (no blue cast).
  */
-export const ROCK_GROUND_GAIN = 1.1;
+export const ROCK_GROUND_GAIN = 1.3;
 
 /** What a rock material is made from (to clone it with its own hue). */
 interface RockInfo {

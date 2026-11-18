@@ -4,7 +4,7 @@
 // background-2/3 surface under it (sun.ts SurfaceTiles), so a tank on a platform casts it at its tracks.
 import * as THREE from "three";
 import { describe, expect, test } from "vitest";
-import { AIR_SHADOW_DROP, SUN_POSITION, SurfaceTiles, airShadowShift, isAirborne, rayRoll } from "../../src/render/sun";
+import { AIR_SHADOW_DROP, SKY_AIR_FLOOR, SUN_POSITION, SurfaceTiles, airHeight, airShadowShift, isAirborne, rayRoll } from "../../src/render/sun";
 import { DARKEN, DECAL_HEIGHT, ShadowDecals, shadowMask, shadowPlayerOfKey } from "../../src/render/shadowDecals";
 import { CAMERA_TILT, CAMERA_TILT_GENTLE, CAMERA_TILT_OVERHEAD, PLAYFIELD_RECT, fitCamera } from "../../src/render/view";
 import { PASS_HEIGHT } from "../../src/render/passHeights";
@@ -178,5 +178,20 @@ describe("ship shadow decals (shadowDecals.ts)", () => {
     decals.begin();
     expect(mesh.visible).toBe(false);
     expect(decals.hasPlayer(0)).toBe(false);
+  });
+});
+
+describe("sky enemies over a surface (D257)", () => {
+  test("a sky enemy keeps at least SKY_AIR_FLOOR of air over a raised surface; a top enemy keeps D243's count", () => {
+    const sky = PASS_HEIGHT[Pass.SkyEnemies];
+    const top = PASS_HEIGHT[Pass.TopEnemies];
+    // HARVEST: its sphere at 1.65 over background 3 (under) at 1.25.
+    expect(airHeight(Pass.SkyEnemies, sky, PASS_HEIGHT[Pass.Background3Under])).toBeCloseTo(SKY_AIR_FLOOR);
+    // TYRIAN: a tank at 2.5 on a background-3 platform at 2.1, at its tracks as D243 put it.
+    expect(airHeight(Pass.TopEnemies, top, PASS_HEIGHT[Pass.Background3])).toBeCloseTo(top - PASS_HEIGHT[Pass.Background3]);
+    // Over the ground nothing changes; high over a low surface the count is its own; never over its height.
+    expect(airHeight(Pass.SkyEnemies, sky, 0)).toBe(sky);
+    expect(airHeight(Pass.SkyEnemies, sky, PASS_HEIGHT[Pass.Background2Under])).toBeCloseTo(sky - PASS_HEIGHT[Pass.Background2Under]);
+    expect(airHeight(Pass.SkyEnemiesOver, 0.8, 0.5)).toBeLessThanOrEqual(0.8);
   });
 });

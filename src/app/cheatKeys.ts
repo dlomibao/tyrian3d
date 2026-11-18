@@ -3,7 +3,22 @@
 // key went down (keyboardHasInput), so poll() runs it before the next tick. Only while a level is
 // being played (`active`); Escape and P stay the pause keys (src/app/controls.ts).
 
-import { JE_mainKeyboardInput } from "../sim/cheats";
+import { JE_mainKeyboardInput, type KeysActive } from "../sim/cheats";
+import { taintRun } from "../sim/runRecord";
+
+/**
+ * Whether the keys held make one of JE_mainKeyboardInput's cheat chords (the Nort ship,
+ * invulnerability, self-destruct, skip level), whatever the game then does with it: any of them
+ * taints the run for the shared high-score list.
+ */
+export function isCheatChord(keys: Pick<KeysActive, "has">): boolean {
+  const k = (c: string) => keys.has(c);
+  return (
+    (k("F2") && k("F4") && k("F6") && k("F7") && k("F9") && k("Backslash") && k("Slash")) ||
+    (k("F2") && k("F3") && (k("F6") || k("F4") || k("F5"))) ||
+    (k("F2") && k("F6") && (k("F7") || k("F8")) && !k("F9"))
+  );
+}
 
 /** F-keys the chords use: the browser's own meaning (help, reload, caret browsing...) is held off in flight. */
 const CHORD_KEYS = new Set(["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10"]);
@@ -31,6 +46,8 @@ export class CheatKeys {
   poll(): void {
     if (!this.pressed) return;
     this.pressed = false;
-    if (this.active()) JE_mainKeyboardInput(this.held);
+    if (!this.active()) return;
+    if (isCheatChord(this.held)) taintRun("cheat-keys");
+    JE_mainKeyboardInput(this.held);
   }
 }

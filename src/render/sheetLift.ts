@@ -24,21 +24,28 @@ export interface PlacedExtent {
 export const SHEET_CLEARANCE = 0.04;
 /** Screen px added round a model's box: a tall model's top leans past its footprint under the tilt. */
 const SCREEN_MARGIN = 4;
+/**
+ * Screen px taken off each side of a later model's box: one that only touches a tile (a box's edge
+ * row, GYGES's boss piece at t6300 crossing the horn tile's bottom row by 1 px) doesn't hold it under
+ * the earlier models it covers (D255). As COVER_INSET: boxes may cross by a pixel where pieces meet.
+ */
+const LATER_INSET = 2;
 
 /**
  * The height for a sheet tile of pass `pass` at screen (x, y), w x h px, normally `base`: just above
  * the tops of the earlier passes' models it overlaps. If that would reach into a later pass's model
  * it overlaps, half way between the two (neither is fully right then, and neither is cut by much).
  * An earlier model counts within SCREEN_MARGIN of the tile (its top leans); a later one only where
- * its footprint itself overlaps the tile, as what could reach under the sheet is its foot, which
- * doesn't lean: GYGES's boss pieces beside the horn tile had held it under the arm's balls (D224).
+ * its footprint itself overlaps the tile, by more than LATER_INSET, as what could reach under the
+ * sheet is its foot, which doesn't lean: GYGES's boss pieces beside the horn tile, and one crossing
+ * its edge row, had held it under the arm's balls (D224, D255).
  */
 export function sheetHeight(base: number, pass: number, x: number, y: number, w: number, h: number, models: readonly PlacedExtent[]): number {
   let below = -Infinity;
   let above = Infinity;
   for (const m of models) {
     if (m.pass === pass) continue;
-    const margin = m.pass < pass ? SCREEN_MARGIN : 0;
+    const margin = m.pass < pass ? SCREEN_MARGIN : -LATER_INSET;
     if (m.right + margin <= x || m.left - margin >= x + w || m.bottom + margin <= y || m.top - margin >= y + h) continue;
     if (m.pass < pass) below = Math.max(below, m.high);
     else above = Math.min(above, m.low);
