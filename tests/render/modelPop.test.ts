@@ -1,5 +1,5 @@
-// Enemies never pop from sprite to model when a model loads late (DECISIONS.md D54): each object is
-// drawn one way for its life, and preloadLevel loads a level's models earliest-needed first.
+// An enemy whose model loads late (DECISIONS.md D54): held back briefly, then its sprite until the
+// model is in, then the model (D250); preloadLevel loads a level's models earliest-needed first.
 // The loader here is a delayed fetch the test settles by hand.
 import * as THREE from "three";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -119,15 +119,16 @@ describe("an enemy whose model is still loading (D54)", () => {
     expect(seen.slice(5).every((s) => s.models === 1)).toBe(true);
   });
 
-  test("model later than HOLD_MS: the sprite for the enemy's whole life, even once the model is in; the next enemy gets the model", async () => {
+  test("model later than HOLD_MS: the sprite until the model is in, then the model (D250); the next enemy gets the model at once", async () => {
     const l = delayedLoader();
     const r = make([ENEMY], l.loader);
     expect(frame(r, enemy(1))).toEqual({ sprites: 0, models: 0 });
-    expect(frame(r, enemy(1), HOLD_MS + 1)).toEqual({ sprites: 4, models: 0 });
+    for (let i = 0; i < 10; i++) expect(frame(r, enemy(1), HOLD_MS + 1)).toEqual({ sprites: 4, models: 0 });
     await l.resolve("enemies/test");
-    for (let i = 0; i < 10; i++) expect(frame(r, enemy(1))).toEqual({ sprites: 4, models: 0 });
-    // A new enemy (another serial) alongside: its model, while the first stays a sprite.
-    expect(frame(r, [...enemy(1), ...enemy(2, 3, 160)])).toEqual({ sprites: 4, models: 1 });
+    // Not left a sprite for its life (a frozen capture, a boss): its model from the next frame on.
+    for (let i = 0; i < 10; i++) expect(frame(r, enemy(1))).toEqual({ sprites: 0, models: 1 });
+    // A new enemy (another serial) alongside: its model too.
+    expect(frame(r, [...enemy(1), ...enemy(2, 3, 160)])).toEqual({ sprites: 0, models: 2 });
   });
 
   test("a model that fails to load: the sprite, at once", async () => {
