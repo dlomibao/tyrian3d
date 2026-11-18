@@ -14532,3 +14532,32 @@ flanges. The U-Ship's pale `pal_28` hoop collars stand out from the rear.
 `?viewer=` before merging. Fallback: keep D240/D241's restored models (the state on main).
 
 **Cost:** 12 Fable agents, about 3.5M subagent tokens, about 2 h wall clock.
+
+## D245 — The USP Talon's plan is one smooth curve again and its pods are round; the two black streaks are closed (undoes D88's per-row trace on the Talon; follows D52, D74, D90, D93, D118)
+
+**Date:** 2026-11-18
+
+**Problem:** the user found that the starter ship "looks wavy edged" and asked whether it was a Fable redo. It was
+not. D88's inner-edge refit (Nov 3, Opus) replaced the Talon's plan with a width per sprite row, so pod and plate edges
+followed the sprite's pixel steps. Pod half widths over rows 13-19 went 4.38, 4.65, 5.13, 5.68, 6.39, 6.78, 7.57.
+D88 also added a chine and lowered the nose flank, shapes made for the banks, which D93 later forbade. D90 removed most
+of the outline-shell cracks, but two black streaks remained down the hull sides. Captures showed that neither the
+meshopt compression (D206) nor this week's renderer changes cause it.
+
+**Decision** (`tools/workflows/fix-round.js`, Fable, at the user's request; the review gave ship 8.5/10):
+- **Plan:** one smooth pchip curve made of a straight nose cone, parallel sides at the windshield, one straight pod
+  flare of 0.5 px per row, a filleted shoulder and a straight 45-degree boat tail. The pods are round again (the
+  pre-D88 octagon section). Level frame 233 rule IoU is 1.0000 (HEAD 0.95).
+- **Streaks:** the ink is the shell pushed out about 0.7 px. Where the shell is concave more tightly than that, the
+  pushed faces fold over and draw across the hull. Two Talon-local steps fix it: `outline_fill()` fills the pod
+  valleys in the shell's source, and `close_gaps()` closes seams by 0.5 px. Interior ink from six overhead cameras
+  dropped from 2.5-2.8 to 0.03-0.04 px² per view.
+- **Small fixes:** the louvres moved under the flank's widest point, and the nozzle floor moved 0.18 px aft.
+- **Shared helpers:** `usp_talon.py` is also the shared helper library. All 28 shared helpers and constants are
+  byte-identical by AST, and `ship-nort-ship.py` still builds.
+- **Bank roll:** stays the game's default 17.5 / 35. `bank_roll.py --fit` picks 35 / 52.5 for the round pods, but that
+  visibly changes how the starter ship banks in play. The default pose clears D93's floors (half 0.89 / 0.88, full
+  0.84 / 0.86).
+
+**Review:** check the in-game crop and `?viewer=usp_talon` at free angles. Fallback: use the fitted 35 / 52.5 roll
+(`common.with_bank_roll`) if the banks look too narrow.
