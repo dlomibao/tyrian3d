@@ -65,6 +65,12 @@ CH = 0.26                        # stone arris: a small rounded chamfer (the spr
 CLEAR = 0.15                     # sinker clearance in its pit
 SINK_TOP = [3.84, 3.10, 2.15]    # sinking stones' tops per step
 SINK_PAL = {"A": [9, 8, 6], "B": [9, 7, 3], "C": [9, 7, 5]}
+# Baked colour multiplier on an open, up-facing face (usp_talon.bake_maps' TINT). The game lights
+# models with the white sun plus a blue-sky hemisphere fill (lighting.ts), which left the deck
+# (index 9, the sprite's flat 120 grey) 1.17x too bright and blue (146/148/156; E2 QA round 3 L6).
+# This warm, darker multiplier brings the lit deck back to the sprite's neutral grey; it scales the
+# whole block alike (the ground parts sit under the same lights), so AO and edge lift keep their contrast.
+BAKE_TINT = (0.70, 0.69, 0.62)
 
 # Deck stones: inclusive pixel rects (c0, r0, c1, r1), and which one sinks.
 STONES = [
@@ -476,7 +482,7 @@ def main():
         shell.hide_render = True
         bpy.data.objects.remove(sealed, do_unlink=True)
         if bake:  # AO/roughness only (D50/D65), on the merged object before it is cut
-            T.TINT = (1.0, 1.0, 1.0)
+            T.TINT = BAKE_TINT
             T.TEXTURED = tuple(range(len(obj.data.materials)))
             import tempfile
             T.bake_maps(obj, tempfile.mkdtemp(prefix=f"nshp191_bake{step}_"), size=1024, samples=64)
