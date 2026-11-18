@@ -14789,6 +14789,97 @@ shadow on the painting (t900, t1500 pits). D216's stones stood with the deck, so
 `perf.txt` (not in git, D3). Fallback: `PAINTED_RIM = False` and rebuild the seven `l1bld_*.py`.
 
 **Cost:** one Opus agent; about 55 headless captures, three Blender builds of the seven scripts (about 80 s each).
+
+## D258 — 2026-11-18 walkthrough's flat-art items: the small asteroids refitted to their ringed outline, big explosions drawn in the C's order with rounder rims, the diamond shot painted from its pixels, shots already flying get no birth flash, SAVARA's foam and SAVARA IV's flecks (follows D42, D105, D106, D138, D174, D198, D221, D224, D244, D246)
+
+**Date:** 2026-11-18
+
+**Problem** (round-3 comparison walkthrough, `tyrian-scratch/qa-sweep3/{e1,e2,e4a,demos}/REPORT.md`), each traced before fixing:
+- **Small asteroids newshd 133 / 152 (regression from D246).** D246's cut kept Gemini's painting at its own size and
+  shape (133 filled about 58% of the sprite, 152 two-lobed) and its `art_alpha` cut away the sprite's dark ring, so the
+  rock was a small dull-grey lump that all but vanished on ASTEROID?'s floor (t1800). The sprites are a thick near-black
+  ring (0x20 / 0x01 / 0x03, about half their pixels) round a bright silver body with near-white highlights (0x6d-0x6f).
+- **Big explosions look like a mosaic of shards.** Two causes. (a) The renderer: D105-D106 drew the explosions' flat art
+  through a stencil that kept the 1st, 3rd and 5th layer on each pixel. Since D174 that art is the C's hue-keeping blend
+  at full opacity, so layers no longer pile up, and the stencil only decided which explosion showed by how many outlines
+  covered a pixel: inside a cluster a later explosion showed through an earlier one only where a third overlapped, cut
+  along the others' outlines (TYRIAN t1513, 16 big explosions). (b) The art: each frame's alpha is the sprite's outline,
+  whose 1:1 staircases and box sides became long straight 45-degree and box edges.
+- **`tyrian.shp#10` 76** (GEM WAR's diamond shots, CORE's dark stars) was painted a pale faceted gem with a white lens
+  flare; the sprite is a soft salmon gradient diamond (0x41-0x4d) with a pinkish centre.
+- **LAVA RUN's beam (`#7` 286-288) "pale pink blobs":** not the paintings (atlas frames clean; gone with `fx.reset()`).
+  They were birth flashes: the first tick the remastered effects see has no last tick, so every shot on screen counted
+  as new and flashed where it was (each beam piece; the flame shots' pink dots on every level), and `freezeAt`'s stopped
+  effects clock (particles at age 0) kept them on screen. In play a beam piece is born at the emitter, one per tick.
+- **The "translucent tan Heavy Guided Bomb" (demo 1 s093)** is the player's USP Talon (`tyrian.shp#8` 237, its model)
+  drawn while invulnerable (`blit_sprite2x2_blend`); the Heavy Guided Bombs are the blue `#7` 48. The model was drawn at
+  BLEND_ALPHA 0.55, taking nearly half the ground's colour, where the C keeps the ship's hue and averages only its value.
+- **SAVARA's pink foam (`shapesy` 0:21):** the painting's spray along the waterline mixed the cliff's brown into the
+  foam. **SAVARA IV's blue flecks in the mud (tile 24):** D198 moved tile 24's offset blocks out of the water-exempt
+  banks but kept their outer rings (the solved seams), 0.17% left; under the brown water filter those texels keep their
+  painted blue.
+- **Checked, left as they are:** DELIANI's "pods" (`newsh6` 4/23/42/61, t7210): the flat art is clean (`&vfx=original`
+  shows plain red pods); the flecks are D35/D169 birth sparks and debris of twelve explosions born at t7209, frozen at
+  age 0 (as D221 found). `#10:31` "pink pills" (GEM WAR t16615) and `#10:12` "warp eggs" (TYRIAN t1950): D221 was right,
+  they are the copper and gold coins' spin (frames 26-31 and 7-12 share one pixel layout, bank 0x40 vs 0x10; 26 and 7
+  face-on, 11x11, narrowing to 29/10's 3-px edge and widening again to 31/12; enemy types 392/391, `scoreitem`) frozen
+  on the spin's last frame; the draw list at those ticks names only 31 and 12. Their paintings keep the sprite's
+  silhouette and colours (D221).
+
+**Decision:**
+1. **Small rocks** (`tyrian-scratch/qa-sweep3/fix/fix-flatart/tools/refit.py`, not in git like D244's `widefit.py`):
+   D246's answers (133 from the first, 152 from the second) warped radially from the painting's centroid so its
+   outline lands halfway across the sprite's ring (angle-smoothed radii), alpha the whole silhouette rounded
+   (`soft_alpha` sigma 6, no `art_alpha`), toned in two zones: the rock by the body's own ramp (ring left out, layout
+   0.4), the ring by the sprite's smoothed ring colours with a little of the painting's texture, blended over about
+   1.5 sprite px. Written into `newshd-shp.webp` in place (rects unchanged); their shade gains re-measured (133 1.18 ->
+   1.41, 152 1.30 -> 1.38); both left out of `flat_art_recolour.json` so a recolour run doesn't redo them.
+2. **Explosions:** `spriteArtLayer.ts` draws the explosions' flat art without the stencil, each over the ones before it
+   in the draw list's (the C's) order; the stencil setter and `EXPLOSION_LAYERS` are gone (the renderer keeps its stencil
+   buffer). The big explosions' frames (air `newsh6` 3-71, ground 154-216) get a rounder rim
+   (`fix-flatart/tools/roundexp.py`, alpha only, shrink-only): the outer 12 texels bite in where the painting's billows
+   are darker than the rim's 45th percentile, and the corners are held under the outline radius's +-30-degree mean
+   (+2 texels). The late hollow rings are left as they were. 68 of 96 frames change; 96-98% of each frame's opaque area
+   stays.
+3. **`#10` 76** is a `PAINTED` frame, `paint_smooth` (the hit spark's painter, D247, now named for what it does: the
+   sprite's own colours blended between pixel centres, its outline rounded); shade gain 0.46 -> 1.40.
+4. **Shot births** (`remasteredFx.ts`): the first tick after the effects start or `reset()` only records the shots on
+   screen (`shotsKnown`); births are flashed from the next tick on. `tests/render/vfx.test.ts` covers it.
+5. **Blended models** (`drawListRenderer.ts` `MODEL_BLEND_ALPHA` 0.8): the invulnerable ship (and any model of a
+   blended draw) keeps more of its own colours; extruded sprites and flat art keep BLEND_ALPHA 0.55.
+6. **Terrain:** `shapesy` 0:21's spray recoloured to the sea's own foam blue at each texel's brightness (rows 118-212,
+   warm and pale texels only, weighted by warmth; `fix-flatart/tools/foam.py`), into a new lossless `0-3.webp`; the tile's
+   rect points at it, every other image and rect byte for byte (the old texels stay unused in `0-2.webp`). The flecks:
+   `terrainMaterial.ts` gives a texel whose nearest-colour bank is water-exempt but isn't one of its original tile's
+   two main banks (`instBank`) the tile's main bank, as the tile's pixels all are in its own banks. An atlas fix was
+   tried first: the exempt texels of tile 24 moved into bank 3 reached 0, but field 24 is D138's shared patch plus an
+   offset, and any lossy pass put 0.06-0.09% back (a lossless copy of the field would add 0.7 MB).
+
+**Measured:**
+- Small rocks: silhouette coverage 0.99-1.00 (D246's 133: about 0.58); luma p5/p50/p95 over the alpha, 133 6/34/169
+  and 152 7/57/185, against the sprites' (ring included) 5/40/197 and 5/57/197.
+- Atlas re-encodes (one lossy WebP generation each, alpha lossless): `newshd-shp.webp`'s other 104 frames mean |diff|
+  0.14, p99 2, max 17; `tyrian-shp-10.webp`'s other 266 frames 0.29, p99 3, max 12; `newsh6-shp.webp`'s other 65 frames
+  0.82, p99 5, max 21 (alpha exact everywhere).
+- SAVARA IV t4800 (4K, 3D panel): saturated-blue pixels 2,351 -> 752 (the rest at the mud's edges against the cliff and
+  structure tiles, whose own banks include an exempt one). Other hued levels, 1080p 3D panel pixels changing by more
+  than 8: SAVARA V t1000 0.80% (D198's cyan crest streaks gone), LAVA EXIT t1800 1.75% (the lava's darkest crust now
+  takes the lava filter as the tile's pixels do), SIDE EXIT t1800 0.12%, NOSE DRIP t3000 0.01%, SAVARA IV t300 0.03%,
+  CAMANIS t3100 0, SAVARA hard t1500 0.03% (shot flashes).
+- Tile 21: 874 texels change by more than 2 levels, max 59; its edge texels don't change (seams as before).
+
+**Checked** (`?debug=play&...&difficulty=2&seed=1&skip=T&freezeAt=T&compare=1`, before = the same dev server just before
+each change; crops original | before | after in `tyrian-scratch/qa-sweep3/fix/fix-flatart/out/`): `c_rocks.png` (1.21
+and 1.1 t1800), `c_1.9_t1513_explosions_oba.png` (overhead, and `c_1513_zoom.png`), `c_76.png` (GEM WAR t13800, CORE
+t3300), `c_4.12_t300_beam.png`, `c_ship_t1100_oba.png` (TYRIAN with the Heavy Guided Bombs), `c_1.5_t7210_pods.png`
+(default and `&vfx=original`), `c_4.3_t4800_mud.png`, `c_1.8_t1050_foam.png`, `c_1.17_t1000.png`. tsc and vitest.
+
+**Open:** a big explosion whose top and bottom quarters are at different animation frames shows a straight seam at
+its middle (seen at TYRIAN t1513 with the original terrain too, so not the under-shade); not traced in the sim. The
+blended explosions over HD terrain show the terrain's shade contours (D204) as thin lines. The small rocks 95 and 114
+keep D246's look (no ring), not flagged; they could take the same refit.
+
+**Cost:** one Opus agent, no workflow, no Gemini, no Blender: about 60 headless captures.
 ## D251 — The island rock takes 1.3x the ground's light, not 1.1x: D223's light change had left it about 8% under the original's brightness (QA round 3 L-a; amends D223)
 
 **Date:** 2026-11-18

@@ -43,8 +43,8 @@ from input sheets of the original sprites. This tool does both ends of that loop
         indices spread (D221). Run it after a cut or recolour of those sheets.
 
 A few frames are painted here instead of cut from Gemini's art (PAINTED: the Vulcan Cannon's
-tracers, D56; the shots' hit sparks, D247); `cut` draws them with their painter and packs them with
-the rest, `paint` adds the missing ones alone.
+tracers, D56; the shots' hit sparks, D247; the diamond shot #10 76, D258); `cut` draws them with their
+painter and packs them with the rest, `paint` adds the missing ones alone.
 
 The original sprites are read from the game data (--data, default data/): tyrian.shp's Sprite2
 tables and the newsh<c>.shp sheets (src/data/sprites.ts) and palette.dat (src/data/palette.ts).
@@ -857,14 +857,14 @@ def paint_tracer(gd: GameData, sheet: str, index: int, palette: int) -> np.ndarr
     return rgb
 
 
-def paint_hit_spark(gd: GameData, sheet: str, index: int, palette: int) -> tuple[np.ndarray, np.ndarray]:
-    """A shot's hit spark (explosion type 0, newsh6.shp 146-152, D247): rgb (h*8, 96, 3) in 0..1 and alpha.
+def paint_smooth(gd: GameData, sheet: str, index: int, palette: int) -> tuple[np.ndarray, np.ndarray]:
+    """A small soft sprite drawn clean from its own pixels: rgb (h*8, w*8, 3) in 0..1 and alpha.
 
-    The sprite's own pixels, their colours blended smoothly between pixel centres (a normalised
-    gaussian of 0.5 px, so the transparent surround doesn't darken the edge): the yellow-orange core
-    of the first frames, the red body, the dark red rim that makes it read on bright ground. The
-    outline is the sprite's, its corners rounded (a 5-texel blur cut at its middle), so the edge stays
-    where the pixels' edge was and is drawn hard, like the original's opaque blit. No glow, no noise.
+    The sprite's colours blended smoothly between pixel centres (a normalised gaussian of 0.5 px, so
+    the transparent surround doesn't darken the edge). The outline is the sprite's, its corners rounded
+    (a 5-texel blur cut at its middle), so the edge stays where the pixels' edge was and is drawn hard,
+    like the original's opaque blit. No glow, no noise, nothing added: for sprites that are a smooth
+    gradient already (a hit spark's blob, a glowing diamond shot), which Gemini repaints as something else.
     """
     from scipy import ndimage
 
@@ -880,17 +880,28 @@ def paint_hit_spark(gd: GameData, sheet: str, index: int, palette: int) -> tuple
     return np.clip(rgb, 0, 1), soft_alpha(own >= 0, 5.0, 0.42, 0.58)
 
 
+def paint_hit_spark(gd: GameData, sheet: str, index: int, palette: int) -> tuple[np.ndarray, np.ndarray]:
+    """A shot's hit spark (explosion type 0, newsh6.shp 146-152, D247): paint_smooth of its 6x5 px blob,
+    the yellow-orange core of the first frames, the red body, the dark red rim that makes it read on
+    bright ground."""
+    return paint_smooth(gd, sheet, index, palette)
+
+
 # Frames drawn by a painter instead of cut from Gemini's art, with why. A painter returns rgb, or
 # (rgb, alpha) for an outline of its own (else the silhouette, smooth_alpha).
 # The Vulcan Cannon's bullets (D56): Gemini painted them as flame plumes, the Pulse-Cannon's fire
 # family, so the two weapons read alike; the original draws slim tracers (yellow head, red tail).
 # A shot's hit spark (D247): a 6x5 px blob, its own colours drawn clean; nothing for Gemini to add.
+# The diamond shot / dark star #10 76 (D258): a soft salmon gradient Gemini painted as a white gem.
 # `python tools/flat_art.py paint` appends the ones an atlas lacks.
 PAINTED = {
     ("tyrian.shp#7", 67): paint_tracer,  # Vulcan Cannon, power 1-6
     ("tyrian.shp#7", 70): paint_tracer,  # Vulcan Cannon, power 7-11: two tracers side by side
     ("tyrian.shp#7", 148): paint_tracer,  # Vulcan Shot Option sidekick (weapon 11): three Vulcan tracers (D214)
     **{("newsh6.shp", i): paint_hit_spark for i in range(146, 153)},  # hit sparks, explosion type 0's 7 frames (D247)
+    # A muted salmon diamond, a soft gradient from a dark rim to a pinkish centre (GEM WAR's diamond shots,
+    # CORE's dark stars): Gemini painted it a pale faceted gem with a white lens flare (2026-11-18 walkthrough).
+    ("tyrian.shp#10", 76): paint_smooth,
 }
 
 

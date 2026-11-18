@@ -137,6 +137,11 @@ vec3 terrainPalette(vec3 rgb, float height, inout float water) {
     float nearest = terrainNearest(srgb);
     float nearBank = floor(nearest / 16.0) * 16.0;
     float bank = chroma < 0.04 ? 0.0 : nearBank;
+    // An exempt bank the original tile doesn't have is a painted crest, crack or shadow that only
+    // happens to sit near one of its colours; the tile's pixels are all in its own banks, which the
+    // filter recolours, so the texel takes the tile's main bank (D258: SAVARA IV's blue flecks in the
+    // mud, where D198's tile-24 offsets left 0.17% at the patch's sub-tile borders).
+    if ((int(bank + 0.5) & 0x30) == 0 && abs(bank - vTerrainBanks.x) > 0.5 && abs(bank - vTerrainBanks.y) > 0.5) bank = vTerrainBanks.x;
     float lumShade = clamp(floor(lum * 15.0 + 0.5), 0.0, 15.0);
     float index = bank + lumShade;
     // The hues change only the bank, so whether one applies doesn't depend on the shade.

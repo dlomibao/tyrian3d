@@ -205,3 +205,32 @@ describe("explosion crowds (D224)", () => {
     expect(crowdCount(0.2, 0.5)).toBe(0);
   });
 });
+
+describe("shot births (D258)", () => {
+  test("shots already flying on the first tick the effects see get no birth flash; a later new shot does", async () => {
+    const { RemasteredFx } = await import("../../src/render/vfx/remasteredFx");
+    const { Pass } = await import("../../src/sim/draw");
+    const pixels = new Int16Array(12 * 14).fill(-1);
+    for (let y = 3; y < 7; y++) for (let x = 2; x < 6; x++) pixels[y * 12 + x] = 0x7c;
+    const geometry = toGeometry(extrudeSprite({ width: 12, height: 14, pixels }, SPRITE_EXTRUDE)!);
+    const cache = { sprite2Geometry: () => geometry, tableGeometry: () => geometry };
+    const palette = { version: 1, color: (_i: number, c: THREE.Color) => c.setRGB(1, 0.6, 0.1) };
+    const fx = new RemasteredFx(cache as never, palette as never);
+    const sheet = { id: "tyrian.shp#7" };
+    const shot = (key: number, y: number) => ({ kind: "sprite2", sheet, index: 286, x: 130, y, size: 1, pass: Pass.EnemyShots, key, effect: "none", filter: 0, value: 0 });
+    const births = () => (fx as unknown as { birthCount: number }).birthCount;
+    const prev = new Float32Array(64);
+    // A beam's ten pieces down the screen, all on screen when the look starts (the harness's skip).
+    const beam = Array.from({ length: 10 }, (_, i) => shot(20000 + i, 12 + 14 * i));
+    fx.tick(beam as never, prev, prev);
+    expect(births()).toBe(0);
+    // Next tick a new piece at the emitter: one birth.
+    fx.tick([shot(20010, 12), ...beam.slice(0, 9)] as never, prev, prev);
+    expect(births()).toBe(1);
+    // A reset (level start, teleport) forgets them: the next tick is a first tick again.
+    fx.reset();
+    fx.tick([shot(20011, 12), ...beam] as never, prev, prev);
+    expect(births()).toBe(0);
+    fx.dispose();
+  });
+});

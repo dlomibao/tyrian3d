@@ -215,6 +215,13 @@ export class RemasteredFx {
   /** Shot keys drawn last tick and this tick, to spot new shots. */
   private shotKeys = new Set<number>();
   private nextShotKeys = new Set<number>();
+  /**
+   * Whether shotKeys holds a tick's shots yet. The first tick the effects see (a new look, a reset,
+   * the harness's first shown tick after `skip`) has no last tick: its shots are already flying and
+   * aren't new, so they get no birth flash. They had each flashed where they were (a beam's whole
+   * column of pieces, LAVA RUN t300), and `freezeAt`'s stopped clock kept those flashes on screen.
+   */
+  private shotsKnown = false;
   /** The scroll, as explosions move with it (px per tick, down the screen). */
   private scrollPx = 0;
   /** background2over 2's sheets' painted pixels and the draw list they are of (setTopCover, D224). */
@@ -250,7 +257,7 @@ export class RemasteredFx {
       if (d.pass === Pass.PlayerShots || d.pass === Pass.EnemyShots) {
         if (d.key < 0 || d.effect === "darken") continue;
         next.add(d.key);
-        if (!this.shotKeys.has(d.key) && !isOrdnance(d)) {
+        if (this.shotsKnown && !this.shotKeys.has(d.key) && !isOrdnance(d)) {
           const geometry = d.kind === "sprite2" ? this.cache.sprite2Geometry(d.sheet, d.index, d.size) : this.cache.tableGeometry(d.table, d.index);
           const info = geometry && this.spriteInfo(geometry);
           if (info) this.queueBirth(d.pass === Pass.PlayerShots ? Birth.PlayerShot : Birth.EnemyShot, d.x + info.cx, d.y + info.cy, info.radius, d.pass, geometry);
@@ -287,6 +294,7 @@ export class RemasteredFx {
     }
     this.nextShotKeys = this.shotKeys;
     this.shotKeys = next;
+    this.shotsKnown = true;
   }
 
   private queueBirth(kind: Birth, sx: number, sy: number, radius: number, pass: Pass, geometry: THREE.BufferGeometry | null): void {
@@ -485,6 +493,7 @@ export class RemasteredFx {
     this.crowd.fill(-1e9);
     this.fireGlowCount = 0;
     this.shotKeys.clear();
+    this.shotsKnown = false;
     for (const f of this.lights) {
       f.age = f.life;
       f.light.intensity = 0;
