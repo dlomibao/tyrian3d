@@ -108,7 +108,7 @@ describe("hue-keeping blend (D174)", () => {
     // at creation (a blank 1x1 frame copy made every explosion blend as if over black).
     for (const k of ["blendUnder", "blendUnderSize", "blendUnderLinear", "blendUnderLut", "blendShadeLut"])
       expect(mesh.material.uniforms[k]).toBe(f.under.uniforms[k]);
-    // Drawn in the C's order, each over the last: no stencil layers (D249; D105-D106's stencil cut clusters into shards).
+    // Drawn in the C's order, each over the last: no stencil layers (D258; D105-D106's stencil cut clusters into shards).
     expect(mesh.material.stencilWrite).toBe(false);
     expect(mesh.material.uniforms.artDrawnTwice.value).toBe(0);
     // The outline pass's own render of the scene leaves them out (outlineEffect.js).

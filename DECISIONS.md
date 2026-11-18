@@ -14790,7 +14790,7 @@ shadow on the painting (t900, t1500 pits). D216's stones stood with the deck, so
 
 **Cost:** one Opus agent; about 55 headless captures, three Blender builds of the seven scripts (about 80 s each).
 
-## D249 — 2026-11-18 walkthrough's flat-art items: the small asteroids refitted to their ringed outline, big explosions drawn in the C's order with rounder rims, the diamond shot painted from its pixels, shots already flying get no birth flash, SAVARA's foam and SAVARA IV's flecks (follows D42, D105, D106, D138, D174, D198, D221, D224, D244, D246)
+## D258 — 2026-11-18 walkthrough's flat-art items: the small asteroids refitted to their ringed outline, big explosions drawn in the C's order with rounder rims, the diamond shot painted from its pixels, shots already flying get no birth flash, SAVARA's foam and SAVARA IV's flecks (follows D42, D105, D106, D138, D174, D198, D221, D224, D244, D246)
 
 **Date:** 2026-11-18
 

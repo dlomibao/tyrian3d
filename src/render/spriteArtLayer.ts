@@ -318,7 +318,7 @@ export class SpriteArtLayer {
 
   /**
    * The sheet's material for explosions: the plain one's uniforms (shared, live) with its own
-   * artDrawnTwice (D206), each explosion drawn over the ones before it, in the C's order (D249).
+   * artDrawnTwice (D206), each explosion drawn over the ones before it, in the C's order (D258).
    *
    * D105-D106 drew them through a stencil (the 1st, 3rd and 5th explosion on a pixel, none after) so
    * that translucent layers wouldn't pile up to solid fire. Since D174 an explosion's art is the C's

@@ -117,7 +117,7 @@ const BLEND_ALPHA = 0.55;
  * A model drawn for a blended draw (the ship while invulnerable, blit_sprite2x2_blend). The C keeps
  * the sprite's hue and averages only its value with the ground's, so its ship reads solid in its
  * own colours, dimmer or brighter with the ground; at BLEND_ALPHA the Talon took nearly half the
- * ground's colour and read as a pale ghost (D249). The higher opacity keeps the model's colours.
+ * ground's colour and read as a pale ghost (D258). The higher opacity keeps the model's colours.
  */
 const MODEL_BLEND_ALPHA = 0.8;
 /** Explosions without the ported blend (extruded sprites) blend thinner than the rest (D104, D105). */

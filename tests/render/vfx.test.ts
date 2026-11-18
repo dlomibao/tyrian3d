@@ -206,7 +206,7 @@ describe("explosion crowds (D224)", () => {
   });
 });
 
-describe("shot births (D249)", () => {
+describe("shot births (D258)", () => {
   test("shots already flying on the first tick the effects see get no birth flash; a later new shot does", async () => {
     const { RemasteredFx } = await import("../../src/render/vfx/remasteredFx");
     const { Pass } = await import("../../src/sim/draw");

@@ -43,7 +43,7 @@ from input sheets of the original sprites. This tool does both ends of that loop
         indices spread (D221). Run it after a cut or recolour of those sheets.
 
 A few frames are painted here instead of cut from Gemini's art (PAINTED: the Vulcan Cannon's
-tracers, D56; the shots' hit sparks, D247; the diamond shot #10 76, D249); `cut` draws them with their
+tracers, D56; the shots' hit sparks, D247; the diamond shot #10 76, D258); `cut` draws them with their
 painter and packs them with the rest, `paint` adds the missing ones alone.
 
 The original sprites are read from the game data (--data, default data/): tyrian.shp's Sprite2
@@ -892,7 +892,7 @@ def paint_hit_spark(gd: GameData, sheet: str, index: int, palette: int) -> tuple
 # The Vulcan Cannon's bullets (D56): Gemini painted them as flame plumes, the Pulse-Cannon's fire
 # family, so the two weapons read alike; the original draws slim tracers (yellow head, red tail).
 # A shot's hit spark (D247): a 6x5 px blob, its own colours drawn clean; nothing for Gemini to add.
-# The diamond shot / dark star #10 76 (D249): a soft salmon gradient Gemini painted as a white gem.
+# The diamond shot / dark star #10 76 (D258): a soft salmon gradient Gemini painted as a white gem.
 # `python tools/flat_art.py paint` appends the ones an atlas lacks.
 PAINTED = {
     ("tyrian.shp#7", 67): paint_tracer,  # Vulcan Cannon, power 1-6

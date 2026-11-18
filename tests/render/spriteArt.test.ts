@@ -366,7 +366,7 @@ describe("renderer", () => {
     expect(render(make(art2), [draw(sheet("big.shp", 21, true), 1, { size: 2 })])).toMatchObject({ flatSprites: 3, visiblePools: 0 });
   });
 
-  test("the warm-up makes each atlas's plain and explosion batches, and no stencil setter since D249 (D91, D159)", () => {
+  test("the warm-up makes each atlas's plain and explosion batches, and no stencil setter since D258 (D91, D159)", () => {
     const art = readyArt();
     const r = make(art);
     const layer = (r as unknown as { artLayer: { peek(s: unknown, p: number): unknown; root: THREE.Group } }).artLayer;
