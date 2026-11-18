@@ -416,3 +416,58 @@
     margin-top: var(--ui-space-2);
   }
 }
+
+/* The shared high-score list (builds with VITE_SCORES_API): beside the local tables when there's
+   room, under them when there isn't. */
+.hs-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--ui-space-4) var(--ui-space-6, 2rem);
+  align-items: start;
+}
+
+.hs-shared .ui-label {
+  margin-top: var(--ui-space-4);
+}
+
+.hs-shared-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: var(--ui-space-2) 0;
+}
+
+.hs-shared-tab {
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--ui-ink-faint);
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ui-ink-dim, var(--ui-ink));
+  cursor: pointer;
+}
+
+.hs-shared-tab.is-on {
+  border-color: var(--ui-copper-lite);
+  color: var(--ui-copper-hi);
+}
+
+/* Twenty rows: tighter than the local table's three. */
+.hs-shared-table .hs-row {
+  min-height: 1.9rem;
+  font-size: 0.95rem;
+}
+
+.hs-shared-table .hs-score {
+  font-size: 1rem;
+}
+
+.hs-shared-status,
+.hs-shared-note {
+  margin: var(--ui-space-2) 0 0;
+  font-size: 0.85rem;
+  color: var(--ui-ink-faint);
+}

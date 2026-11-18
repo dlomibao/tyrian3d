@@ -27,6 +27,12 @@ import { savePrefs } from "./prefs";
 import { openDebugConsole } from "./consoleBridge";
 import { setTerrainStyle, TERRAIN_STYLES, terrainStyle, type TerrainStyle } from "../core/terrainStyle";
 import { cameraStyle, interfaceStyle, resolutionStyle, type DisplayChoice } from "../core/displayStyle";
+import { scoresEnabled } from "../scores/api";
+import { resetStatsPlayerId, setStatsSharing, statsSharing } from "../scores/statsId";
+
+/** The disclosure beside "Share anonymous play stats" (builds with the shared high-score list). */
+export const STATS_DISCLOSURE =
+  "Sends a short summary of each level you play (route, loadout, outcome, score) to help balance the game; no personal data. Stats use a random ID stored in this browser.";
 
 export interface OptionsHost {
   sfx: SoundEffects;
@@ -148,6 +154,9 @@ export type OptionsRow =
   | { kind: "reset"; label: string; player: PlayerIndex }
   | { kind: "pad"; label: string }
   | { kind: "console"; label: string }
+  // The shared high-score list's play stats (only in builds with VITE_SCORES_API).
+  | { kind: "stats"; label: string }
+  | { kind: "statsId"; label: string }
   | { kind: "done"; label: string };
 
 export type OptionsFocus = "sound" | "keyboard" | "joystick";
@@ -189,6 +198,12 @@ export function optionsRows(
       { kind: "reset" as const, label: keyMenu[9] || "Reset to Defaults", player },
     ]),
     { kind: "pad", label: "Check gamepad buttons" },
+    ...(scoresEnabled()
+      ? [
+          { kind: "stats" as const, label: "Share anonymous play stats" },
+          { kind: "statsId" as const, label: "Reset my stats ID" },
+        ]
+      : []),
     { kind: "console", label: "Debug console" }, // D109: cheats, hidden settings, level jumps
     { kind: "done", label: keyMenu[10] || "Done" },
   ];
@@ -294,6 +309,7 @@ export class SettingsMenu {
         const dir = intent === "left" ? -1 : 1;
         if (r.kind === "volume") this.changeVolume(r.which, dir);
         else if (r.kind === "style") this.changeStyle(r.which, dir);
+        else if (r.kind === "stats") this.toggleStats();
         else if (r.kind === "key") {
           this.col = (this.col + dir + BINDING_SLOTS) % BINDING_SLOTS;
           sound(S_CURSOR);
@@ -354,6 +370,14 @@ export class SettingsMenu {
         sound(S_CLICK);
         this.host.close();
         this.host.openConsole?.();
+        break;
+      case "stats":
+        this.toggleStats();
+        break;
+      case "statsId":
+        sound(S_CLICK);
+        resetStatsPlayerId();
+        this.statsIdReset = true;
         break;
       case "done":
         sound(S_CLICK);
@@ -431,8 +455,18 @@ export class SettingsMenu {
       case "reset": return g.mainMenuHelp[25 - 1] ?? "";
       case "pad": return "See which gamepad buttons the game reads, and what they do.";
       case "console": return "A command line for testing: cheats, hidden settings and looks, and jumps to any level. ` (backtick) opens it too.";
+      case "stats": return `${STATS_DISCLOSURE} Off sends none; shared high scores still work. Left/right or Enter switches.`;
+      case "statsId": return this.statsIdReset ? "A new random stats ID is in use." : "Start over with a new random stats ID: earlier reports can't be linked to the new one.";
       case "done": return g.mainMenuHelp[12 - 1] ?? "";
     }
+  }
+
+  /** "Reset my stats ID" was used on this screen. */
+  statsIdReset = false;
+
+  private toggleStats(): void {
+    this.host.sound(S_CURSOR);
+    setStatsSharing(!statsSharing());
   }
 
   private changeVolume(which: "music" | "sound", dir: number): void {
@@ -547,15 +581,18 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
               ? 4
               : r.kind === "console"
                 ? 5
-                : 6;
+                : r.kind === "stats" || r.kind === "statsId"
+                  ? 7
+                  : 6;
     const keyboard = keyMenu[0] ? styleName(keyMenu[0].toLowerCase()) : "Keyboard";
-    const sectionTitles = ["Sound", "Graphics", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", "Testing", ""];
+    const sectionTitles = ["Sound", "Graphics", keyboard, `${keyboard} · ${g.miscText[49]?.trim() || "Player 2"}`, (g.menuInt[13] ?? [])[0] || "Gamepad", "Testing", "", "Play stats"];
     // The sections in columns on wide screens (D85): Sound and Graphics, then each player's keys
     // (the gamepad's check under player 2's), and Done centred under them.
     const groups = [0, 1, 2].map(() => h("ul", { class: "ui-menu opt-group", attrs: { role: "presentation" } }));
     const doneGroup = h("ul", { class: "ui-menu opt-group opt-group--done", attrs: { role: "presentation" } });
     const list = h("div", { class: "opt-list", attrs: { role: "listbox", "aria-label": "Settings" } }, h("div", { class: "opt-cols" }, ...groups), doneGroup);
     const groupOf = (s: number) => (s === 6 ? doneGroup : groups[s <= 1 ? 0 : s === 2 ? 1 : 2]);
+    const statsChip = h("span", { class: "opt-styles" }, h("button", { class: "opt-chip is-on", attrs: { type: "button", tabindex: "-1" } }));
     const rowEls: HTMLLIElement[] = [];
     let section = -1;
     rows.forEach((r, i) => {
@@ -571,6 +608,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
         const list = r.which === "terrain" ? terrainStyles : isDisplay(r.which) ? display[r.which].styles : r.which === "sound" ? soundStyles : styles;
         li.append(h("span", { class: "opt-styles" }, ...list.map((st) => h("button", { class: "opt-chip", text: styleLabel(st), attrs: { type: "button", tabindex: "-1", "data-style": st } }))));
       }
+      if (r.kind === "stats") li.append(statsChip, h("small", { class: "opt-row__note", text: STATS_DISCLOSURE }));
       if (r.kind === "key") {
         li.append(
           h("span", { class: "opt-keys" }, ...Array.from({ length: BINDING_SLOTS }, (_, slot) => h("button", { class: "opt-key", attrs: { type: "button", tabindex: "-1", "data-slot": String(slot) } }))),
@@ -610,6 +648,7 @@ export function showOptions(host: OptionsHost, focus: OptionsFocus = "sound"): P
 
     /** Draw the state: focus, values, the awaited key, the check, the help and hints. */
     const paint = () => {
+      statsChip.firstElementChild!.textContent = statsSharing() ? "On" : "Off";
       rows.forEach((r, i) => {
         const li = rowEls[i];
         const focused = i === menu.cur;
