@@ -15137,3 +15137,25 @@ per-row indices only.
 
 **Review:** the waterfall's crest strands are brighter and denser than the original's, and the curtain reads as a crisp
 pixel mosaic at 4K full screen; the TORM boss crown is lit evenly where the sprite is brighter on its left.
+
+## D262 — STARGATE's small bubble drawn in the art's view with a cut film; HARVEST's bubble slate glass with a vein web (Fable fix round, walkthrough round 3)
+
+**Date:** 2026-11-18
+
+**Decision** (fix-round workflow on Fable for repeat-failure items; strict review "ship" 8 and 7.5):
+- **STARGATE small bubble** (`newshe-235.py`): drawn in the art's view (`tyrian_oblique` 0.001 plus `tyrian_depth_band`
+  12.4-13 px, the D82/D165 mechanism in `obliqueView.ts`), so overlaps with another 235 or the red 195 read cleanly at
+  every camera instead of interpenetrating. The film is opaque geometry cut along the sprite's drawn outline (ring,
+  crescent, glint, two dots) instead of an alpha mask, so its edges are anti-aliased; a single-sided bowl and lining
+  make it a closed round ball (15.7 x 15 px) in the viewer while the game shows the level through the openings. The
+  emissive map undoes the tone mapping's toe and shoulder so the film keeps the sprite's light (rim and pink at 93% of
+  the sprite, main was ~45%). The outline shell runs only on the 87° arc where the sprite's edge is ink. IoU 0.9688
+  (amends D230).
+- **HARVEST bubble** (`assembly-newshu-129.py`, pieces newshu-91/93/129/131): slate glass (index 102) instead of pale
+  silver-blue, a connected web of green veins over the lower half plus the bud by the emitter, no speckle. The plan
+  outline is moved 0.55 of the way from the D74 inner outline to the whole sprite's, so every piece passes
+  `review_sheet.py --which current` (0.979 / 0.954 / 0.966 / 0.975, was 0.936 / 0.920 / 0.923 / 0.959).
+
+**Review:** 235's IoU depends on every material staying single-sided (0.55 without back-face culling). Piece newshu-93's
+lit frames, whose sprites leave a diagonal crack transparent, measure 0.924-0.941; the -f2 fade frame still reads
+charcoal.

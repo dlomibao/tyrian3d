@@ -2,30 +2,37 @@
 an engineered bio-reactor pod built from its cross-sections, then cut into the four pieces.
 
 Reading of the sprite (48 x 56 px block; x = column, y = row, pixel edges; front = screen bottom):
-- A big glass ball (inner mask 43 x 46 px). Its dark rim, the dark lower-right side and the bright
-  crescent round the lower-right edge are the glass catching light, not shapes.
-- Inside, lit green on the -f2 frames: a lumpy mass on the left with a glowing core bulb (x 14-22,
-  y 13-22), a bud at the top (x 19-27, y 8-14), a lobe on the right (x 22-31, y 14-34) and a small
-  one at the right edge, a vein down from it (x 30-31, y 27-41), ribs curving round the bottom
-  (two arcs and the links between them) and a lamp at the lower right (centre 36.3, 36.3).
+- A big glass ball. Its dark rim, the dark lower-right side, the bright crescent round the
+  lower-right edge and the white-cyan blob on the upper left are the glass catching light, not shapes.
+- Every frame is one drawing with another palette (class Drawing). Dim (frame 91): a slate-blue mass
+  (102, lighter 103-105 bands where it bulges, 98-101 in the ball's own shade) behind neutral grey
+  gaps (3-6). The fade's last step (241) draws what still glows in green on that slate: the core's
+  bulb under the highlight (x 11-20, y 14-24), the bud at the top right of it (x 19-26, y 8-15), the
+  lamp at the lower right (centre 36, 36) and a connected web of 1 px veins over the lower half and up
+  the right side, with the ribs along the bottom. On the lit frames (153..237) the mass and then the
+  rest turn green.
 
 Construction (cross-sections first, D50-D53/D65 style):
-- Plan: the sprite's D74 inner mask fitted with a polar Fourier outline R(t) (order 4); every
-  horizontal section of the pod is that outline scaled, so the top view follows the sprite.
+- Plan: the sprite's D74 inner mask's outline as a polar Fourier curve R(t) (order 6), moved 0.55 of
+  the way out to the whole sprite's outline (OUTLINE_GROW); every horizontal section of the pod is
+  that outline scaled, so the top view follows the sprite.
 - Equatorial girdle: a chamfered steel collar whose outer face IS the plan outline, with a modelled
   groove and 16 hex bolt heads 0.25 px proud (the sprite's dark rim ring is where it sits). The glass
   is inset 1 px under it, so the collar's outer face sits cleanly outside the glass.
 - Glass dome above it (an ellipsoidal cap, HZ 21.5 px tall), its surface triangulated in plan
-  (delaunay, 0.62 px) and painted by the sprite's regions with smooth boundaries; the organs press
-  softly against the glass (low relief, under a pixel), the ribs and vein are half-sunk tubes, the
-  lamp is one more organ blob painted on the glass (no fitting: a bezel and lens read as an eye).
+  (delaunay, 0.62 px) and painted by the sprite's regions, flush under the smooth skin: the mass,
+  its lighter bands and the grey gaps with smooth boundaries (blurred class fields), the core, bud
+  and lamp as round two-tone blobs, and the vein web drawn from the sprite's own vein pixels
+  (web_graph: a segment between every two touching pixels, so it is connected wherever the sprite's
+  is; 1 px wide). No tubes, lenses or fittings: it is all inside the glass.
 - Lower bowl (pchip profile) and a socket boss underneath: a plausible closed shape only.
-- Three states share the plan: grey (dim, frames 91 / 241), -f2 green (lit fade, 153..237),
-  -f3 purple (one closed smooth shell, 246). Each region's palette index follows the sprite frame by
-  frame (common.palette_material frames=): the median of that region's pixels on the frame, the
-  darkest shading and brightest highlights left out.
+- Three states share the plan and the drawing: grey (dim, frames 91 / 241), -f2 green (lit fade,
+  153..237, the glowing parts emissive), -f3 purple (one closed smooth shell, 246). Each region's
+  palette index follows the sprite frame by frame (common.palette_material frames=): the commonest
+  index of that region's pixels on the frame, the ink, the glare and the darkest and brightest
+  shading left out.
 - Cut into the pieces (common.split_assembly), shading copied from the whole pod so no seam shows;
-  outline shell (D51) per state, cut open at the piece seams.
+  outline shell (D51) per state, held under the skin (tuck_shell), cut open at the piece seams.
 
   blender -b --factory-startup -P assembly-newshu-129.py -- [--review] [--out review.glb] [--pieces DIR]
                                                             [--report report.json]
@@ -66,18 +73,28 @@ PURPLE_FR = {"newshu-91": 246, "newshu-93": 170, "newshu-129": 284, "newshu-131"
 STATE_KEYS = {"grey": [91, 241], "green": [153, 157, 161, 165, 229, 233, 237], "purple": [246]}
 SUFFIX = {"grey": "", "green": "-f2", "purple": "-f3"}
 
-# Regions (material slots)
-GLASS, MASS, LOBE, BUD, CORE, VEIN, RIBS, LAMP, LAMPC, METAL, GIRDLE, GROOVE, BOLT, SOCKET = range(14)
-RNAMES = ["glass", "mass", "lobe", "bud", "core", "vein", "ribs", "lamp", "lampc", "metal", "girdle", "groove", "bolt",
-          "socket"]
+# Regions (material slots). The first NPAINT are what shows through the glass.
+(GLASS, GREY, ORGAN, ORGAN_HI, CORE, CORE_HI, BUD, BUD_HI, LAMP, LAMP_HI, VEIN, VEIN_HI, RIB,
+ GIRDLE, GROOVE, BOLT, SOCKET) = range(17)
+RNAMES = ["glass", "grey", "organ", "organhi", "core", "corehi", "bud", "budhi", "lamp", "lamphi", "vein", "veinhi",
+          "rib", "girdle", "groove", "bolt", "socket"]
+NPAINT = 13
+BASE = (GLASS, GREY, ORGAN, ORGAN_HI)
 # the machined steel keeps its palette index in every state
 FIXED = {GIRDLE: 102, GROOVE: 100, BOLT: 104, SOCKET: 101}
-PAINTED = [GLASS, MASS, LOBE, BUD, CORE, VEIN, RIBS, LAMP, LAMPC]
+# a blob's bright centre takes its ring's colour on a frame that draws only glare there
+PARTNER = {CORE_HI: CORE, BUD_HI: BUD, LAMP_HI: LAMP, VEIN_HI: VEIN}
 
 # Construction constants (sprite px)
 HZ = 21.5          # dome height above the girdle plane
 GIRDLE_IN = 1.0    # dome radius = plan outline - this (the collar's face is the outline)
-CAP_RHO = 0.93     # plan triangulation out to here; a polar band below
+# The plan outline: the sprite's D74 inner mask's outline moved this share of the way out to the
+# whole sprite's (its ink ring is about 1 px). At 0 (the inner edge) the top view missed the ring's
+# 28-33 px per piece (IoU with the sprite 0.92-0.96, tools/review_sheet.py); at 0.55 every piece is
+# >= 0.95 against the sprite and still >= 0.95 against the inner mask (tools/sprite_mask.py).
+OUTLINE_GROW = 0.55
+OUTLINE_ORDER = 6
+CAP_RHO = 0.95     # plan triangulation out to here; a polar band below
 NT = 144           # angular samples of the band / girdle
 SPACING = 0.62     # plan triangulation spacing
 HB = 16.5          # bowl depth below the plane
@@ -87,9 +104,21 @@ HB = 16.5          # bowl depth below the plane
 RELIEF = {}
 RELIEF_SIGMA = 1.4
 EDGE_SIGMA = 1.0
-PAINT_RHO = 0.93   # the organs' paint is gone by here (plan radius fraction) ...
+PAINT_RHO = 0.915  # the organs' paint is gone by here (plan radius fraction) ...
 PAINT_FADE = 0.09  # ... fading over this much, so their edges round off before the steep flank
-GLASS_SPEC = 0.2   # Specular IOR Level of the glass and paint (0.5 = F0 4 %)
+WEB_RHO = 0.905    # the veins stop here
+BLOB_SIGMA = 0.7   # edge blur (px) of the small organs (core, bud, lamp): round, not pixel stairs
+VEIN_W = 0.5       # half width (px) of a vein line (the sprite draws them 1 px wide)
+VEIN_RELAX = 3     # smoothing passes over the veins' pixel stairs
+# The glass skin's sheen, one for everything under it (its glints cross the paint unbroken), measured in
+# the game's render (4-1 HARVEST t2550, 4K, compare): Specular IOR Level 0.45 (0.5 = F0 4 %) at
+# roughness 0.6. The reflection is a thin neutral veil over the whole dome that gives the dark
+# palette colours back what the game's tone curve (Neutral's toe) takes off them: the slate renders
+# 43 59 73 (median) against the sprite's 48 60 69, and the veins the sprite's olive instead of pure
+# green. At 0.2 / 0.3 the dome was charcoal and navy with three milky spots (the sun and the room
+# lights, apart); from roughness 0.55 they are one soft glint; at 1.0 / 0.7 the dome is pale silver.
+GLASS_SPEC = 0.45
+GLASS_ROUGH = 0.6
 
 
 # --- Sprite ---------------------------------------------------------------------------------------
@@ -117,25 +146,36 @@ def inner_mask(g, colors):
     return np.array(SM.masks(g.tolist(), ci)["inner"]).astype(bool)
 
 
-def fit_outline(mask, order=4):
-    """Polar Fourier fit of a mask's pixel-edge boundary about its centroid: (cx, cy, coeffs)."""
+def boundary_points(mask):
+    """The pixel-edge midpoints of a mask's boundary."""
     ys, xs = np.nonzero(mask)
-    cx, cy = xs.mean() + 0.5, ys.mean() + 0.5
     pts = []
     for r, c in zip(ys, xs):
         for dc, dr, ex, ey in ((0, -1, c + 0.5, r), (0, 1, c + 0.5, r + 1), (-1, 0, c, r + 0.5), (1, 0, c + 1, r + 0.5)):
             rr, cc = r + dr, c + dc
             if not (0 <= rr < H and 0 <= cc < W) or not mask[rr, cc]:
                 pts.append((ex, ey))
-    pts = np.array(pts)
+    return np.array(pts)
+
+
+def fit_polar(mask, cx, cy, order):
+    """Polar Fourier fit of a mask's pixel-edge boundary about (cx, cy): the coefficients."""
+    pts = boundary_points(mask)
     t = np.arctan2(-(pts[:, 1] - cy), pts[:, 0] - cx)
     rad = np.hypot(pts[:, 0] - cx, pts[:, 1] - cy)
     cols = [np.ones_like(t)]
     for k in range(1, order + 1):
         cols += [np.cos(k * t), np.sin(k * t)]
-    A = np.stack(cols, 1)
-    coef = np.linalg.lstsq(A, rad, rcond=None)[0]
-    return float(cx), float(cy), coef
+    return np.linalg.lstsq(np.stack(cols, 1), rad, rcond=None)[0]
+
+
+def fit_outline(inner, outer, grow=OUTLINE_GROW, order=OUTLINE_ORDER):
+    """The plan outline (cx, cy, coeffs): the inner mask's outline about its centroid, moved `grow`
+    of the way out to the whole sprite's outline."""
+    ys, xs = np.nonzero(inner)
+    cx, cy = xs.mean() + 0.5, ys.mean() + 0.5
+    ci, co = fit_polar(inner, cx, cy, order), fit_polar(outer, cx, cy, order)
+    return float(cx), float(cy), ci + grow * (co - ci)
 
 
 class Plan:
@@ -157,39 +197,77 @@ class Plan:
         return self.cx + rad * math.cos(t), self.cy - rad * math.sin(t)
 
 
-def blob_labels(g153):
-    """The region of every sprite pixel, read off the lit frame 153 (the grey frame is the same
-    drawing pixel for pixel)."""
-    G = g153
-    cc, rr = np.meshgrid(np.arange(W) + .5, np.arange(H) + .5)
+GREENS = set(range(35, 44)) | set(range(192, 208))  # lit greens (32-34 are the ramp's ink-dark steps)
+GLARE = {7, 8, 11, 12, 107} | set(range(133, 142))  # the glass's highlight (lighting, not paint)
 
-    def box(c0, r0, c1, r1):
-        return (cc >= c0) & (cc <= c1) & (rr >= r0) & (rr <= r1)
 
-    def ell(x, y, a, b):
-        return ((cc - x) / a) ** 2 + ((rr - y) / b) ** 2 <= 1
+class Drawing:
+    """What the sprite draws inside the glass, read off its two grey frames (every frame is the same
+    drawing with another palette: a class's pixels are one or two indices on each frame).
 
-    org = (G >= 194) & (G <= 207)
-    lab = np.full((H, W), GLASS, int)
-    lab[org] = MASS
-    lab[org & box(21.5, 14, 32, 34)] = LOBE
-    lab[org & (cc > 32) & (rr < 33)] = LOBE
-    lab[org & box(1, 25, 32, 48) & ~(ell(14.5, 21, 11.5, 12.5) & (rr < 30.5))] = RIBS
-    lab[org & ell(14.5, 21, 11.5, 12.5) & (rr < 30.5)] = MASS
-    lab[org & box(21.5, 14, 32, 34) & ~box(0, 0, 21.4, 60)] = LOBE
-    lab[org & box(29, 24, 32.5, 41)] = VEIN
-    lab[org & box(19, 8, 27, 14)] = MASS
-    lab[org & (G >= 198) & ell(23.2, 11.4, 3.6, 3.2)] = BUD
-    # the bright blob at (17.5, 17.8) is the glass ball's specular highlight (the purple frame 246,
-    # with no interior, shows the same gradient there): no body of its own, it takes the colour of
-    # the mass round it and the glossy glass makes the highlight
-    lab[ell(17.5, 17.8, 4.6, 5.0) & ~np.isin(lab, [LOBE, BUD])] = MASS
-    lab[ell(36.2, 36.3, 3.0, 3.0) & (org | (G >= 32) & (G <= 47))] = LAMP
-    # the "lamp" is one more organ blob pressed against the glass (the sprite draws no fitting, no
-    # bright centre: a bezel and lens read as an eye the sprite doesn't have), so no LAMPC centre
-    lab[org & box(32, 37.5, 45, 50) & ~ell(36.2, 36.3, 3.0, 3.0)] = GLASS  # rim crescent: sheen
-    lab[org & (rr > 46.5)] = GLASS  # the lowest arc is the same crescent
-    return lab
+    Frame 91 (dim): the organs are slate blue (102, lighter 103-105 where they bulge, 98-101 where
+    the ball's own shade falls on them), the gaps between them neutral grey (3-6). Frame 241 (the fade's last step) draws what still
+    glows in green on that slate: the core's bulb under the highlight, the bud, the lamp, and a
+    connected web of 1 px veins over the lower half and up the right side, with the ribs along the
+    bottom (those and the lamp stay green on frame 91). The bright crescent inside the lower right
+    rim and the white-cyan blob on the core are the glass's sheen: not drawn.
+
+    base   (H, W) GLASS (the mass in the ball's shade, 98-101, and the default round it) / GREY (the
+           gaps) / ORGAN / ORGAN_HI, -1 where the pixel says nothing (ink, purple shadow, glare)
+    blob   (H, W) CORE(_HI) / BUD(_HI) / LAMP(_HI) or -1
+    web    (H, W) VEIN / VEIN_HI / RIB or -1
+    src    {region: (H, W) bool}: the pixels a region's palette index is read from on every frame
+    """
+
+    def __init__(self, g91, g241, plan):
+        cc, rr = np.meshgrid(np.arange(W) + .5, np.arange(H) + .5)
+        rho = np.zeros((H, W))
+        for r in range(H):
+            for c in range(W):
+                t, d = plan.polar(c + .5, r + .5)
+                rho[r, c] = d / plan.R(t)
+        self.rho = rho
+
+        def box(c0, r0, c1, r1):
+            return (cc >= c0) & (cc <= c1) & (rr >= r0) & (rr <= r1)
+
+        def ell(x, y, a, b):
+            return ((cc - x) / a) ** 2 + ((rr - y) / b) ** 2 <= 1
+
+        base = np.full((H, W), -1, int)
+        base[np.isin(g91, [98, 99, 100, 101])] = GLASS
+        base[g91 == 102] = ORGAN
+        base[np.isin(g91, [103, 104, 105])] = ORGAN_HI
+        base[np.isin(g91, [3, 4, 5, 6])] = GREY
+        green = np.isin(g241, list(GREENS))
+        glare = np.isin(g241, list(range(133, 142)))
+        # the rim crescent (lower right, and the lowest arc) is sheen
+        crescent = ((rho > 0.86) & (cc > plan.cx) & (rr > plan.cy)) | (rr > 46)
+        green &= ~crescent
+        lo = green & ((g241 <= 38) | (g241 >= 192))
+        hi = green & (g241 >= 42) & (g241 <= 43)
+        blob = np.full((H, W), -1, int)
+        core = (green | glare) & box(11, 14, 21, 25)
+        blob[core] = CORE
+        blob[core & (hi | glare)] = CORE_HI
+        bud = green & box(19, 8, 27, 16) & ~core
+        blob[bud] = BUD
+        blob[bud & (g241 >= 41)] = BUD_HI
+        lamp = green & ell(36.0, 36.2, 3.6, 3.9)
+        blob[lamp] = LAMP
+        blob[lamp & ~lo] = LAMP_HI
+        web = np.full((H, W), -1, int)
+        vein = green & (blob < 0)
+        web[vein] = VEIN_HI
+        web[vein & lo] = VEIN
+        web[vein & np.isin(g91, list(range(32, 44)))] = RIB  # still green on the dim frame
+        self.base, self.blob, self.web = base, blob, web
+        self.src = {k: (base == k) & (blob < 0) & (web < 0) for k in BASE}
+        for k in (CORE, CORE_HI, BUD, BUD_HI, LAMP, LAMP_HI):
+            self.src[k] = blob == k
+        for k in (VEIN, VEIN_HI, RIB):
+            self.src[k] = web == k
+        print("drawing:", {RNAMES[k]: int(v.sum()) for k, v in self.src.items()})
 
 
 def gblur(a, s):
@@ -225,87 +303,43 @@ def luma(rgb):
     return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
 
 
-FAM_ORG = set(range(100, 108)) | set(range(133, 142)) | set(range(192, 208))
-FAM_LAMP = set(range(32, 48)) | {55} | set(range(192, 208))
-FAM_GREEN = set(range(32, 44)) | set(range(192, 208))
-
-
-def region_index(g, sel, colors, drop=0.15, keep_top=False, family=None):
-    """A region's palette index on a frame: the commonest index of its pixels once the ink, the
-    darkest and the brightest `drop` share (lighting) are left out; with `family`, only that colour
-    family's pixels count while they are at least 35 % of the region (an organ seen through the
-    glass, not the glass round it)."""
-    v = [int(x) for x in g[sel] if x >= 0]
-    if family is not None:
-        fv = [x for x in v if x in family]
-        if len(fv) >= 0.35 * len(v):
-            v = fv
-    v = [x for x in v if luma(colors[str(x)]) >= SM.INK_LUMA] or v
+def region_index(g, sel, colors, drop=0.15):
+    """A region's palette index on a frame: the commonest index of its pixels once the glass's glare,
+    the ink, and the darkest and brightest `drop` share (lighting) are left out. None when the frame
+    draws only glare or ink there."""
+    v = [int(x) for x in g[sel] if x >= 0 and int(x) not in GLARE]
+    v = [x for x in v if luma(colors[str(x)]) >= SM.INK_LUMA]
     if not v:
         return None
     v.sort(key=lambda i: luma(colors[str(i)]))
     n = len(v)
-    lo = int(n * drop)
-    hi = n if keep_top else n - int(n * drop)
-    core = v[lo:max(hi, lo + 1)]
-    return Counter(core).most_common(1)[0][0]
+    cut_ = int(n * drop) if n >= 20 else 0
+    return Counter(v[cut_:n - cut_]).most_common(1)[0][0]
 
 
-def state_colours(sprites, colors, lab, plan, state):
+def state_colours(sprites, colors, drawing, state):
     """{region: (base index, {piece frame: index})} for one state."""
-    cc, rr = np.meshgrid(np.arange(W) + .5, np.arange(H) + .5)
-    rho = np.zeros((H, W))
-    for r in range(H):
-        for c in range(W):
-            t, d = plan.polar(c + .5, r + .5)
-            rho[r, c] = d / plan.R(t)
-    interior = rho < 0.86
     keys = STATE_KEYS[state]
-    out = {}
     per = {}
     for k in keys:
         g = compose(sprites, k)
-        per[k] = {}
         if state == "purple":
-            idx = region_index(g, interior & (g >= 0), colors)
-            for reg in range(10):
-                per[k][reg] = idx
-            per[k][METAL] = 84
+            idx = region_index(g, (drawing.rho < 0.86) & (g >= 0), colors)
+            per[k] = {reg: idx for reg in range(NPAINT)}
             continue
-        for reg in PAINTED:
-            sel = (lab == reg) & interior
-            if reg in (LAMP, LAMPC):
-                sel = lab == reg
-            small = reg in (BUD, LAMPC)
-            fam = None if reg == GLASS else (FAM_LAMP if reg in (LAMP, LAMPC) else FAM_ORG)
-            # the core's brightest third is the glass's glare (grey frames), not the bulb
-            drop = 0.0 if small else (0.3 if reg == CORE else 0.15)
-            per[k][reg] = region_index(g, sel, colors, drop=drop, keep_top=small, family=fam)
-            # a grey-glass frame whose organ is drawn mostly green (241: the fade's last step, the
-            # swirls still green on dark glass) takes the commonest green of it, not the blue-grey
-            # the grey mass is drawn 103 and 102 near half and half: the dome's crown takes the full sun,
-            # so the darker 102 (103 lit there reads pale silver-blue against the sprite's slate)
-            if state == "grey" and reg == MASS and per[k][reg] == 103:
-                per[k][reg] = 102
-            if state == "grey" and reg != GLASS:
-                v = [int(x) for x in g[sel] if x >= 0]
-                gv = [x for x in v if x in FAM_GREEN]
-                if v and len(gv) >= 0.4 * len(v):
-                    per[k][reg] = Counter(gv).most_common(1)[0][0]
-        # the collar: the steel of the drawn rim (the lit rim colours next to the ink ring)
-        ring = (rho > 0.9) & (g >= 0)
-        per[k][METAL] = {"grey": 101, "green": 34}[state]
-        per[k][GLASS] = per[k][GLASS] if per[k][GLASS] is not None else region_index(g, ring, colors)
-        # the grey glass is drawn 4 inside (then 102 and 5); on the dome under the game's sun and the
-        # glass's low F0 index 4 renders charcoal (about 30 against the sprite's 52-69), so the next
-        # step of the sprite's own ramp, 5, which renders near the sprite's slate (D201)
-        if state == "grey" and per[k][GLASS] == 4:
-            per[k][GLASS] = 5
-    for k in keys:
-        for reg in range(10):
+        per[k] = {reg: region_index(g, drawing.src[reg], colors) for reg in range(NPAINT)}
+        for reg, other in PARTNER.items():
+            if per[k][reg] is None:
+                per[k][reg] = per[k][other]
+        for reg in range(NPAINT):
             if per[k][reg] is None:
                 per[k][reg] = per[k][GLASS]
-    for reg in range(10):
+        # the dark glass is the slate mass in the ball's own shade (100 / 101, the steps under its
+        # 102): lit by the game it is that slate, not the shade (art rule 2). On the lit frames the
+        # sprite draws it unlit, as dark as the grey gaps (navy 98-100, then the ramp's dark greens).
+        per[k][GLASS] = per[k][ORGAN] if state == "grey" else per[k][GREY]
+    out = {}
+    for reg in range(NPAINT):
         base = per[keys[0]][reg]
         frames = {}
         for k in keys[1:]:
@@ -334,7 +368,7 @@ def boxsum(a, r):
     return p[n:, n:] - p[:-n, n:] - p[n:, :-n] + p[:-n, :-n]
 
 
-def mode_filter(lab, r, k=10):
+def mode_filter(lab, r, k=NPAINT):
     cnt = np.stack([boxsum((lab == i).astype(float), r) for i in range(k)], -1)
     return np.argmax(cnt, -1)
 
@@ -412,15 +446,69 @@ class FineField:
                 + (1 - fx) * fy * g(y0 + 1, x0) + fx * fy * g(y0 + 1, x0 + 1))
 
 
+def fine_sample(a):
+    """A per-pixel array (H, W[, n]) sampled bilinearly at the FH cell centres."""
+    nx, ny = int(W / FH), int(H / FH)
+    X, Y = np.meshgrid((np.arange(nx) + 0.5) * FH - 0.5, (np.arange(ny) + 0.5) * FH - 0.5)
+    x0 = np.clip(np.floor(X).astype(int), 0, W - 1)
+    y0 = np.clip(np.floor(Y).astype(int), 0, H - 1)
+    x1 = np.clip(x0 + 1, 0, W - 1)
+    y1 = np.clip(y0 + 1, 0, H - 1)
+    fx = np.clip(X - np.floor(X), 0, 1)
+    fy = np.clip(Y - np.floor(Y), 0, 1)
+    if a.ndim == 3:
+        fx, fy = fx[..., None], fy[..., None]
+    return (1 - fx) * (1 - fy) * a[y0, x0] + fx * (1 - fy) * a[y0, x1] + (1 - fx) * fy * a[y1, x0] + fx * fy * a[y1, x1]
+
+
+def web_graph(web):
+    """The veins as a graph: a node per vein pixel (its centre), a segment between 4-neighbours and
+    between diagonal neighbours no 4-path joins, so the web is connected wherever the sprite's
+    pixels touch. The pixel stairs are relaxed into smooth lines (nodes with two neighbours move
+    toward them; ends and junctions stay). Returns (positions px, segments, each node's region);
+    pixels touching no other vein pixel are left out (specks, not lines)."""
+    ys, xs = np.nonzero(web >= 0)
+    ids = {(int(r), int(c)): i for i, (r, c) in enumerate(zip(ys, xs))}
+    segs = []
+    for (r, c), i in ids.items():
+        for dr, dc in ((0, 1), (1, 0)):
+            j = ids.get((r + dr, c + dc))
+            if j is not None:
+                segs.append((i, j))
+        for dr, dc in ((1, 1), (1, -1)):
+            j = ids.get((r + dr, c + dc))
+            if j is not None and (r + dr, c) not in ids and (r, c + dc) not in ids:
+                segs.append((i, j))
+    nbr = [[] for _ in ids]
+    for i, j in segs:
+        nbr[i].append(j)
+        nbr[j].append(i)
+    pos = np.array([(c + .5, r + .5) for r, c in zip(ys, xs)], float).reshape(-1, 2)
+    for _ in range(VEIN_RELAX):
+        new = pos.copy()
+        for i, n in enumerate(nbr):
+            if len(n) == 2:
+                new[i] = 0.5 * pos[i] + 0.25 * (pos[n[0]] + pos[n[1]])
+        pos = new
+    reg = np.array([int(web[r, c]) for r, c in zip(ys, xs)], int)
+    lone = sum(1 for n in nbr if not n)
+    print(f"web: {len(pos)} vein px, {len(segs)} segments, {lone} lone px left out")
+    return pos, segs, reg
+
+
 class Pod:
-    def __init__(self, plan, lab):
+    def __init__(self, plan, drawing):
         self.plan = plan
-        self.lab = lab
-        onehot = np.stack([(lab == k).astype(float) for k in range(10)], -1)
-        self.soft = Field(np.stack([gblur(onehot[..., k], EDGE_SIGMA) for k in range(10)], -1))
+        self.drawing = drawing
+        # the pixels that say nothing (ink, the purple shadow, glare) count faintly as the default
+        # (GLASS: the mass in shade), so the organs' and gaps' edges stand where the sprite's
+        # pixels end and the default takes the rest, out to the rim
+        onehot = np.stack([(drawing.base == k).astype(float) for k in BASE], -1)
+        onehot[..., 0] += 0.4 * (drawing.base < 0)
+        self.soft = Field(np.stack([gblur(onehot[..., k], EDGE_SIGMA) for k in range(len(BASE))], -1))
         rel = np.zeros((H, W))
         for k, a in RELIEF.items():
-            rel += a * (lab == k)
+            rel += a * (drawing.base == k)
         self.relief = Field(gblur(rel, RELIEF_SIGMA))
         self.flab = self.fine_labels()
         # the core and bud: domed lenses rising from an inset lip, on the cleaned regions
@@ -436,43 +524,59 @@ class Pod:
         self.lens = FineField(gblur(lens, 0.8))
 
     def fine_labels(self):
-        """The region of every FH cell: argmax of the blurred class fields, then cleaned (a majority
-        filter shaves peninsulas and hairs under ~0.6 px, islands under MIN_ISLAND px^2 join their
-        neighbours), so every region edge is a clean curve with no comb of spikes."""
+        """The region of every FH cell. Glass and organs: argmax of the blurred class fields, then
+        cleaned (a majority filter shaves peninsulas and hairs under ~0.6 px, islands under
+        MIN_ISLAND px^2 join their neighbours), so every region edge is a clean curve with no comb
+        of spikes. Over them the small organs (core, bud, lamp: their pixels blurred BLOB_SIGMA and
+        cut at half, the bright centre where its own field leads), then the vein web (web_graph:
+        every cell within VEIN_W of a segment, and the inside of any 2 x 2 block of vein pixels)."""
         nx, ny = int(W / FH), int(H / FH)
-        xs = (np.arange(nx) + 0.5) * FH
-        ys = (np.arange(ny) + 0.5) * FH
-        a = self.soft.a
-        X, Y = np.meshgrid(xs - 0.5, ys - 0.5)
-        x0 = np.clip(np.floor(X).astype(int), 0, W - 1)
-        y0 = np.clip(np.floor(Y).astype(int), 0, H - 1)
-        x1 = np.clip(x0 + 1, 0, W - 1)
-        y1 = np.clip(y0 + 1, 0, H - 1)
-        fx = np.clip(X - np.floor(X), 0, 1)[..., None]
-        fy = np.clip(Y - np.floor(Y), 0, 1)[..., None]
-        v = ((1 - fx) * (1 - fy) * a[y0, x0] + fx * (1 - fy) * a[y0, x1] + (1 - fx) * fy * a[y1, x0]
-             + fx * fy * a[y1, x1])
-        # the organs fade out before the dome gets steep (rho 0.84-0.92): a region's edge there
-        # rounds off on its own field instead of running into the cap ring, so no edge is cut
-        # along a latitude line or stepped on the steep flank
-        dx, dy = X + 0.5 - self.plan.cx, self.plan.cy - (Y + 0.5)
+        d = self.drawing
+        v = fine_sample(self.soft.a)
+        X, Y = np.meshgrid((np.arange(nx) + 0.5) * FH, (np.arange(ny) + 0.5) * FH)
+        # the organs fade out before the dome gets steep: a region's edge there rounds off on its
+        # own field instead of running into the cap ring, so no edge is cut along a latitude line
+        # or stepped on the steep flank
+        dx, dy = X - self.plan.cx, self.plan.cy - Y
         t = np.arctan2(dy, dx)
         R = np.full(t.shape, self.plan.coef[0])
         for k in range(1, (len(self.plan.coef) - 1) // 2 + 1):
             R += self.plan.coef[2 * k - 1] * np.cos(k * t) + self.plan.coef[2 * k] * np.sin(k * t)
         rho = np.hypot(dx, dy) / (R - GIRDLE_IN)
         fade = np.clip((PAINT_RHO - rho) / PAINT_FADE, 0, 1)[..., None]
-        keep = np.ones(v.shape[-1])
-        keep[GLASS] = 0
+        keep = np.array([0.0, 1.0, 1.0, 1.0])
         v = v * (1 - keep * (1 - fade))
-        lab = np.argmax(v, -1)
+        lab = np.array(BASE)[np.argmax(v, -1)]
         before = lab.copy()
         lab = mode_filter(lab, 2)
         lab = drop_islands(lab, int(MIN_ISLAND / FH ** 2))
         lab = mode_filter(lab, 1)
         lab = drop_islands(lab, int(MIN_ISLAND / FH ** 2))
         print(f"fine labels: {int((lab != before).sum())} of {lab.size} cells cleaned")
-        return lab
+        for ring, centre in ((CORE, CORE_HI), (BUD, BUD_HI), (LAMP, LAMP_HI)):
+            whole = fine_sample(gblur(((d.blob == ring) | (d.blob == centre)).astype(float), BLOB_SIGMA))
+            inner = fine_sample(gblur((d.blob == centre).astype(float), BLOB_SIGMA))
+            lab[whole > 0.5] = ring
+            lab[(whole > 0.5) & (inner > whole - inner)] = centre
+        pos, segs, reg = web_graph(d.web)
+        best = np.full(X.shape, 1e9)
+        who = np.zeros(X.shape, int)
+        for i, j in segs:
+            a, b = pos[i], pos[j]
+            ab = b - a
+            tt = np.clip(((X - a[0]) * ab[0] + (Y - a[1]) * ab[1]) / max(float(ab @ ab), 1e-9), 0, 1)
+            dist = np.hypot(X - a[0] - tt * ab[0], Y - a[1] - tt * ab[1])
+            upd = dist < best
+            best[upd] = dist[upd]
+            who[upd] = np.where(tt < 0.5, i, j)[upd]
+        node = d.web >= 0
+        block = np.zeros((H, W), bool)  # block[r, c]: the four pixels round the corner (c + 1, r + 1)
+        block[:-1, :-1] = node[:-1, :-1] & node[1:, :-1] & node[:-1, 1:] & node[1:, 1:]
+        bc = np.clip(np.floor(X - 0.5).astype(int), 0, W - 1)
+        br = np.clip(np.floor(Y - 0.5).astype(int), 0, H - 1)
+        line = ((best < VEIN_W) | block[br, bc]) & (rho < WEB_RHO) & (best < 1.5)
+        lab[line] = reg[who[line]]
+        return drop_islands(lab, 12)  # no speck under 0.75 px^2 (a vein's end cut off by WEB_RHO)
 
     def flabel(self, c, r):
         h, w = self.flab.shape
@@ -503,7 +607,7 @@ class Pod:
         return self.flabel(c, r), None
 
 
-def region_contours(pod, h=0.25, smooth=4, step=0.45):
+def region_contours(pod, h=0.25, smooth=4, step=0.35):
     """The region boundaries as smooth plan polylines (px): the argmax of the smoothed region fields
     on a fine grid, its cell edges chained between junctions, relaxed and resampled. They go into
     the triangulation as constraint edges so the paint follows round curves, not triangle steps."""
@@ -565,8 +669,9 @@ def region_contours(pod, h=0.25, smooth=4, step=0.45):
         L = [0.0]
         for i in range(1, len(P)):
             L.append(L[-1] + float(np.linalg.norm(P[i] - P[i - 1])))
-        if L[-1] < 0.6:
-            continue
+        # every chain stays, however short: a vein crossing a region edge makes junctions under a
+        # pixel apart, and a dropped chain between them opens the vein's patch to the glass round it
+        # (label_faces then paints the whole vein glass)
         n = max(2, int(round(L[-1] / step)) + 1)
         res = []
         k = 0
@@ -633,7 +738,33 @@ def label_faces(pod, verts2, faces, res, nt):
                 labels[fi] = k
         else:
             mixed += 1
-    print(f"cap: {mixed} mixed patches kept per-face labels")
+    # no speck of paint: a group of same-region faces under 0.3 px^2 takes the region round it
+    done = [False] * len(faces)
+    specks = 0
+    for f0 in range(len(faces)):
+        if done[f0]:
+            continue
+        stack, comp, nb = [f0], [], Counter()
+        done[f0] = True
+        while stack:
+            fi = stack.pop()
+            comp.append(fi)
+            f = faces[fi]
+            for i in range(len(f)):
+                for g in owner[frozenset((f[i], f[(i + 1) % len(f)]))]:
+                    if labels[g] != labels[f0]:
+                        nb[labels[g]] += 1
+                    elif not done[g]:
+                        done[g] = True
+                        stack.append(g)
+        if nb and sum(area[fi] for fi in comp) < 0.3:
+            k = nb.most_common(1)[0][0]
+            for fi in comp:
+                labels[fi] = k
+            specks += 1
+    print(f"cap: {specks} specks of paint under 0.3 px^2 joined their surroundings")
+    off = sum(a for a, k, q in zip(area, labels, per) if k != q)
+    print(f"cap: {mixed} mixed patches kept per-face labels; {off:.1f} of {sum(area):.0f} px^2 differ from the grid")
     return labels
 
 
@@ -712,7 +843,7 @@ def cap_mesh(bm, pod, painted, relief):
             continue
         face.material_index = labels[fi]
     # polar band: the cap ring (vertices 0..NT-1 of the triangulation) down to the girdle plane
-    rhos = [CAP_RHO, 0.955, 0.975, 0.99, 1.0]
+    rhos = [CAP_RHO, 0.965, 0.98, 0.99, 1.0]
     rings = [[bv[i] for i in ring_ids]]
     for rh in rhos[1:]:
         ringv = []
@@ -844,62 +975,6 @@ def close_dome(bm, base_ring):
     bm.faces.new(base_ring[::-1]).material_index = GLASS
 
 
-def tube(bm, pod, pts, radius, mat, samples=None, flat=0.85, sides=8, lift=0.0, taper=0.22):
-    """A half-sunk tube along a plan path (px), hugging the dome; its ends taper and bury."""
-    path = T_catmull(pts, samples or max(8, int(sum((Vector(a) - Vector(b)).length
-                                                    for a, b in zip(pts, pts[1:])) / 0.7)))
-    n = len(path)
-    cent, nor = [], []
-    for p in path:
-        q, nn = pod.dome(p.x, p.y, True)
-        cent.append(q)
-        nor.append(nn)
-    rings = []
-    for i in range(n):
-        t = i / (n - 1)
-        e = min(t, 1 - t) / taper
-        k = math.sin(min(e, 1.0) * math.pi / 2)
-        rr = radius * max(k, 0.12) * PX
-        c = cent[i] + nor[i] * (lift * PX - (1 - k) * radius * PX)
-        tan = (cent[min(i + 1, n - 1)] - cent[max(i - 1, 0)]).normalized()
-        side = tan.cross(nor[i]).normalized()
-        up = side.cross(tan).normalized()
-        rings.append([bm.verts.new(c + side * rr * math.cos(2 * math.pi * (j + .5) / sides)
-                                   + up * rr * flat * math.sin(2 * math.pi * (j + .5) / sides))
-                      for j in range(sides)])
-    for r0, r1 in zip(rings, rings[1:]):
-        for j in range(sides):
-            j2 = (j + 1) % sides
-            bm.faces.new((r0[j], r1[j], r1[j2], r0[j2])).material_index = mat
-    bm.faces.new(rings[0][::-1]).material_index = mat
-    bm.faces.new(rings[-1]).material_index = mat
-
-
-def T_catmull(pts, n):
-    pts = [Vector(p) for p in pts]
-    ext = [pts[0] * 2 - pts[1]] + pts + [pts[-1] * 2 - pts[-2]]
-    out = []
-    segs = len(pts) - 1
-    for i in range(n):
-        s = i / (n - 1) * segs
-        k = min(int(s), segs - 1)
-        t = s - k
-        p0, p1, p2, p3 = ext[k], ext[k + 1], ext[k + 2], ext[k + 3]
-        out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
-                          + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t))
-    return out
-
-
-# Tube paths (plan px, pixel edges) traced off the lit frame 153.
-RIB_A = [(3.6, 29.6), (4.6, 31.2), (6.0, 33.0), (7.6, 34.6), (9.6, 36.1), (12.0, 37.4), (15.0, 38.3),
-         (18.0, 38.4), (20.6, 37.6), (22.6, 36.4), (24.6, 35.4), (26.4, 34.8)]
-RIB_B = [(9.4, 40.3), (11.4, 41.7), (14.0, 42.9), (17.0, 43.6), (20.0, 43.5), (22.5, 44.1), (25.0, 44.1),
-         (27.4, 43.4)]
-LINK_1 = [(21.2, 38.0), (21.8, 39.6), (21.8, 41.2), (21.0, 43.0)]
-LINK_2 = [(25.8, 35.2), (25.6, 37.5), (25.6, 39.8), (26.0, 41.4), (27.8, 41.9)]
-VEIN_P = [(31.4, 27.6), (30.7, 29.5), (30.6, 32.0), (30.9, 34.5), (31.2, 37.0), (31.0, 39.2), (30.4, 41.0)]
-
-
 def build(state, pod, mats, coll):
     bm = bmesh.new()
     painted = state != "purple"
@@ -907,12 +982,13 @@ def build(state, pod, mats, coll):
     close_dome(bm, base)
     girdle(bm, pod)
     bowl(bm, pod)
-    if painted:
-        tube(bm, pod, RIB_A, 0.95, RIBS, lift=-0.45)
-        tube(bm, pod, RIB_B, 0.9, RIBS, lift=-0.45)
-        tube(bm, pod, LINK_1, 0.75, RIBS, lift=-0.45)
-        tube(bm, pod, LINK_2, 0.7, RIBS, lift=-0.45)
-        tube(bm, pod, VEIN_P, 0.75, VEIN, lift=-0.45)
+    # sliver triangles (three contour points in a line, where a vein's edge meets a region's): their
+    # normals are noise, the 40 degree sharp-edge pass then shades them flat and each is a dark
+    # pixel on the glass
+    thin = sum(1 for f in bm.faces if f.calc_area() < 1e-6)
+    bmesh.ops.dissolve_degenerate(bm, dist=0.002, edges=bm.edges[:])
+    left = sum(1 for f in bm.faces if f.calc_area() < 1e-6)
+    print(f"{state}: {thin} sliver faces dissolved, {left} left")
     obj = common.mesh_object(f"{NAME}-{state}", bm, mats, coll, smooth=True)
     obj.data.set_sharp_from_angle(angle=math.radians(40))
     return obj
@@ -953,6 +1029,9 @@ def copy_shading(whole, piece, x0, y0):
                 if all(abs(v[axis] - sg * lim) < eps for v in vs):
                     cap = True
         pn = Vector(poly.normal)
+        # a sliver the cut left along a seam: its own normal is noise (a dark pixel on the glass),
+        # so its corners take the whole's shading whatever it faces
+        thin = poly.area < 2e-7
         for li in poly.loop_indices:
             if cap:
                 normals.append(tuple(pn))
@@ -964,8 +1043,8 @@ def copy_shading(whole, piece, x0, y0):
                 for ay in (ky - 1, ky, ky + 1):
                     for az in (kz - 1, kz, kz + 1):
                         for wco, fn, cnv in cells.get((ax, ay, az), ()):
-                            if (wco - co).length < 3e-5 and fn.dot(pn) > bd:
-                                best, bd = cnv, fn.dot(pn)
+                            if (wco - co).length < 3e-5 and (fn.dot(pn) > bd or (thin and best is None and fn.z > 0)):
+                                best, bd = cnv, max(fn.dot(pn), 0.6 if thin else 0.0)
             if best is not None and bd > 0.5:
                 normals.append(tuple(best.normalized()))
                 continue
@@ -975,11 +1054,12 @@ def copy_shading(whole, piece, x0, y0):
             bestd = 1e9
             for _loc, _no, j, dd in tree.find_nearest_range(co, 0.004):
                 f = bm.faces[j]
-                if f.material_index == poly.material_index and Vector(f.normal).dot(pn) > 0.7 and dd < bestd:
+                if (f.material_index == poly.material_index and (thin or Vector(f.normal).dot(pn) > 0.7)
+                        and dd < bestd):
                     fi, bestd = j, dd
             if fi is None:
                 _loc, _no, fi, _d = tree.find_nearest(co)
-            if fi is None or Vector(bm.faces[fi].normal).dot(pn) < 0.7:
+            if fi is None or (not thin and Vector(bm.faces[fi].normal).dot(pn) < 0.7):
                 normals.append(tuple(pn))
                 continue
             f = bm.faces[fi]
@@ -991,6 +1071,28 @@ def copy_shading(whole, piece, x0, y0):
     me.normals_split_custom_set(normals)
     me.update()
     bm.free()
+
+
+def tuck_shell(shell, whole, depth=0.008):
+    """Hold the outline shell under the pod's skin: every shell vertex that stands outside the
+    nearest face of `whole`, or less than `depth` (units; 0.1 px) under it, goes to that depth.
+    The voxel shell otherwise stands a hair outside the dome at its vertices: black pockmarks all
+    over the glass wherever the shell is drawn with the model (the review renders). One even
+    offset, no deeper pushes: a shell dented further along the corner where the dome meets the
+    collar drew scratches of ink across the flank in the game."""
+    bm = bmesh.new()
+    bm.from_mesh(whole.data)
+    bm.faces.ensure_lookup_table()
+    tree = BVHTree.FromBMesh(bm)
+    moved = 0
+    for v in shell.data.vertices:
+        loc, no, _i, _d = tree.find_nearest(v.co)
+        if loc is not None and (v.co - loc).dot(no) > -depth:
+            v.co = loc - no * depth
+            moved += 1
+    shell.data.update()
+    bm.free()
+    print(f"shell: {moved} of {len(shell.data.vertices)} vertices tucked under the skin")
 
 
 def split_open(obj, layout, coll):
@@ -1019,26 +1121,22 @@ def split_open(obj, layout, coll):
 
 def materials(state, cols, palette):
     mats = []
+    # lit: the core and bud glow, the veins, ribs and lamp a little less
     emis = {"grey": {},
-            "green": {CORE: 1.0, BUD: 1.0, RIBS: 0.8, VEIN: 0.8, LAMP: 0.8},
+            "green": {CORE: 1.0, CORE_HI: 1.0, BUD: 1.0, BUD_HI: 1.0, VEIN: 0.8, VEIN_HI: 0.8, RIB: 0.8, LAMP: 0.8,
+                      LAMP_HI: 0.8},
             "purple": {}}[state]
     for reg in range(len(RNAMES)):
         idx, frames = cols[reg]
-        if reg in (METAL, GIRDLE, GROOVE, BOLT, SOCKET):
+        if reg >= NPAINT:
             met, rough = 0.6, 0.42
-        elif reg in (LAMPC,):
-            met, rough = 0.05, 0.08
-        elif reg == GLASS:
-            met, rough = 0.05, 0.3
         else:
-            met, rough = 0.05, 0.36
+            met, rough = 0.05, GLASS_ROUGH
         tag = f"nsu129A_{state}_{RNAMES[reg]}"
         mt = common.palette_material(palette, idx, tag, metallic=met, roughness=rough,
                                      emission_strength=emis.get(reg, 0.0), frames=frames or None)
-        if state != "purple" and reg in PAINTED:
-            # the glass (and the organs seen through it) keeps the sprite's dark slate: at the default
-            # 4 % F0 the game's sun and environment spread pale silver-blue sheen over the lower half,
-            # where the sprite is darkest (D176: F0 through Specular IOR Level)
+        if state != "purple" and reg < NPAINT:
+            # the glass skin's F0 (D176: through Specular IOR Level), see GLASS_SPEC
             bsdf = next(n for n in mt.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
             if "Specular IOR Level" in bsdf.inputs:
                 bsdf.inputs["Specular IOR Level"].default_value = GLASS_SPEC
@@ -1057,16 +1155,16 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     sprites, colors = load()
     palette = {"name": NAME, "colors": colors}
-    g91, g153 = compose(sprites, 91), compose(sprites, 153)
-    plan = Plan(*fit_outline(inner_mask(g91, colors)))
-    lab = blob_labels(g153)
-    pod = Pod(plan, lab)
+    g91, g241 = compose(sprites, 91), compose(sprites, 241)
+    plan = Plan(*fit_outline(inner_mask(g91, colors), g91 >= 0))
+    drawing = Drawing(g91, g241, plan)
+    pod = Pod(plan, drawing)
     report = {"plan": {"cx": plan.cx, "cy": plan.cy, "coef": [float(c) for c in plan.coef]}, "states": {}}
     layout = [(n, dx, dy) for n, dx, dy, _ in PIECES]
     export, pieces_out = [], {}
     for si, state in enumerate(("grey", "green", "purple")):
         coll = common.reset_collection(f"{NAME}-A-{state}")
-        cols = state_colours(sprites, colors, lab, plan, state)
+        cols = state_colours(sprites, colors, drawing, state)
         report["states"][state] = {RNAMES[k]: [v[0], {str(a): b for a, b in v[1].items()}] for k, v in cols.items()}
         mats = materials(state, cols, palette)
         whole = build(state, pod, mats, coll)
@@ -1074,6 +1172,7 @@ def main():
         print(f"{state}: {tris} triangles")
         report["states"][state]["_tris"] = tris
         shell = common.outline_shell(whole, coll, voxel=0.025, faces=5000, smooth=8, inside=0.006)
+        tuck_shell(shell, whole)
         lay = [(n + SUFFIX[state], dx, dy) for n, dx, dy in layout]
         pieces = common.split_assembly(whole, lay, coll)
         shells = split_open(shell, lay, coll)
