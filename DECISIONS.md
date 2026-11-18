@@ -14516,6 +14516,14 @@ Reviewers were told to fail a model that read worse than the baseline from any a
   removed the cloudy rails. The flank hole under the collar is closed. `tools/workflows/fix-round.js` ran on Fable
   (4 agents, about 1.2M tokens). Review: ship, 8.5/10.
 
+- **Silver Ship deck tone** (the user: "the color/brightness on the top is jarring"): the form is unchanged, and only
+  palette slots, material response and the bake change. The casing stays index 11 with a 0.62 baked gain and a little
+  more roughness. The fairing top gets its own satin index-10 slot. Only the spine top aft of its seam stays polished.
+  A small tint removes index 11's green cast. The deck's occlusion no longer clamps, so roots, flanks and channel floors
+  darken. The deck now sits at D118's deck-to-hull ratio (1.44-1.57) with the spine as its one bright strip. It is a
+  little under the sprite's absolute deck tone in the hangar and in level, because the brief's two targets conflict.
+  The canopy collar (`pal_12`, untouched) is now the whitest part of the top. Review: ship, 8/10.
+
 **Open items (from the reviews, non-blocking):** hairline slivers at a few part junctions, visible only in close-up
 viewer orbits: the U-Ship pod spine's port seam, and on the Silver Ship the sponson slots, the canard roots and the pipe
 flanges. The U-Ship's pale `pal_28` hoop collars stand out from the rear.

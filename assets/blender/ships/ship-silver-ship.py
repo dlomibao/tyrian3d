@@ -24,7 +24,8 @@ How it is built: lofts through explicit sections (solid(): any section, concave 
 closed solid), V grooves modelled in the lofts for panel lines, proud armour plates (usp_talon.plate),
 convex faceted blocks (usp_talon.hull) with the cooling slot and the intake ramp cut out of the
 sponsons by an exact boolean, the spine deck one loft whose section carries the channels, their gutters,
-the louvre pockets and the intake slots (build_deck), AO/roughness bake only (no concept projection:
+the louvre pockets and the intake slots (build_deck; its casing satin and its colour map trimmed to the ship's greys, only
+the spine's top polished and bright: DECK_BAKE), AO/roughness bake only (no concept projection:
 "bake": "model" in its maps.json; the deck unwrapped on its own at twice the texel density with every
 chamfer an island, the margin extended from each island's own texels: unwrap, fill_unbaked), outline
 shell from a filled copy (D51), tyrian_engines at the two scarfed exits.
@@ -34,7 +35,7 @@ edge coordinate (row r spans y r..r+1, aft is +y), z up. Blender: X = (x - 0.5) 
 Z = z / 12.
 
     Blender --background --factory-startup --python ship-silver-ship.py -- [--out path.glb] [--no-bake]
-            [--measure top.json] [--preview png] [--no-ink]
+            [--measure top.json] [--preview png] [--no-ink] [--bake-dir dir]
 
 --no-ink shrinks the outline shell to nothing: the reference for measuring the ink the shell draws over
 the model's interior (viewer captures with and without it).
@@ -64,9 +65,9 @@ AXIS = -0.5
 SLOTS = [  # name, palette index, tag, metallic (x METAL), roughness, emission
     ("NOSE", 5, "nose", 0.55, 0.40, 0.0),     # nose cone, cockpit hull, canards
     ("HULL", 6, "hull", 0.55, 0.40, 0.0),     # aft hull flanks, manifold
-    ("DECK", 11, "deck", 0.60, 0.32, 0.0),    # spine deck casing, nose ridge
+    ("DECK", 11, "deck", 0.55, 0.44, 0.0),    # spine deck casing: rails, chamfers, flanks, fittings (satin)
     ("DECKP", 11, "deckpol", 0.90, 0.18, 0.0),  # the dorsal spine's polished top, bolt heads (same index)
-    ("CHAN", 10, "channel", 0.60, 0.36, 0.0),   # the deck's channel floors (cols 10 and 12: median 10)
+    ("CHAN", 10, "channel", 0.55, 0.46, 0.0),   # the deck's channel floors (cols 10 and 12: median 10)
     ("TRIM", 12, "trim", 0.90, 0.20, 0.0),    # canopy hoop, intake lips: polished
     ("STRAKE", 8, "strake", 0.55, 0.38, 0.0),  # chine strakes
     ("LOUV1", 10, "louvre1", 0.65, 0.30, 0.0),  # louvre hoop between the red vents (row 19: 12 11 10)
@@ -85,11 +86,32 @@ SLOTS = [  # name, palette index, tag, metallic (x METAL), roughness, emission
     ("THROAT", 118, "throat", 0.00, 0.40, 1.3),
     ("RAMP", 5, "ramp", 0.40, 0.55, 0.0),     # intake ramps
     ("PIPE", 7, "pipe", 0.75, 0.30, 0.0),     # exhaust pipes
+    ("RIDGE", 11, "ridge", 0.60, 0.32, 0.0),  # the nose's dorsal ridge (col 11, rows 1-4)
+    ("FAIR", 10, "fairing", 0.55, 0.44, 0.0),  # the fairing's broad top ahead of the spine (rows 10-12: median 10)
 ]
 for _i, _s in enumerate(SLOTS):
     globals()[_s[0]] = _i
 METAL = 0.22
 TINT = (1.0, 0.96, 0.82)  # the bake's tint, as D118's
+# The spine deck's colour map (tag: gain, occlusion floor, tint), linear multipliers. The rest of the ship
+# bakes as D118 did: 0.48 + 0.62 x occlusion, clamped at 1, so the first sixth of the occlusion is lost and
+# an open face keeps its palette colour. The deck, index 11 and 10 and nearly all of it flat and facing up,
+# came out near white under the game's lights that way: its rails (median tone, 0-255) 190 in a level, 197
+# in the hangar and 221 in the viewer, where the sprite's rail columns are 175, its plates 142 and the hull
+# about 80: one bright block on a grey ship, its map 251-255 from edge to edge. So the deck's map is
+# trimmed, one gain per part (a part keeps one tone; light and dark still come from its form, lesson 21):
+# the satin casing (rails, chamfers, fittings) down to the tone D118's deck had, the fairing's top with it
+# (in its own index, FAIR), the channel floors left at their index, the polished spine trimmed least, so
+# the spine is the deck's one bright strip. And the deck's occlusion is kept whole (floor + (1 - floor) x occlusion, no headroom): the
+# channels, the rails' roots and the fairing's and spine's feet darken as they are shut in (the rail roots
+# bake at 0.6 of the rail tops, the floors at 0.4-0.8 of an open one).
+# Measured in the game's own renders part by part against the sprite's columns (fix-tone's tone table):
+# rails 156 in a level, 157 in the hangar, 178 in the viewer; plates 123 / 134 / 158; spine 168 / 179 / 214.
+# Index 11 is a green grey (162 166 162) where the hull's indices (5, 6, 7, 9) are neutral: over the whole
+# deck that read as a cooler part on a warm grey ship. Its map takes the green out.
+DECK_TINT = (1.0, 0.955, 0.99)
+DECK_BAKE = {"deck": (0.62, 0.3, DECK_TINT), "deckpol": (0.92, 0.3, DECK_TINT), "channel": (1.0, 0.4, (1.0, 1.0, 1.0)),
+             "fairing": (0.72, 0.3, (1.0, 1.0, 1.0))}
 TEXTURED = tuple(i for i, s in enumerate(SLOTS) if s[0] not in ("GLASS", "LINER", "THROAT"))
 
 
@@ -304,7 +326,7 @@ def build_fuselage(P):
         w = 0.42 * (0.5 if i in (0, 4) else 1.0)
         z = ZT(y)
         R.append([(-w, y, z - 0.06), (-w * 0.7, y, z + 0.07), (w * 0.7, y, z + 0.07), (w, y, z - 0.06)])
-    solid(P, R, DECK)
+    solid(P, R, RIDGE)
     # Armour plates standing 0.07 px proud with chamfered edges (their gaps are the panel lines): the
     # upper flank ahead of each engine and beside it, the lower cheek under each canard.
     def L(y):
@@ -499,7 +521,10 @@ def build_deck(P, fill=False):
         half = [(w - c, h), (w, h - c), (w + 0.035, fl)]
         rings.append([(-x, y, z + q) for x, q in reversed(half)] + [(0.0, y, z + h + 0.035 * min(1.0, h / 0.5))]
                      + [(x, y, z + q) for x, q in half])
-    solid(P, rings, lambda k, i: DECKP if i in (2, 3) else DECK, capmat=DECK)
+    # Polished from its first seam (row 13.3) aft: ahead of it the fairing's broad top is satin, in the index
+    # of the sprite's pixels there (FAIR: rows 10-12 are 9 to 12, median 10; the spine behind 10 to 13).
+    sy_ = [y for y, _ in st]
+    solid(P, rings, lambda k, i: DECK if i not in (2, 3) else DECKP if sy_[k] >= SPINE_SEAMS[0] - 1e-6 else FAIR, capmat=DECK)
 
     # Stern closing frame: a low chamfered cross-member, rail to rail under the spine, that ends the channels
     # and their gutters square (open, the gutters' mouths made the channel floors read as loose straps).
@@ -1071,11 +1096,18 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
                      math_("ADD", 0.65, math_("MULTIPLY", ao_l.outputs["AO"], 0.35)))
         em = node("ShaderNodeEmission")
         if mode == "colour":
-            v = math_("MINIMUM", math_("ADD", math_("ADD", 0.48, math_("MULTIPLY", occl, 0.62)),
-                                       math_("MULTIPLY", edge, 0.2)), 1.0)
+            tag = m.name.split("silver_")[-1]
+            trim = (1.0, 1.0, 1.0)
+            if tag in DECK_BAKE:
+                gain, floor, trim = DECK_BAKE[tag]
+                v = math_("MULTIPLY", math_("MINIMUM", math_("ADD", math_("ADD", floor, math_("MULTIPLY", occl, 1.0 - floor)),
+                                                             math_("MULTIPLY", edge, 0.2)), 1.0), gain)
+            else:
+                v = math_("MINIMUM", math_("ADD", math_("ADD", 0.48, math_("MULTIPLY", occl, 0.62)),
+                                           math_("MULTIPLY", edge, 0.2)), 1.0)
             tint = node("ShaderNodeCombineColor")
             for k in range(3):
-                nt.links.new(math_("MULTIPLY", v, TINT[k]), tint.inputs[k])
+                nt.links.new(math_("MULTIPLY", v, TINT[k] * trim[k]), tint.inputs[k])
             nt.links.new(tint.outputs[0], em.inputs["Color"])
         else:
             r = math_("ADD", rough, math_("SUBTRACT", math_("MULTIPLY", math_("SUBTRACT", 1.0, occl), 0.3),
@@ -1180,7 +1212,9 @@ def main():
         measure_top(obj, argv[argv.index("--measure") + 1])
     fmt = "AUTO"
     if "--no-bake" not in argv:
-        bake_maps(obj, tempfile.mkdtemp(prefix="silver_bake_"))
+        bake_dir = argv[argv.index("--bake-dir") + 1] if "--bake-dir" in argv else tempfile.mkdtemp(prefix="silver_bake_")
+        Path(bake_dir).mkdir(parents=True, exist_ok=True)
+        bake_maps(obj, bake_dir)
         fmt = "WEBP"
     # The outline shell (D51), made after the bake so its occlusion rays never hit it: from 0.3 px voxels,
     # coarse enough to bridge the seams, vents and the deck's channels. No `inside` pull (D90): as
