@@ -27,6 +27,7 @@ import { connectVolumes, loadPrefs, musicLevel } from "./prefs";
 import { highScoreCheck, showHighScoreScreen } from "./highScoresScreen"; // [high scores]
 import { highScoreCheckDue } from "../sim/highscores"; // [high scores]
 import { PauseButton, showPause, type PauseChoice } from "./pause"; // ui-framework: pause screen
+import { howToPlayDue, howToPlayParam, howToPlaySeen, markHowToPlaySeen, showHowToPlay } from "./howToPlay"; // D266
 import { askForData, showMessage, showStatus, showTitle, type TitleChoice } from "./screens";
 import { runItemScreen } from "./shop";
 import { loadShopIcons } from "./shopIcons";
@@ -272,6 +273,13 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       startLevel();
       shared.levelStart();
       await preloadLevelModels(view); // D54: the level's models before its first tick
+      // D266: a one-player game's first level in this browser waits for the How to play card (not
+      // under automation, a console start or ?howtoplay=0; ?howtoplay=1 shows it whatever holds).
+      if (howToPlayDue({ seen: howToPlaySeen(), twoPlayer: g.twoPlayerMode, param: howToPlayParam(location.search), automated: navigator.webdriver === true || /HeadlessChrome/.test(navigator.userAgent), console: consoleStart !== null })) {
+        markHowToPlaySeen();
+        levelFade().set(0); // the card's backdrop draws in the game's canvas, under the level fade (as the shop's)
+        await showHowToPlay();
+      }
       view.draws.resetInterpolation();
       music.play(g.levelSong - 1);
       clearSimInput();

@@ -15289,3 +15289,39 @@ hidden and the levels stay), and the stats page's Top pilots rows read "difficul
 the server stores `level_count` = the run's finished levels (a level quit or died in doesn't count) with each accepted
 score and returns it as `levels` from `GET /api/scores`; no schema change. The label helper `levelsText` lives in
 `src/scores/api.ts`, shared by both pages.
+
+## D266 — "How to play": one condensed card, in the pause menu and once before a first level
+
+**Date:** 2026-11-18
+
+**Asked:** a menu item in the level, and on the player's first attempt before the first level starts, quick
+instructions with the mobile and keyboard controls and the general goal, super condensed.
+
+**Decision** (`src/app/howToPlay.ts`, `howToPlay.css`):
+- **One card**, on the UI kit (`showScreen` id `howtoplay`, the copper title, `.ui-label` columns, `.ui-key` caps,
+  dashed touch caps, round pad caps): the goal in two lines ("Survive to the end of each level. Shoot everything,
+  grab credits and power-ups. Between levels, buy guns, shields, generators and sidekicks in the shop."), then
+  **Keyboard** and **Touch** side by side and a **Gamepad** line. The column for `<html data-input>` is lit (a well
+  and copper rim), the rest dim to 55%; `?touchhud=1` lights Touch. Phones in portrait stack the columns, the lit
+  one first; short landscape windows tighten type. It fits without scrolling at 1920x1080, 390x844 and 844x390.
+- **Every control is the code's.** Keyboard: the player's current bindings (`bindings.ts` `keys`, both slots;
+  arrows and WASD shown as one cap each), the sidekicks' left/right pairs per slot, Escape and P for pause (fixed,
+  `RESERVED_KEYS`), plus a mouse note (click to lock and steer, left fires, right the sidekicks; `controls.ts`).
+  Touch: drag anywhere, fire while touching, tap REAR GUN, hold a SIDEKICK box (only in the framed HUD, D100:
+  the minimal interface has no targets, so those rows go), the pause button top right. Pad: stick/d-pad, A/RT, X,
+  LB/RB, Start. "Sidekicks, bombs": either sidekick input also drops a superbomb when the ship carries one
+  (mainint.c's SUPER BOMB block). Twiddle specials are left out (not a glance).
+- **Pause menu:** Resume, **How to play**, Options, Quit to title. It opens over the pause screen (`over: true`,
+  the frozen game under the scrim) and closing returns to the pause menu.
+- **First time:** in `run.ts`, after `preloadLevelModels` and before the level's first tick, a one-player game
+  waits for the card if `localStorage["tyrian3d.howToPlaySeen"]` isn't set; it is set when the card shows, so it
+  never shows by itself again (unreadable storage counts as seen). Not in two-player games, not when the debug
+  console started the game, and not under automation (`navigator.webdriver` or a `HeadlessChrome` user agent:
+  `tools/cdpshot.mjs` reports webdriver false, so the UA test is what keeps captures unblocked). The attract demo
+  and every `?debug=` harness never reach this code. `?howtoplay=1` shows it before every level whatever else
+  holds (for captures), `?howtoplay=0` never.
+- **Dismiss:** Enter, Space, Escape, Backspace, pad A, B or Start, a click or tap anywhere, or the Got it button.
+
+**Options considered:** a hint strip over the first seconds of play (gone before a first-timer reads it; covers the
+playfield); showing it at the title or before the first shop (the shop is its own lesson; the controls matter when
+the ship appears); hard-coded default keys (wrong after a rebind).

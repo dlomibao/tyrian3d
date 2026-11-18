@@ -7,23 +7,26 @@
 // missing here, and retrying is what a death already does: DECISIONS.md D14.)
 //
 // "Options" opens the full settings screen (the title's and the shop's, with the same host) over this
-// one, so every setting is reachable from inside a level on any input (D102).
+// one, so every setting is reachable from inside a level on any input (D102). "How to play" opens the
+// goal-and-controls card over it the same way (D266).
 
 import "./pause.css";
 import { h, keyHints, MenuList, showScreen, title } from "../ui";
 import { showOptions, type OptionsHost } from "./options";
+import { showHowToPlay } from "./howToPlay";
 import { consoleBridge } from "./consoleBridge";
 
 export type PauseChoice = "resume" | "quit";
 
 /** The pause menu's rows, in order. */
-export const PAUSE_ITEMS = ["Resume", "Options", "Quit to title"] as const;
+export const PAUSE_ITEMS = ["Resume", "How to play", "Options", "Quit to title"] as const;
 
 /** Show the pause screen over the frozen game; resolves with the player's choice. */
 export function showPause(host: OptionsHost): Promise<PauseChoice> {
   return new Promise((resolve) => {
     let asking = false;
     let inOptions = false;
+    let inHowTo = false;
     const done = (choice: PauseChoice) => {
       if (consoleBridge.leave?.screen === screen) consoleBridge.leave = null;
       screen.close();
@@ -41,6 +44,12 @@ export function showPause(host: OptionsHost): Promise<PauseChoice> {
       inOptions = true;
       await showOptions(host); // over this screen; the game stays paused underneath
       inOptions = false;
+    };
+    const howTo = async () => {
+      if (inHowTo) return;
+      inHowTo = true;
+      await showHowToPlay({ over: true }); // over this screen, which comes back when it closes
+      inHowTo = false;
     };
     const screen = showScreen({
       id: "pause",
@@ -62,7 +71,13 @@ export function showPause(host: OptionsHost): Promise<PauseChoice> {
     const menu = new MenuList({
       label: "Paused",
       items: PAUSE_ITEMS.map((label) => ({ label })),
-      onSelect: (i) => (i === 0 ? done("resume") : i === 1 ? void options() : void quit()),
+      onSelect: (i) => {
+        const item = PAUSE_ITEMS[i];
+        if (item === "Resume") done("resume");
+        else if (item === "How to play") void howTo();
+        else if (item === "Options") void options();
+        else void quit();
+      },
     });
     // The debug console's jumps (D109) resume the game, which then leaves the level.
     consoleBridge.leave = { screen, go: () => done("resume") };
