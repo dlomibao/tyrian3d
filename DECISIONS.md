@@ -14490,3 +14490,30 @@ Test: `tests/render/flyerShadows.test.ts` (shadows on a raised surface).
 
 **Review:** look at TYRIAN's road platforms (t4200) and HARVEST under `&camera=overhead`. If a flyer over a surface
 should read higher, the fallback is a floor on the air term for models over a surface, not the ground's count.
+## D242 — The U-Ship and Silver Ship rebuilt through the full flagship pipeline on Fable, with the restored blueprint-built models as the baseline to beat at every angle (follows D240, D241, CLAUDE.md art rule 8)
+
+**Date:** 2026-11-17
+
+**Decision:** `tools/workflows/model-flagship.js` in full mode ran on both ships with every stage on Fable (high effort)
+at the user's request. Each ship got a multi-view HTML blueprint (top traced from the sprite, plus side, front, rear,
+underside and three-quarter views), two competing designs, a judge (winner A for both, with grafts and must-fix
+items), a finisher and a strict review. The restored models (D240, D241) were the baseline. Every sheet put baseline
+and new side by side at the same `?viewer=` Free orbits, the Game angle, the hangar backdrop and in-game banking.
+Reviewers were told to fail a model that read worse than the baseline from any angle.
+- **U-Ship:** a round finned gun barrel and a ridge-roofed hoop with an exact mirrored centre line. The pod is
+  plated lengthwise and pointed, with no orange glow port. The plan widths are the baseline's: the rails read thinner
+  by form, not by shrinking. Level IoU 1.000; banks 0.879/0.858 and 0.765/0.758. 11.8k triangles (baseline 17.3k).
+  Review: ship, 8.5/10.
+- **Silver Ship:** a slim hull, faceted sponsons with engine barrels where D118 had round pods, paired red vent bands,
+  and three exhaust pipes on a tray. Level IoU 0.9965; banks 0.866/0.928 and 0.918/0.858. 5.2k triangles. Review: ship,
+  8/10.
+- `public/art/shop/models.webp` is re-rendered with both ships.
+
+**Open items (from the reviews, non-blocking):** hairline slivers at a few part junctions, visible only in close-up
+viewer orbits: the U-Ship pod spine's port seam, and on the Silver Ship the sponson slots, the canard roots and the pipe
+flanges. The U-Ship's pale `pal_28` hoop collars stand out from the rear.
+
+**Review:** the user compares baseline and new in `tyrian-scratch/ships-fable/<ship>/final/sheet.png` and in
+`?viewer=` before merging. Fallback: keep D240/D241's restored models (the state on main).
+
+**Cost:** 12 Fable agents, about 3.5M subagent tokens, about 2 h wall clock.

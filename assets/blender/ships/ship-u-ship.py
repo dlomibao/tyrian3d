@@ -1,40 +1,37 @@
-"""U-Ship (player ship, tyrian.shp#8 frame 271 and its banking frames 267-275), built the way the
-USP Talon is (assets/blender/usp_talon.py, DECISIONS.md D50-D53): a hard-surface model that reads
-as a real machine from every angle, in the menus and from the tilted game camera.
+"""U-Ship (player ship, tyrian.shp#8 frame 271 and its banking frames 267-275).
 
-The sprite is authoritative for the plan outline, the windshield and the colours (D52): seen from
-above the model covers frame 271's inner mask, the sprite without its ink border (D74,
-docs/agents/OUTLINE-BORDER.md: the game's ink outline stands in for it), rule IoU 1.0 on the grid.
-Two straight gun arms, 1.7 px wide (the sprite's one colour column, 5 and 17, plus half its ink),
-rows 7-21, run back into a U-band that curves under the pod at 45 degrees to a flat bottom (rows
-22-24); a bell-shaped pod (columns 9-13, rows 13-19, a blunt nose) hangs between them, joined in
-rows 15-17 by a pivot hub on each arm, a one-row pylon (row 16) and a dark saddle on the pod's flank.
-The windshield is the sprite's own glass pixels (rows 13-15: column 11, then 9-11, then 9: a slanted
-lens left of the centre line), and each part takes the palette index the sprite uses where it covers
-it. The banking frames are the same model rolled by the game, 40 degrees at half bank and 55 at full
-(BANK_ROLL, fitted to sprites 267-275 with tools/bank_roll.py, D93): the sprite's banks draw a much
-harder roll than the Talon's 17.5 / 35 (the arms close to 4 px apart at full bank). Nothing in the
-model is shaped for them; at that roll they measure 0.87-0.88 (half) and 0.78 (full).
-The concept (assets/blender/features/concepts/ship-u-ship.jpg) guides the rest: guns with a muzzle
-brake, a cooling jacket and a boxy receiver between dark collars, pivot hubs and pylons to the pod,
-an armoured brass pod with a deep nozzle in its tail, a broad segmented brass band with a dark inner
-rim; underneath, magazines, keel, intake and band ribs.
+What it is: a twin-boom gunship. Two long rail guns (steel) run fore and aft; their breeches plug
+into a brass tail hoop, a girder standing on edge that loops round the stern; a small pointed brass
+gondola (glazed nose, engine in the tail) hangs between the guns on a two-bar trunnion yoke.
 
-How it is built (as the Talon; its helpers are imported from usp_talon.py):
-- Every part is a low-poly cage in sprite px (x = column - 11.5, the ship's centre line; y = sprite
-  row, aft is +y; z up), moved to Blender at the end (X = (x - 0.5) / 12, Y = (14 - y) / 12,
-  Z = z / 12: the sprite block's centre is column 12).
-- Sections between stations are monotone cubic (pchip), so lofts never swell.
-- Dark cores under separate armour plates that stand 0.2-0.3 px proud with 45-degree chamfers, so
-  panel lines are real gaps. The U-band is built straight and bent along its centre line.
-- Texture: no concept projection (there is no assets/blender/textures/ship-u-ship/maps.json, so
-  texture_bake.py never touches it). This script bakes its own two maps with Cycles: ambient
-  occlusion with an edge lift (a colour multiplier; on the brass parts slightly cool, TINT, so the
-  game's tone mapping does not push them to saturated bronze, D53) and roughness/metalness.
-- Palette materials (pal_<index>) so palettes, fades and the hit flash apply; the nozzle glows in
-  orange 121/123.
-- Exported beside it: the outline shell (common.outline_shell, D51) and `tyrian_engines` (the menu's
-  engine glow behind the nozzle).
+Built in the Talon's way (assets/blender/usp_talon.py, D50-D53): cages in sprite px (x = column -
+11.5, y = sprite row, aft is +y, z up), pchip stations, dark cores under proud plates so panel lines
+are real gaps, one pal_<index> material per part (the sprite's index for the region the part
+covers), an AO / roughness bake only (no concept projection), the outline shell, tyrian_engines.
+
+The PLAN is the blueprint-built model's (the one restored by D240): rails and hoop 1.7 px wide on
+the same centre lines, the pod 5 px wide, the same hubs, pylons and saddles (rule IoU 1.0 on frame
+271, D74). Nothing is thinned or shrunk to fit top-view pixels (CLAUDE.md art rule 8); what makes the
+sprite's thin wire U and small pointed pod is each part's SECTION, under the game's own lights:
+- rails: a round barrel (1.7 px: a jacket of lengthwise plates, then four cooling fins on a 1.3 px
+  core) between a ported muzzle brake and a bright breech ring (12), a sunk neck (6), a plated
+  receiver (10) with a sight rail (11), a rear ring and neck; under it a ladder web and a lower
+  chord (5), so the gun is a deep member on edge (2.3 px), and that chord runs on into the hoop's;
+- hoop: a band on edge (features.json), 2.2 px deep: a ridge-roofed brass cap (25; two 51 degree
+  facets meeting in a 0.3 px land, so one facet is lit and one is in shade: a thin bright line by
+  form), a dark recessed web (21) with gussets, a lower chord (22); ferrules where it takes the
+  rails, two pale collars (28) either side of a dark blast clamp (21) on the centre line. Its centre
+  line is exact (lines and arcs) and its second half is the first one mirrored, so the two sides
+  are the same to the vertex; the cap's segments meet in chamfered seams over a dark key;
+- pod: a round-section gondola on the old plan, a pointed ogive nose (tip on the axis), a wrap-round
+  visor over rows 13-15 (163) in brass sills (21), then lengthwise plates only (it is not a barrel:
+  no hoops round the body): a raised dorsal spine (23), one broad smooth port shoulder (24; the
+  sprite's pale column 10 is its sheen), the starboard service trench with its conduit (162, the
+  sprite's dark column 12), flank plates with an access panel, a boat tail to a closed stern with a
+  steel nozzle. No emission (the sprite has no orange pixel; the menus' glow is tyrian_engines).
+
+The banking frames are the same model rolled by the game, 40 degrees at half bank and 55 at full
+(BANK_ROLL, tools/bank_roll.py, D93); nothing in the model is shaped for them.
 
     Blender --background --factory-startup --python ship-u-ship.py -- [--out path.glb] [--no-bake] [--preview png]
 """
@@ -58,27 +55,28 @@ PX = 1 / 12
 pchip, frange, fillet, Part, Section, plate, hull, cbox = (T.pchip, T.frange, T.fillet, T.Part, T.Section,
                                                          T.plate, T.hull, T.cbox)
 
-# Palette 5 colours used here (reference/models/ship-u-ship/sprite.json), plus the glows.
-GLOW_PAL = {121: (231, 97, 12), 123: (243, 174, 36)}
-
 # Material slots.
-(GUN_F, GUN_R, GUN_HI, COLLAR, HUB, STRUT, GCORE, DEEP, BAND, BAND_DK, BAND_RIM, POD, POD_SPINE, POD_DK,
- POD_CORE, FRAME, GLASS, GLOW, CORE, MAG) = range(20)
+(BARREL, BCORE, BRAKE, RING, NECK, RECV, SIGHT, GCORE, DEEP, SPAR, MAG, HUB, PYLON, BRACE, SADDLE,
+ HOOP, HOOP_WEB, HOOP_CHORD, HOOP_COLLAR, HOOP_CLAMP,
+ POD, POD_SPINE, POD_BELLY, POD_CORE, POD_NOSE, POD_TAIL, FRAME, GLASS, NOZZLE, THROAT) = range(30)
+NSLOT = 30
 
-# Palette index per slot: the median index of the sprite pixels each part covers (the outline ring,
-# the darkest shading (16-18, the 160s ramp) and the brightest highlights left out; measured on a
-# top render with one colour per material): gun barrels 9, receivers 10 (their top rail and row 13's
-# sloped front 11), collars 5, pivot hubs 4, pylons 6, the U-band 25 (its centre seam 21), the pod
-# 24 with its spine 23 and tail collar 21, the windshield 163 in a 21 frame, the pod's seams 162.
-PAL_OF = {GUN_F: 9, GUN_R: 10, GUN_HI: 11, COLLAR: 5, HUB: 4, STRUT: 6, GCORE: 3, DEEP: 2, BAND: 25,
-          BAND_DK: 21, BAND_RIM: 6, POD: 24, POD_SPINE: 23, POD_DK: 21, POD_CORE: 162, FRAME: 21,
-          GLASS: 163, MAG: 7}
-BRASS_SLOTS = {BAND, BAND_DK, POD, POD_SPINE, POD_DK, POD_CORE, FRAME}
+# Palette index per slot: the median index of the sprite pixels each part covers, darkest shading
+# and brightest highlights left out (blueprint.json spriteMedians): barrel 9, breech rings 12, necks
+# 6, receiver 10 (its lighter pixels 11: the sight rail), hub 4, pylon 7; hoop 25, its collars 28
+# and clamp 21; canopy 163; pod body 24, spine 23, groove 162 (measured again on a top render with
+# one colour per material: every region's majority index is the sprite's median).
+PAL_OF = {BARREL: 9, BCORE: 9, BRAKE: 9, RING: 12, NECK: 6, RECV: 10, SIGHT: 11, GCORE: 3, DEEP: 2, SPAR: 5,
+          MAG: 7, HUB: 4, PYLON: 7, BRACE: 6, SADDLE: 3,
+          HOOP: 25, HOOP_WEB: 21, HOOP_CHORD: 22, HOOP_COLLAR: 28, HOOP_CLAMP: 21,
+          POD: 24, POD_SPINE: 23, POD_BELLY: 22, POD_CORE: 162, POD_NOSE: 22, POD_TAIL: 21, FRAME: 21,
+          GLASS: 163, NOZZLE: 3, THROAT: 162}
+BRASS_SLOTS = {HOOP, HOOP_WEB, HOOP_CHORD, HOOP_COLLAR, HOOP_CLAMP, POD, POD_SPINE, POD_BELLY, POD_CORE,
+               POD_NOSE, POD_TAIL, FRAME, THROAT}
 
 METAL = 0.3  # metalness scale (satin, D53)
 # The baked colour map's tint on the brass parts (D53): three's Neutral tone mapping takes most from
 # the smallest channel (blue) and pushes the lit tan to saturated bronze; this keeps it sandy khaki.
-# The steel parts keep a neutral map.
 TINT = (0.76, 0.86, 1.0)
 # The steel's map is a touch warm: the game's blue sky light otherwise tints the greys blue.
 TINT_STEEL = (1.0, 0.97, 0.92)
@@ -91,32 +89,37 @@ def materials(sprite):
     def pal(slot, tag, metallic, roughness):
         i = PAL_OF[slot]
         return common.material(f"pal_{i}_uship_{tag}", rgb(i), metallic=metallic * METAL, roughness=roughness)
-
-    def glow(i, tag, strength):
-        c = common.srgb(*GLOW_PAL[i])
-        return common.material(f"pal_{i}_uship_{tag}", c, metallic=0.0, roughness=0.4, emission=c,
-                               emission_strength=strength)
     return [
-        pal(GUN_F, "barrel", 0.75, 0.36),
-        pal(GUN_R, "receiver", 0.7, 0.38),
-        pal(GUN_HI, "glacis", 0.75, 0.32),
-        pal(COLLAR, "collar", 0.65, 0.42),
-        pal(HUB, "hub", 0.65, 0.4),
-        pal(STRUT, "pylon", 0.65, 0.42),
+        pal(BARREL, "barrel", 0.75, 0.36),
+        pal(BCORE, "barrel_core", 0.6, 0.5),
+        pal(BRAKE, "muzzle_brake", 0.75, 0.38),
+        pal(RING, "breech_ring", 0.8, 0.28),
+        pal(NECK, "neck", 0.65, 0.45),
+        pal(RECV, "receiver", 0.7, 0.38),
+        pal(SIGHT, "sight_rail", 0.75, 0.32),
         pal(GCORE, "gun_core", 0.5, 0.5),
         pal(DEEP, "recess", 0.3, 0.8),
-        pal(BAND, "band", 0.55, 0.4),
-        pal(BAND_DK, "band_dark", 0.5, 0.46),
-        pal(BAND_RIM, "band_rim", 0.6, 0.44),
-        pal(POD, "pod", 0.55, 0.38),
-        pal(POD_SPINE, "pod_spine", 0.6, 0.34),
-        pal(POD_DK, "pod_collar", 0.5, 0.44),
+        pal(SPAR, "spar", 0.65, 0.44),
+        pal(MAG, "magazine", 0.6, 0.45),
+        pal(HUB, "hub", 0.65, 0.4),
+        pal(PYLON, "pylon", 0.65, 0.42),
+        pal(BRACE, "brace", 0.65, 0.42),
+        pal(SADDLE, "saddle", 0.5, 0.5),
+        pal(HOOP, "hoop", 0.55, 0.4),
+        pal(HOOP_WEB, "hoop_web", 0.5, 0.5),
+        pal(HOOP_CHORD, "hoop_chord", 0.5, 0.46),
+        pal(HOOP_COLLAR, "hoop_collar", 0.6, 0.34),
+        pal(HOOP_CLAMP, "hoop_clamp", 0.5, 0.46),
+        pal(POD, "pod", 0.55, 0.36),
+        pal(POD_SPINE, "pod_spine", 0.6, 0.36),
+        pal(POD_BELLY, "pod_belly", 0.5, 0.44),
         pal(POD_CORE, "pod_core", 0.4, 0.6),
+        pal(POD_NOSE, "pod_nose", 0.55, 0.38),
+        pal(POD_TAIL, "pod_tail", 0.5, 0.44),
         pal(FRAME, "frame", 0.5, 0.38),
         common.material(f"pal_{PAL_OF[GLASS]}_uship_glass", rgb(PAL_OF[GLASS]), metallic=0.0, roughness=0.04),
-        glow(121, "engine_glow", 1.6),
-        glow(123, "engine_core", 2.2),
-        pal(MAG, "magazine", 0.6, 0.45),
+        pal(NOZZLE, "nozzle", 0.7, 0.36),
+        pal(THROAT, "throat", 0.3, 0.8),
     ]
 
 
@@ -136,8 +139,7 @@ def unit_circle(n=24):
 
 def ang_s(unit, deg):
     """Loop parameter (vertex index + fraction) where the ray at `deg` degrees from straight up toward
-    +u (negative: toward -u) meets the unit section; negative angles come back below 0 (a plate may
-    run across the loop's start)."""
+    +u (negative: toward -u) meets the unit section; negative angles come back below 0."""
     n = len(unit)
     t = math.radians(deg % 360)
     dx, dz = math.sin(t), math.cos(t)
@@ -156,8 +158,7 @@ def ang_s(unit, deg):
 
 
 def make_loop(unit, cx, cz, rx, rz, sx=1):
-    """loopf(y, grow=0) for a section `unit` scaled by rx(y), rz(y) about (cx(y), cz(y)); sx = -1
-    mirrors it (u toward -x)."""
+    """loopf(y, grow=0) for a section `unit` scaled by rx(y), rz(y) about (cx(y), cz(y))."""
     def f(y, grow=0.0):
         X, Z, A, B = cx(y), cz(y), rx(y) + grow, rz(y) + grow
         return [(X + sx * A * u, Z + B * v) for u, v in unit], (X, Z)
@@ -201,131 +202,185 @@ def lathe(part, cx, cz, unit, prof, sx=1):
             part.f(vs, mat, out=out)
 
 
+def ring_loft(part, rings, mat, cap0=True, cap1=True):
+    """A closed convex-section tube through explicit rings of points (same count each), capped."""
+    vs = [[part.v(p) for p in r] for r in rings]
+    cs = [sum((Vector(p) for p in r), Vector()) / len(r) for r in rings]
+    for k in range(len(vs) - 1):
+        n = len(vs[k])
+        away = tuple((cs[k] + cs[k + 1]) / 2)
+        for i in range(n):
+            j = (i + 1) % n
+            part.f((vs[k][i], vs[k][j], vs[k + 1][j], vs[k + 1][i]), mat, away=away)
+    if cap0:
+        part.f(vs[0], mat, out=tuple(cs[0] - cs[1]))
+    if cap1:
+        part.f(vs[-1], mat, out=tuple(cs[-1] - cs[-2]))
+
+
+def cyl_x(x0, x1, y, z, r, n=12, k0=1.0, k1=1.0, rz=None):
+    """Points of a cylinder along x (for hull): radius r in y, rz in z, scaled k0 / k1 at its ends."""
+    rz = r if rz is None else rz
+    pts = []
+    for x, k in ((x0, k0), (x1, k1)):
+        pts += [(x, y + r * k * math.cos(2 * math.pi * i / n), z + rz * k * math.sin(2 * math.pi * i / n))
+                for i in range(n)]
+    return pts
+
+
 # --- plan (sprite px; x = column - 11.5) ---------------------------------------------------------
 
-GX = 6.0    # gun arms' centre lines (columns 5 and 17)
-# Their half width in plan (D74): the sprite draws each arm one colour px wide inside its ink, so the
-# arm keeps 1.7 px (over half its 3 px); beside the pod (rows 14-18) the ink is not free and must stay
-# under half covered, so the edge sits 0.35 px into it.
-GW = 0.85
-G_PLATE = 0.2   # gun plates' height over the core
-GA = GW - G_PLATE  # gun core half width
-GZ = 0.95   # the arms' half height (a slim square-ish section, not the old 3 px tall box)
+GX = 6.0    # rail centre lines (columns 5 and 17)
+GW = 0.85   # rail / hoop half width in plan: the old model's 1.7 px (1 colour px + 0.35 px of ink a side, D74 rule 3)
+BZ = 0.17   # the barrels' axis height
 
-# The pod's plan half width (outer, plates included), to the inner edge of the sprite's ink (D74):
-# the bell's blunt nose (row 13: columns 10-12) widening into the five-column body of rows 14-19
-# (columns 9-13, half width 2.5); the tail stops 0.25 px into row 20, the sprite's ink. Rows 15-17's
-# columns 8 and 14 are the pylon saddles on its flanks (build_pod).
-_PWY = [12.6, 12.65, 12.75, 13.0, 13.4, 13.8, 14.2, 14.6, 15.0, 19.6, 20.0, 20.25]
-_PWV = [0.0, 0.42, 0.72, 1.08, 1.5, 1.92, 2.25, 2.42, 2.48, 2.48, 2.44, 2.38]
-PW = pchip(_PWY, _PWV)
-# Its half height and centre (elevation, free of the sprite): an egg, tallest at the middle.
-_PHY = [12.6, 12.65, 12.75, 13.0, 13.4, 13.8, 14.2, 14.8, 15.6, 19.0, 19.8, 20.25]
-PH = pchip(_PHY, [0.0, 0.45, 0.8, 1.2, 1.58, 1.84, 2.0, 2.14, 2.2, 2.2, 2.12, 2.02])
-PZ = 0.15
-P_PLATE = 0.3
-POD_Y0, POD_Y1 = 12.6, 20.25
-# Its section: a machined octagon, a broad flat-ish deck on top (so it takes the light as the
-# sprite's lit pod does), rounder below.
-POD_U = fillet([(-0.7, 1), (0.7, 1), (1, 0.64), (1, -0.55), (0.55, -1), (-0.55, -1), (-1, -0.55), (-1, 0.64)],
-               (0.4, 0.4, 0.5, 0.55, 0.5, 0.5, 0.55, 0.5), 3)
+# The hoop's centre line (the old model's): down each rail, 45 degrees in to a flat bottom, filleted.
+HOOP_PATH = [(-GX, 19.9), (-GX, 21.5), (-3.0, 24.5), (3.0, 24.5), (GX, 21.5), (GX, 19.9)]
+HOOP_R = [None, 2.0, 2.6, 2.6, 2.0, None]
+# Its girder section (u outward, z), u scaled by the local half width / GW.
+H_ROOF = [(-0.14, 0.95), (0.14, 0.95), (0.85, 0.06), (0.85, -0.1), (-0.85, -0.1), (-0.85, 0.06)]
+H_WEB = [(-0.36, -0.06), (0.36, -0.06), (0.36, -0.95), (-0.36, -0.95)]
+H_CHORD = [(-0.5, -0.89), (0.5, -0.89), (0.62, -1.03), (0.46, -1.25), (-0.46, -1.25), (-0.62, -1.03)]
+H_GUSSET = [(-0.78, -0.08), (0.78, -0.08), (0.56, -0.95), (-0.56, -0.95)]
+H_COLLAR = [(-0.2, 1.03), (0.2, 1.03), (0.93, 0.1), (0.93, -0.16), (-0.93, -0.16), (-0.93, 0.1)]
+H_BLOCK = [(-0.26, 1.03), (0.26, 1.03), (0.9, 0.22), (0.9, -0.3), (0.5, -1.29), (-0.5, -1.29), (-0.9, -0.3),
+           (-0.9, 0.22)]
+# The key under each cap joint: the roof's own section, 0.07 px inside it.
+H_KEY = [(-0.1, 0.88), (0.1, 0.88), (0.78, 0.03), (0.78, -0.07), (-0.78, -0.07), (-0.78, 0.03)]
+H_FERRULE = 0.78
 
-# Windshield: the sprite's own glass pixels (rows 13-15: column 11 on row 13, columns 9-11 on row
-# 14, column 9 on row 15; 163 and the dark 16), traced as a slanted, swept lens: their stepped
-# outline with only its corners eased (Chaikin, three tight passes), the glass pulled 0.12 px in and
-# its frame filling those 0.12 px, so glass and frame together are the five pixels (plan area 4.94
-# px, IoU 0.95 with them) and nothing reaches past them.
-WS_X, WS_Y = -1.0, 14.5
-WS_PIX = [(-0.5, 13.0), (0.5, 13.0), (0.5, 15.0), (-1.5, 15.0), (-1.5, 16.0), (-2.5, 16.0), (-2.5, 14.0),
-          (-0.5, 14.0)]
-WS_OFF = -0.12
-WS_FRAME = 0.12  # the frame's plan width, out to the glass pixels' edge
+# The pod: plan half width to the inner edge of the sprite's ink (a pointed ogive nose, tip at row
+# 12.45; 3 px on row 13, 5 px on rows 14-19, eased stern corners), and its elevation (free of the
+# sprite): tallest at row 16.5, a boat tail to the stern.
+PW = pchip([12.45, 12.7, 13.0, 13.5, 14.0, 14.5, 15.2, 19.0, 19.6, 20.0, 20.25],
+           [0.0, 0.5, 1.0, 1.62, 2.08, 2.34, 2.48, 2.48, 2.4, 2.26, 2.1])
+PZT = pchip([12.45, 13.0, 13.5, 14.0, 14.75, 15.6, 16.5, 17.5, 18.5, 19.4, 20.25],
+            [0.0, 0.62, 1.14, 1.6, 2.14, 2.54, 2.7, 2.62, 2.34, 1.95, 1.55])
+PZB = pchip([12.45, 13.0, 13.5, 14.0, 14.75, 15.6, 16.5, 18.0, 19.2, 20.25],
+            [0.0, -0.44, -0.84, -1.2, -1.66, -2.0, -2.1, -2.02, -1.7, -1.3])
+POD_Y0, POD_CAP, POD_Y1 = 12.45, 13.2, 20.25
+PLATE = 0.2    # the plates' height over the core
+PN, PE = 24, 0.9
+PA = [360 * (i + 0.5) / PN for i in range(PN)]
 
 
-def _chaikin(p, n, r=0.25):
-    for _ in range(n):
-        q = []
-        for i in range(len(p)):
-            (ax, ay), (bx, by) = p[i], p[(i + 1) % len(p)]
-            q += [(ax + (bx - ax) * r, ay + (by - ay) * r), (ax + (bx - ax) * (1 - r), ay + (by - ay) * (1 - r))]
-        p = q
-    return p
+def pzm(y):
+    return 0.15 * min(1.0, max(0.0, (y - POD_Y0) / 1.5))
 
 
-WS_BASE = _chaikin(WS_PIX, 3, 0.1)
-WS_N = len(WS_BASE)
+def pod_loop(y, grow=0.0):
+    """The pod's core section at row y: a superellipse (exponent 2 / PE), its own half height above
+    and below the waist; point i at parameter angle PA[i] from straight up toward +x."""
+    y = min(max(y, POD_Y0), POD_Y1)
+    zm = pzm(y)
+    W = max(PW(y) - PLATE + grow, 0.02)
+    ht = max(PZT(y) - zm - PLATE + grow, 0.02)
+    hb = max(zm - PZB(y) - PLATE + grow, 0.02)
+    pts = []
+    for a in PA:
+        s, c = math.sin(math.radians(a)), math.cos(math.radians(a))
+        pts.append((W * math.copysign(abs(s) ** PE, s), zm + (ht if c >= 0 else hb) * math.copysign(abs(c) ** PE, c)))
+    return pts, (0.0, zm)
 
-# The U-band's centre line: down each arm, 45 degrees in to a flat bottom (the sprite's diagonal
-# steps, rows 21-24), filleted; its half width keeps the sprite's 3 px across rows and columns.
-BAND_PATH = [(-GX, 19.35), (-GX, 21.5), (-3.0, 24.5), (3.0, 24.5), (GX, 21.5), (GX, 19.35)]
-BAND_R = [None, 2.0, 2.6, 2.6, 2.0, None]
-BAND_ZC, BAND_RZ, B_PLATE = -0.15, 0.68, 0.2
-BAND_U = unit_box(0.3, 0.36, 0.32, 2)
+
+def PS(a):
+    """Loop parameter of parameter angle a (degrees from straight up toward +x; may be negative)."""
+    return a / 360 * PN - 0.5
 
 
-# --- the U-band's path ------------------------------------------------------------------------
+def pod_pt(y, a, off=0.0):
+    return Section(pod_loop, y).at(PS(a), off)
 
-def _band_centre():
-    """Dense polyline of the filleted centre line (circular arcs), with arc length."""
-    P = BAND_PATH
-    pts = [P[0]]
-    for i in range(1, len(P) - 1):
-        p0, p1, p2 = Vector(P[i - 1]), Vector(P[i]), Vector(P[i + 1])
+
+# --- the hoop's path ----------------------------------------------------------------------------
+
+def _hoop_half():
+    """The filleted centre line's first half as exact pieces, each with its start arc length:
+    ('L', t0, len, p0, dir) lines and ('A', t0, len, centre, r, a0, da) arcs. The path is symmetric
+    about x = 0, so the second half is this one mirrored (hoop_frame)."""
+    P = [Vector(p) for p in HOOP_PATH]
+    pieces, cur, t0 = [], P[0], 0.0
+    for i in (1, 2):
+        p0, p1, p2 = P[i - 1], P[i], P[i + 1]
         d1, d2 = (p0 - p1).normalized(), (p2 - p1).normalized()
         ang = math.acos(max(-1, min(1, d1.dot(d2))))
-        r = BAND_R[i]
+        r = HOOP_R[i]
         t = r / math.tan(ang / 2)
         a, b = p1 + d1 * t, p1 + d2 * t
-        bis = (d1 + d2).normalized()
-        c = p1 + bis * (r / math.sin(ang / 2))
+        c = p1 + (d1 + d2).normalized() * (r / math.sin(ang / 2))
         a0 = math.atan2(a.y - c.y, a.x - c.x)
         a1 = math.atan2(b.y - c.y, b.x - c.x)
         da = (a1 - a0 + math.pi) % (2 * math.pi) - math.pi
-        prev = Vector(pts[-1])
-        for k in range(1, 7):  # straight run to the arc's start
-            pts.append(tuple(prev.lerp(a, k / 6)))
-        for k in range(1, 13):
-            th = a0 + da * k / 12
-            pts.append((c.x + r * math.cos(th), c.y + r * math.sin(th)))
-    prev, end = Vector(pts[-1]), Vector(P[-1])
-    for k in range(1, 7):
-        pts.append(tuple(prev.lerp(end, k / 6)))
-    L = [0.0]
-    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
-        L.append(L[-1] + math.hypot(x1 - x0, y1 - y0))
-    return pts, L
+        ln = (a - cur).length
+        pieces.append(("L", t0, ln, cur, (a - cur) / ln))
+        t0 += ln
+        pieces.append(("A", t0, abs(da) * r, c, r, a0, da))
+        t0 += abs(da) * r
+        cur = b
+    ln = -cur.x                                  # the flat bottom, to the centre line
+    pieces.append(("L", t0, ln, cur, Vector((1.0, 0.0))))
+    return pieces, t0 + ln
 
 
-BAND_PTS, BAND_L = _band_centre()
-BAND_T = BAND_L[-1]
+HOOP_HALF, _HOOP_MID = _hoop_half()
+HOOP_T = 2 * _HOOP_MID
+# Arc length at the middle of the port 45-degree run (the cap's corner joint; starboard: HOOP_T - it).
+HOOP_TC = HOOP_HALF[2][1] + HOOP_HALF[2][2] / 2
 
 
-def band_frame(t):
-    """Centre point, unit tangent and outward normal (away from the U's inside) at arc length t."""
-    import bisect
-    t = max(0.0, min(BAND_T, t))
-    i = min(len(BAND_L) - 2, max(0, bisect.bisect_right(BAND_L, t) - 1))
-    f = (t - BAND_L[i]) / max(1e-9, BAND_L[i + 1] - BAND_L[i])
-    (x0, y0), (x1, y1) = BAND_PTS[i], BAND_PTS[i + 1]
-    cx, cy = x0 + (x1 - x0) * f, y0 + (y1 - y0) * f
-    # Smoothed tangent: average the neighbouring segments.
-    j0, j1 = max(0, i - 1), min(len(BAND_PTS) - 1, i + 2)
-    tx, ty = BAND_PTS[j1][0] - BAND_PTS[j0][0], BAND_PTS[j1][1] - BAND_PTS[j0][1]
-    ln = math.hypot(tx, ty)
-    tx, ty = tx / ln, ty / ln
-    nx, ny = -ty, tx  # outward (the left arm, going down: -x; the bottom: +y)
-    return (cx, cy), (tx, ty), (nx, ny)
+def hoop_frame(t):
+    """Centre point, unit tangent and outward normal (away from the U's inside) at arc length t:
+    exact on the lines and the arcs, continuous, and the same to the bit on both sides (the second
+    half is the first one mirrored in x = 0)."""
+    t = max(0.0, min(HOOP_T, t))
+    if t > _HOOP_MID:
+        (cx, cy), (tx, ty), (nx, ny) = hoop_frame(HOOP_T - t)
+        return (-cx, cy), (tx, -ty), (-nx, ny)
+    pc = next((q for q in reversed(HOOP_HALF) if t >= q[1]), HOOP_HALF[0])
+    u = t - pc[1]
+    if pc[0] == "L":
+        p, d = pc[3] + pc[4] * u, pc[4]
+        tx, ty = d.x, d.y
+    else:
+        _, _, ln, c, r, a0, da = pc
+        th = a0 + da * u / ln
+        sg = 1.0 if da > 0 else -1.0
+        p = Vector((c.x + r * math.cos(th), c.y + r * math.sin(th)))
+        tx, ty = -sg * math.sin(th), sg * math.cos(th)
+    return (p.x, p.y), (tx, ty), (-ty, tx)
 
 
-def band_w(t):
-    """Half width: GW across a row or a column (the arms' width), less on the 45-degree runs."""
-    _, (tx, ty), _ = band_frame(t)
-    return GW * max(abs(tx), abs(ty))
+def _hoop_knots(step=0.45):
+    """Arc lengths where the hoop's lofts take a ring: the ends of every line and arc, and the arcs
+    cut into spans of `step` or less (a straight run needs none between its ends). Mirrored, so
+    both sides' facets are the same, and shared by cap, web and chord, so their facets line up."""
+    ks = set()
+    for pc in HOOP_HALF:
+        n = max(1, math.ceil(pc[2] / step)) if pc[0] == "A" else 1
+        for k in range(n + 1):
+            t = pc[1] + pc[2] * k / n
+            ks.update((round(t, 9), round(HOOP_T - t, 9)))
+    return sorted(ks)
 
 
-def band_warp(co):
-    (cx, cy), _, (nx, ny) = band_frame(co.y)
+HOOP_KNOTS = _hoop_knots()
+
+
+def hoop_q(t):
+    """Width scale: 1 across a row or a column (the rails' width), less on the 45-degree runs (the
+    old model's law: the sprite's 1 px steps)."""
+    _, (tx, ty), _ = hoop_frame(t)
+    return max(abs(tx), abs(ty))
+
+
+def hoop_warp(co):
+    (cx, cy), _, (nx, ny) = hoop_frame(co.y)
     return Vector((cx + nx * co.x, cy + ny * co.x, co.z))
+
+
+def hoop_t_at_x(x):
+    """Arc length where the flat bottom run crosses x."""
+    return _HOOP_MID + x
 
 
 # --- mesh building ----------------------------------------------------------------------------
@@ -354,294 +409,301 @@ def finish(part, mats, coll, warp=None):
     return obj
 
 
-# --- guns -------------------------------------------------------------------------------------
+# --- rails ------------------------------------------------------------------------------------
 
-GUN_BOX = unit_box(0.26, 0.3, 0.22, 2)
-GUN_RND = unit_circle(20)
-MUZ_U = unit_box(0.3, 0.32, 0.3, 2)
-MUZ_O = [(u / math.hypot(u, v), v / math.hypot(u, v)) for u, v in MUZ_U]  # a circle, vertex for vertex
-
-# Receiver core: top rises over its sloped front (row 13, the sprite's bright glacis) to a flat deck.
-_RTY = [12.3, 12.6, 13.0, 13.5, 13.9, 20.3]
-R_TOP = pchip(_RTY, [GZ * f for f in (0.73, 0.75, 0.82, 0.92, 0.96, 0.96)])
-R_BOT = -0.94 * GZ
+MUZ_U = unit_box(0.3, 0.32, 0.3, 1)
 
 
-def build_gun(P, D, sx):
+def even_circle(unit):
+    """A unit circle with one point per point of `unit`, evenly spaced and turned to line up with it
+    (the bore of a faceted block: round, with no twist in the face between them)."""
+    n = len(unit)
+    th = [math.atan2(u, v) for u, v in unit]
+    sx = sum(math.sin(t - 2 * math.pi * i / n) for i, t in enumerate(th))
+    cx = sum(math.cos(t - 2 * math.pi * i / n) for i, t in enumerate(th))
+    t0 = math.atan2(sx, cx)
+    return [(math.sin(t0 + 2 * math.pi * i / n), math.cos(t0 + 2 * math.pi * i / n)) for i in range(n)]
+
+
+MUZ_O = even_circle(MUZ_U)  # the bore: round in the brake's faceted face
+C16 = unit_circle(12)   # the barrels' round sections
+C14 = unit_circle(14)
+REC_U = unit_box(0.5, 0.375, 0.2, 1)
+REC_ZC, REC_H, REC_P = -0.1, 1.12, 0.14   # receiver: centre height, half height, plate height
+BR_A, BR_B = GW, 0.81                      # muzzle brake half width / half height
+RI, RO = 0.64, 0.85                        # barrel core / fin radius: the fins keep the old 1.7 px
+FINS = [11.08, 11.53, 11.98, 12.43]
+CHORD_Z = -1.1
+CHORD_U = [(-0.3, 0.13), (0.3, 0.13), (0.33, 0.0), (0.2, -0.13), (-0.2, -0.13), (-0.33, 0.0)]
+
+
+def build_rail(P, D, sx):
     cx = sx * GX
-    # Muzzle brake (rows 7-8): a rounded block with a bored front and one port (a gap round the
-    # barrel), its front edge chamfered.
-    A, B = GW, GZ
-    lathe(P, cx, 0.0, MUZ_U, [
+    A, B = BR_A, BR_B
+    # Muzzle brake (rows 7.4-8.8): a chamfered block, bored, two ports cut round it.
+    lathe(P, cx, BZ, MUZ_U, [
         (0.0, 0.0, 7.8, DEEP, "-y"),
-        (0.32, 0.32, 7.8, DEEP, "in", MUZ_O),
-        (0.32, 0.32, 7.0, GUN_F, "-y", MUZ_O),
-        (A - 0.2, B - 0.2, 7.0, GUN_F, "out"),
-        (A, B, 7.25, GUN_F, "out"),
-        (A, B, 7.45, GUN_F, "+y"),
-        (A - 0.24, B - 0.24, 7.45, GCORE, "out"),
-        (A - 0.24, B - 0.24, 7.66, GUN_F, "-y"),
-        (A, B, 7.66, GUN_F, "out"),
-        (A, B, 8.1, GUN_F, "+y"),
-        (0.0, 0.0, 8.1, GUN_F, "+y"),
+        (0.3, 0.3, 7.8, DEEP, "in", MUZ_O),
+        (0.3, 0.3, 7.4, BRAKE, "-y", MUZ_O),
+        (A - 0.16, B - 0.16, 7.4, BRAKE, "out"),
+        (A, B, 7.56, BRAKE, "out"),
+        (A, B, 7.82, BRAKE, "+y"),
+        (A - 0.22, B - 0.22, 7.82, GCORE, "out"),
+        (A - 0.22, B - 0.22, 7.98, BRAKE, "-y"),
+        (A, B, 7.98, BRAKE, "out"),
+        (A, B, 8.24, BRAKE, "+y"),
+        (A - 0.22, B - 0.22, 8.24, GCORE, "out"),
+        (A - 0.22, B - 0.22, 8.4, BRAKE, "-y"),
+        (A, B, 8.4, BRAKE, "out"),
+        (A, B, 8.68, BRAKE, "out"),
+        (A - 0.14, B - 0.14, 8.8, BRAKE, "+y"),
+        (0.0, 0.0, 8.8, BRAKE, "+y"),
     ], sx=sx)
-    # Cooling jacket (rows 8-12): a dark round core under four lengthwise plates (gaps on the
-    # diagonals) in two lengths, a raised band between them.
-    J = make_loop(GUN_RND, const(cx), const(0.0), const(GW - 0.19), const(GZ - 0.19), sx)
-    T.loft(P, J, frange(8.0, 12.9, 0.7), GCORE)
-    for y0, y1 in ((8.12, 10.05), (10.6, 12.62)):
-        for a, b in ((48, 132), (138, 222), (228, 312)):
-            plate(P, J, y0, y1, GUN_F, s0=ang_s(GUN_RND, a), s1=ang_s(GUN_RND, b), d=0.17, c=0.06, ystep=0.7)
-        # The top plate in three, two short vent slots across it.
-        n = 3
-        for k in range(n):
-            a = y0 + (y1 - y0) * k / n + (0.08 if k else 0)
-            b = y0 + (y1 - y0) * (k + 1) / n - (0.08 if k < n - 1 else 0)
-            plate(P, J, a, b, GUN_F, s0=ang_s(GUN_RND, -42), s1=ang_s(GUN_RND, 42), d=0.17, c=0.06, ystep=0.7)
-    plate(P, J, 10.15, 10.5, GUN_F, d=0.19, c=0.06, ystep=1)  # band ring
-    # Receiver (rows 12.6-20): core with a sloped front, a dark collar each end (rows 14 and 19),
-    # deck, flank and belly plates between; vent gaps in the outboard flank plates.
-    R = make_loop(GUN_BOX, const(cx), lambda y: (R_TOP(y) + R_BOT) / 2, const(GA), lambda y: (R_TOP(y) - R_BOT) / 2, sx)
-    T.loft(P, R, [12.45] + frange(12.6, 14.0, 0.35)[1:] + frange(14.0, 20.4, 0.8)[1:], GCORE)
+    # Barrel (rows 8.8-12.9): a round core under eight cooling fins in two groups, a clamp between.
+    J = make_loop(C16, const(cx), const(BZ), const(RO - 0.16), const(RO - 0.16), sx)
+    T.loft(P, J, [8.7, 9.65, 10.62], BCORE)
+    for a, b in ((34, 86), (94, 146), (154, 206), (-146, -94), (-86, -34)):
+        plate(P, J, 8.86, 10.5, BARREL, s0=ang_s(C16, a), s1=ang_s(C16, b), d=0.16, c=0.05, ystep=1.0)
+    for a, b in ((8.86, 9.62), (9.74, 10.5)):
+        plate(P, J, a, b, BARREL, s0=ang_s(C16, -26), s1=ang_s(C16, 26), d=0.16, c=0.05, ystep=1.0)
+    prof = [(0.0, 0.0, 10.9, BCORE, "-y"), (RI, RI, 10.9, BCORE, "out")]
+    for y0 in FINS:
+        prof += [(RI, RI, y0, BARREL, "-y"), (RO, RO, y0 + 0.04, BARREL, "out"), (RO, RO, y0 + 0.2, BARREL, "+y"),
+                 (RI, RI, y0 + 0.24, BCORE, "out")]
+    prof += [(RI, RI, 12.95, BCORE, "+y"), (0.0, 0.0, 12.95, BCORE, "+y")]
+    lathe(P, cx, BZ, C16, prof, sx=sx)
+    lathe(P, cx, BZ, MUZ_U, [
+        (0.0, 0.0, 10.58, BRAKE, "-y"),
+        (A - 0.1, A - 0.1, 10.58, BRAKE, "out"),
+        (A - 0.02, A - 0.02, 10.66, BRAKE, "out"),
+        (A - 0.02, A - 0.02, 10.88, BRAKE, "out"),
+        (A - 0.1, A - 0.1, 10.96, BRAKE, "+y"),
+        (0.0, 0.0, 10.96, BRAKE, "+y"),
+    ], sx=sx)
+    # Breech ring, neck, rear ring, rear neck: round, on the barrel's axis.
+    for y0, y1 in ((12.9, 13.95), (17.95, 18.95)):
+        ym = (y0 + y1) / 2
+        lathe(P, cx, BZ, C16, [
+            (0.0, 0.0, y0, RING, "-y"),
+            (0.82, 0.82, y0, RING, "out"),
+            (0.92, 0.92, y0 + 0.1, RING, "out"),
+            (0.92, 0.92, ym - 0.1, RING, "+y"),
+            (0.82, 0.82, ym - 0.06, GCORE, "out"),
+            (0.82, 0.82, ym + 0.06, RING, "-y"),
+            (0.92, 0.92, ym + 0.1, RING, "out"),
+            (0.92, 0.92, y1 - 0.1, RING, "out"),
+            (0.82, 0.82, y1, RING, "+y"),
+            (0.0, 0.0, y1, RING, "+y"),
+        ], sx=sx)
+    for y0, y1 in ((13.9, 14.95), (18.9, 20.0)):
+        lathe(P, cx, BZ, C16, [
+            (0.0, 0.0, y0, NECK, "-y"),
+            (0.75, 0.75, y0, NECK, "out"),
+            (0.75, 0.75, y1, NECK, "+y"),
+            (0.0, 0.0, y1, NECK, "+y"),
+        ], sx=sx)
+    # Receiver (rows 14.9-17.95): a dark core under deck, shoulder, flank and belly plates; vent
+    # gaps in the outboard flank; a notched sight rail on the deck.
+    R = make_loop(REC_U, const(cx), const(REC_ZC), const(GW - REC_P), const(REC_H - REC_P), sx)
+    T.loft(P, R, [14.9, 15.7, 16.4, 17.2, 17.95], GCORE)
 
-    def S(a, b, gap=0.0):
-        return dict(s0=ang_s(GUN_BOX, a) + gap, s1=ang_s(GUN_BOX, b) - gap)
-    plate(P, R, 12.66, 13.8, GUN_HI, **S(-58, 58), d=G_PLATE, c=0.08, ystep=0.35)  # glacis
-    for a, b in ((62, 128), (232, 298)):
-        plate(P, R, 12.66, 13.8, GUN_R, **S(a, b), d=G_PLATE, c=0.1, ystep=0.5)
-    for y0, y1 in ((13.92, 14.95), (19.0, 20.05)):
-        plate(P, R, y0, y1, COLLAR, d=0.23, c=0.09, ystep=0.5)
-    plate(P, R, 15.08, 18.87, GUN_R, **S(-58, 58), d=G_PLATE, c=0.1, ystep=0.6)
-    for y0, y1 in ((15.08, 16.0), (16.18, 16.62), (16.8, 17.24), (17.42, 18.87)):
-        plate(P, R, y0, y1, GUN_R, **S(62, 128), d=G_PLATE, c=0.08, ystep=0.6)
-    plate(P, R, 15.08, 18.87, GUN_R, **S(232, 298), d=G_PLATE, c=0.1, ystep=0.6)
-    plate(P, R, 15.08, 18.87, MAG, **S(132, 228), d=0.16, c=0.08, ystep=0.8)
-    # Top rail on the deck, with three cross notches.
-    top = R_TOP(16) + G_PLATE
-    for y0, y1 in ((15.35, 16.2), (16.35, 17.2), (17.35, 18.6)):
-        hull(D, cbox(cx - 0.36, cx + 0.36, y0, y1, top - 0.1, top + 0.24, 0.1), GUN_HI)
-    # Magazine under the receiver.
-    hull(D, cbox(cx - 0.6, cx + 0.6, 15.5, 18.2, R_BOT - 0.75, R_BOT + 0.1, 0.16), MAG)
-    hull(D, cbox(cx - 0.42, cx + 0.42, 15.8, 17.9, R_BOT - 0.86, R_BOT - 0.68, 0.06), GUN_R)
-    # Pivot hub on the inner flank (rows 15-17, column 6 of the sprite's inner mask), an oval slotted
-    # disc, and the pylon to the pod: one px wide in plan (row 16; column 7's rows 15 and 17 are ink).
-    xi = cx - sx * GW  # inner face
-    zc = 0.1
-    ring = [(math.cos(2 * math.pi * k / 16), math.sin(2 * math.pi * k / 16)) for k in range(16)]
-    pts = []
-    for dx, ry, rz in ((0.36, 1.3, 0.9), (0.2, 1.4, 1.0), (-0.3, 1.4, 1.0), (-0.42, 1.25, 0.86)):
-        pts += [(xi + sx * dx, 16.5 + ry * c, zc + rz * s) for c, s in ring]
-    hull(D, pts, HUB)
-    hull(D, [(xi + sx * x, y, z) for x, y, z in cbox(0.3, 0.42, 16.42, 16.58, zc - 0.62, zc + 0.62, 0.03)], DEEP)
-    pts = []
-    for x in (xi + sx * 0.2, 2.9 * sx):
-        pts += [(x, y, z) for y, z in ((15.8, zc - 0.25), (15.8, zc + 0.15), (15.95, zc + 0.35), (17.05, zc + 0.35),
-                                       (17.2, zc + 0.15), (17.2, zc - 0.25), (17.05, zc - 0.45), (15.95, zc - 0.45))]
-    hull(D, pts, STRUT)
-    # A lower brace under it to the pod's belly.
-    pts = []
-    for x, y, z in ((xi + sx * 0.1, 16.5, zc - 0.55), (2.3 * sx, 16.5, zc - 1.45)):
-        pts += [(x, y + dy, z + dz) for dy in (-0.3, 0.3) for dz in (-0.24, 0.24)]
-    hull(D, pts, STRUT)
+    def S(a, b):
+        return dict(s0=ang_s(REC_U, a), s1=ang_s(REC_U, b))
+    y0, y1 = 14.97, 17.88
+    plate(P, R, y0, y1, RECV, **S(-24, 24), d=REC_P, c=0.07, ystep=1.0)
+    for a, b in ((29, 55), (-55, -29), (-119, -61)):
+        plate(P, R, y0, y1, RECV, **S(a, b), d=REC_P, c=0.07, ystep=1.0)
+    for a, b in ((y0, 15.6), (15.72, 16.05), (16.17, 16.5), (16.62, 16.95), (17.07, y1)):
+        plate(P, R, a, b, RECV, **S(61, 119), d=REC_P, c=0.06, ystep=1.0)
+    plate(P, R, y0, y1, MAG, **S(125, 235), d=0.1, c=0.06, ystep=1.0)
+    top = REC_ZC + REC_H
+    for a, b in ((15.15, 15.9), (16.0, 16.75), (16.85, 17.7)):
+        hull(D, cbox(cx - 0.28, cx + 0.28, a, b, top - 0.08, top + 0.2, 0.07), SIGHT)
+    # Raked magazine under the receiver (underside: a plain closed box).
+    hull(D, [(cx + dx * k, y - d, z) for z, d, k in ((-1.15, 0.0, 1.0), (-1.72, 0.16, 1.0), (-1.84, 0.2, 0.7))
+             for dx in (-0.5, 0.5) for y in (15.45, 17.45)], MAG)
+    # Lower chord under the whole gun, rising to the brake, and the ladder web that hangs it from
+    # the barrel: the rail is a deep member on edge, and its chord runs on into the hoop's.
+    def chord(y, z, k=1.0):
+        return [(cx + u * k, y, z + v * k) for u, v in CHORD_U]
+    ring_loft(D, [chord(8.6, -0.52, 0.8), chord(9.45, CHORD_Z), chord(19.95, CHORD_Z)], SPAR)
+    for a in (9.5, 10.36, 11.22, 12.08, 12.94, 13.8, 18.1, 18.96):
+        hull(D, cbox(cx - 0.14, cx + 0.14, a, a + 0.42, CHORD_Z - 0.02, -0.34, 0.04), SPAR)
+    hull(D, cbox(cx - 0.24, cx + 0.24, 10.62, 10.92, CHORD_Z - 0.05, -0.4, 0.05), BRAKE)
+    # Yoke: a trunnion hub on the inner flank (column 6 / 16, rows 15-17), a lens-section pylon
+    # (row 16), a lower brace bar, a dark saddle on the pod's flank (columns 8 / 14).
+    hull(D, cyl_x(sx * 4.5, sx * 4.62, 16.5, -0.05, 1.25, 14, 0.86, 1.0) + cyl_x(sx * 4.62, sx * 5.25, 16.5, -0.05, 1.25, 14), HUB)
+    hull(D, cyl_x(sx * 4.4, sx * 4.52, 16.5, -0.05, 0.62, 12, 0.85, 1.0), BRACE)
+    hull(D, [(sx * x, y, -0.05 + z) for x, y, z in cbox(4.34, 4.46, 16.42, 16.58, -0.5, 0.5, 0.03)], DEEP)
+    hull(D, [(sx * x, y, z) for x in (3.3, 4.6) for y, z in ((15.75, 0.05), (16.12, 0.5), (16.88, 0.5), (17.25, 0.05),
+                                                             (16.88, -0.42), (16.12, -0.42))], PYLON)
+    hull(D, cyl_x(sx * 2.05, sx * 5.25, 16.5, -1.02, 0.2, 8), BRACE)
+    hull(D, [(sx * x, y, z) for x, y, z in cbox(2.2, 3.45, 15.15, 17.85, -0.62, 0.72, 0.2)], SADDLE)
+    hull(D, [(sx * x, y, z) for x, y, z in cbox(3.38, 3.52, 15.6, 17.4, -0.3, 0.42, 0.04)], BRACE)
+
+
+# --- hoop (built straight: x = across, outward +; y = arc length t; then bent) -------------------
+
+def hoop_seg(B, t0, t1, poly, mat, cham=0.05):
+    """A length of the hoop with section `poly` (u outward, z) from arc length t0 to t1, its ends
+    chamfered over `cham` (0: square ends), rings at the path's knots."""
+    def ring(t, ku=1.0, kz=1.0):
+        q = hoop_q(t)
+        zc = sum(z for _, z in poly) / len(poly)
+        return [(u * q * ku, t, zc + (z - zc) * kz) for u, z in poly]
+    a, b = t0 + cham, t1 - cham
+    ts = [a] + [k for k in HOOP_KNOTS if a + 0.04 < k < b - 0.04] + [b]
+    rings = [ring(t) for t in ts]
+    if cham > 0:
+        rings = [ring(t0, 0.9, 0.92)] + rings + [ring(t1, 0.9, 0.92)]
+    ring_loft(B, rings, mat)
+
+
+def build_hoop(B):
+    """Everything comes in mirrored pairs (a, b) and (HOOP_T - b, HOOP_T - a), so the two sides are
+    the same to the vertex."""
+    T_, fer, tc = HOOP_T, H_FERRULE, HOOP_TC
+    tL = [hoop_t_at_x(x) for x in (-1.5, -0.5, 0.5, 1.5)]
+
+    def both(a, b, poly, mat, **kw):
+        hoop_seg(B, a, b, poly, mat, **kw)
+        hoop_seg(B, T_ - b, T_ - a, poly, mat, **kw)
+    # The cap: two segments a side, meeting on the middle of the 45-degree run. A joint between two
+    # brass parts (ferrule to cap, cap to cap) is a modelled seam: chamfered ends 0.04 px apart over
+    # a dark key (the web's metal) that fills the cap's section there, so nothing shows through and
+    # the game's ink does not draw it as a break. Where the colour changes (cap to collar, collar to
+    # clamp) the chamfered ends butt: a closed V groove.
+    gap = 0.02
+    both(fer + gap, tc - gap, H_ROOF, HOOP)
+    both(tc + gap, tL[0], H_ROOF, HOOP)
+    for t in (fer, tc):
+        both(t - 0.14, t + 0.14, H_KEY, HOOP_WEB, cham=0)
+    hoop_seg(B, fer - 0.1, T_ - fer + 0.1, H_WEB, HOOP_WEB, cham=0.02)
+    hoop_seg(B, fer - 0.1, T_ - fer + 0.1, H_CHORD, HOOP_CHORD, cham=0.02)
+    # Gussets, placed from the centre line outward.
+    d = 1.9
+    while T_ / 2 - d > fer + 0.5:
+        for t in (T_ / 2 - d, T_ / 2 + d):
+            q = hoop_q(t)
+            hull(B, [(u * q, t + e, z) for u, z in H_GUSSET for e in (-0.08, 0.08)], HOOP_WEB)
+        d += 1.3
+    both(0.0, fer, H_BLOCK, HOOP)
+    both(tL[0], tL[1], H_COLLAR, HOOP_COLLAR)
+    hoop_seg(B, tL[1], tL[2], [(u * 0.97, z - 0.06 if z > 0 else z) for u, z in H_BLOCK], HOOP_CLAMP)
 
 
 # --- pod ----------------------------------------------------------------------------------------
 
-def pod_loop(y, grow=0.0):
-    return make_loop(POD_U, const(0.0), const(PZ), lambda y: max(0.02, PW(y) - P_PLATE),
-                     lambda y: max(0.02, PH(y) - P_PLATE))(y, grow)
+def build_pod(P, D, G):
+    ys = [POD_CAP, 13.5, 13.8, 14.1, 14.5, 14.9, 15.3, 15.7] + frange(16.2, 19.2, 0.6) + [19.6, 19.95, POD_Y1]
+    T.loft(P, pod_loop, ys, POD_CORE, cap0=True, cap1=False)
 
-
-def pod_top(x, y, off=P_PLATE):
-    """Height of the pod's plated upper surface at plan point (x, y)."""
-    sec = Section(pod_loop, y)
-    pts = [(px + nx * off, pz + nz * off) for (px, pz), (nx, nz) in zip(sec.pts, sec.vn)]
-    best = None
-    for (x0, z0), (x1, z1) in zip(pts, pts[1:] + pts[:1]):
-        if (x0 - x) * (x1 - x) <= 0 and abs(x1 - x0) > 1e-9:
-            z = z0 + (z1 - z0) * (x - x0) / (x1 - x0)
-            best = z if best is None else max(best, z)
-    return best if best is not None else PZ
-
-
-def build_pod(P, D):
-    ys = [POD_Y0, 12.65, 12.72, 12.8, 12.9, 13.05, 13.25, 13.5, 13.8, 14.2, 14.6] + frange(15.0, POD_Y1, 0.7)
-    T.loft(P, pod_loop, ys, POD_CORE, cap1=False)
-
-    def S(a, b, gap=0.0):
-        return dict(s0=ang_s(POD_U, a) + gap, s1=ang_s(POD_U, b) - gap)
-    # Nose cowl: four armour petals over the blunt nose, gaps on the diagonals.
-    for a, b in ((-43, 43), (47, 133), (137, 223), (227, 313)):
-        plate(P, pod_loop, 13.05, 14.6, POD, **S(a, b), d=0.26, c=0.1, ystep=0.3)
-    # Their tip: a nose cap over the petals' front edges.
-    pts = [(0.0, POD_Y0 - 0.01, PZ)]
-    for y, off in ((12.65, 0.06), (12.72, 0.1), (12.8, 0.13), (12.9, 0.16), (13.05, 0.2)):
+    def PP(y0, y1, a0, a1, mat, d=PLATE, c=0.07, ystep=0.8, part=P, depth=0.12):
+        plate(part, pod_loop, y0, y1, mat, s0=PS(a0), s1=PS(a1), d=d, c=c, depth=depth, ystep=ystep)
+    # Nose cone: a pointed brass ogive, tip on the axis (rows 12.45-13.2).
+    rings = []
+    for y, off in ((12.5, 0.08), (12.6, 0.12), (12.75, 0.16), (12.95, 0.19), (POD_CAP + 0.02, 0.2)):
         sec = Section(pod_loop, y)
-        pts += [sec.at(k, off) for k in range(sec.n)]
-    hull(P, pts, POD_SPINE)
-    # Body: a raised spine strip down the top (the sprite's centre columns), plates either side with
-    # lengthwise seams (the dark one right of the spine is the sprite's column 12), flanks, belly.
-    plate(P, pod_loop, 14.75, 19.62, POD_SPINE, **S(-21, 21), d=0.42, c=0.14, ystep=0.7)
-    for a, b, mat in ((25, 64, POD), (68, 118, POD), (122, 160, POD_DK)):
-        plate(P, pod_loop, 14.75, 19.62, mat, **S(a, b), d=P_PLATE, c=0.12, ystep=0.7)
-        plate(P, pod_loop, 14.75, 19.62, mat, **S(-b, -a), d=P_PLATE, c=0.12, ystep=0.7)
-    plate(P, pod_loop, 14.75, 19.62, POD_DK, **S(164, 196), d=0.24, c=0.1, ystep=0.8)
-    # Raised access hatches on the top plates, behind the windshield.
-    for a, b in ((31, 58), (-58, -31)):
-        plate(P, pod_loop, 16.6, 18.9, POD, **S(a, b), d=P_PLATE + 0.14, c=0.08, ystep=0.8)
-    # Tail collar, a ring all round.
-    plate(P, pod_loop, 19.76, POD_Y1 + 0.03, POD_DK, d=0.3, c=0.12, ystep=0.4)
-    # Aft bulkhead: a chamfered ring from the core's end in to the nozzle's collar.
-    rx, rz = PW(POD_Y1) - P_PLATE, PH(POD_Y1) - P_PLATE
-    hole = [(u / math.hypot(u, v), v / math.hypot(u, v)) for u, v in POD_U]
-    lathe(P, 0.0, PZ, POD_U, [
-        (rx, rz, POD_Y1 - 0.02, POD_DK, "+y"),
-        (rx * 0.9, rz * 0.9, POD_Y1 + 0.02, POD_DK, "+y"),
-        (rx * 0.86, rz * 0.86, POD_Y1 + 0.02, POD_DK, "+y"),
-        (1.5, 1.5, POD_Y1 + 0.02, POD_DK, "in", hole),
-        (1.5, 1.5, POD_Y1 - 0.5, POD_DK, "in", hole),
-    ])
-    # Nozzle: collar, bell, a deep glowing throat, sunk into the tail (row 20 is the sprite's ink).
-    NZ = PZ
-    C = unit_circle(20)
-    lathe(D, 0.0, NZ, C, [
-        (1.45, 1.45, POD_Y1 - 0.5, GCORE, "out"),
-        (1.45, 1.45, POD_Y1 + 0.04, GCORE, "+y"),
-        (1.12, 1.12, POD_Y1 + 0.04, GCORE, "in"),
-        (0.95, 0.95, POD_Y1 - 0.35, GLOW, "in"),
-        (0.72, 0.72, POD_Y1 - 0.75, CORE, "+y"),
-        (0.0, 0.0, POD_Y1 - 0.75, CORE, "+y"),
-    ])
-    # Pylon saddles on the flanks (rows 15-17, the sprite's columns 8 and 14): dark clamps the
-    # pylons run into, chamfered, the pod's top left clear.
-    for sx in (-1, 1):
-        hull(D, [(sx * x, y, z) for x, y, z in cbox(2.05, 3.25, 15.1, 17.9, PZ - 1.15, PZ + 0.85, 0.22)], GCORE)
-        hull(D, [(sx * x, y, z) for x, y, z in cbox(3.15, 3.3, 15.6, 17.4, PZ - 0.65, PZ + 0.45, 0.04)], COLLAR)
-    # Underneath: a keel, an intake under the nose, a gear door.
-    pts = []
-    for y in (13.4, 14.4, 18.6, 19.8):
-        b = PZ - PH(y) + 0.1
-        drop = 0.4 if 14.0 < y < 19.0 else 0.05
-        pts += [(sx * x, y, z) for sx in (-1, 1) for x, z in ((0.45, b + 0.3), (0.32, b - drop), (0.14, b - drop - 0.08))]
-    hull(D, pts, GCORE)
-    for sx in (-1, 1):
-        hull(D, cbox(sx * 1.0 - 0.55, sx * 1.0 + 0.55, 13.6, 15.4, PZ - PH(14.5) - 0.1, PZ - PH(14.5) + 0.7, 0.18), POD_DK)
-        hull(D, cbox(sx * 1.0 - 0.38, sx * 1.0 + 0.38, 13.55, 13.75, PZ - PH(14.5) + 0.0, PZ - PH(14.5) + 0.55, 0.04), DEEP)
-    # Small orange thruster ports in the tail collar's flanks (the concept's glows).
-    for sx in (-1, 1):
-        x = sx * (PW(19.8) + 0.02)
-        hull(D, [(x - sx * dx, y, z) for dx, y, z in cbox(0.0, 0.2, 19.55, 20.05, PZ - 0.25, PZ + 0.25, 0.05)], GLOW)
-
-
-def ws_outline(grow=0.0):
-    """The windshield's edge in plan: the glass pixels' rounded outline (WS_BASE) moved out by
-    WS_OFF + grow along its vertex normals."""
-    p, n, d = WS_BASE, WS_N, WS_OFF + grow
-    area = sum(p[i][0] * p[(i + 1) % n][1] - p[(i + 1) % n][0] * p[i][1] for i in range(n))
-    sg = 1 if area > 0 else -1
-    out = []
-    for i in range(n):
-        (ax, ay), (bx, by), (cx, cy) = p[i - 1], p[i], p[(i + 1) % n]
-        n1 = (sg * (by - ay), -sg * (bx - ax))
-        n2 = (sg * (cy - by), -sg * (cx - bx))
-        l1, l2 = math.hypot(*n1), math.hypot(*n2)
-        n1, n2 = (n1[0] / l1, n1[1] / l1), (n2[0] / l2, n2[1] / l2)
-        nx, ny = n1[0] + n2[0], n1[1] + n2[1]
-        ln = math.hypot(nx, ny)
-        cs = max(0.35, (n1[0] * n2[0] + n1[1] * n2[1] + 1) / 2) ** 0.5
-        out.append((bx + nx / ln * d / cs, by + ny / ln * d / cs))
-    return out
-
-
-def build_windshield(G, F):
-    C = ws_outline()
-    cx, cy = WS_X, WS_Y
-    base, h = 0.16, 0.32
-    K = 7
+        rings.append([sec.at(k, off) for k in range(sec.n)])
+    sec = Section(pod_loop, POD_CAP + 0.02)
+    rings.append([sec.at(k, -0.05) for k in range(sec.n)])
+    tip = P.v((0.0, POD_Y0, 0.0))
+    vs = [[P.v(p) for p in r] for r in rings]
+    for i in range(PN):
+        j = (i + 1) % PN
+        P.f((tip, vs[0][i], vs[0][j]), POD_NOSE, away=(0, 12.7, 0))
+        for k in range(len(vs) - 1):
+            P.f((vs[k][i], vs[k][j], vs[k + 1][j], vs[k + 1][i]), POD_NOSE,
+                **(dict(out=(0, 1, 0)) if k == len(vs) - 2 else dict(away=(0, rings[k][0][1], pzm(rings[k][0][1])))))
+    # Windshield (rows 13.3-15.1): three panes set in under brass sills and mullions, cheeks below
+    # them, a sill behind. One faint ring seam (RING) parts the nose from the body.
+    GA, MA, FH, RING = 58, 17, 101.0, 15.44
+    PP(13.3, 15.1, -MA + 2, MA - 2, GLASS, d=0.09, c=0.04, ystep=0.3, part=G)
+    for s in (-1, 1):
+        a0, a1 = sorted((s * (MA + 2.5), s * GA))
+        PP(13.64, 15.1, a0, a1, GLASS, d=0.09, c=0.04, ystep=0.3, part=G)
+        a0, a1 = sorted((s * (MA + 2), s * (GA + 6)))
+        PP(13.5, 13.64, a0, a1, FRAME, d=0.2, c=0.05)                       # side pane's front sill
+        PP(13.28, 13.48, a0, a1, POD_NOSE, d=0.2, c=0.06)                   # nose shoulder
+        a0, a1 = sorted((s * (MA - 1.5), s * (MA + 2)))
+        PP(13.3, 15.14, a0, a1, FRAME, d=0.2, c=0.05, ystep=0.3)            # mullion
+        a0, a1 = sorted((s * (GA + 0.5), s * (GA + 6)))
+        PP(13.3, 15.14, a0, a1, FRAME, d=0.2, c=0.05, ystep=0.3)            # side sill
+        a0, a1 = sorted((s * (GA + 8), s * FH))
+        PP(13.28, RING - 0.04, a0, a1, POD, ystep=0.3)                      # cheek
+    PP(13.16, 13.32, -MA - 2, MA + 2, FRAME, d=0.21, c=0.05)                # front sill
+    PP(15.16, RING - 0.04, -GA - 6, GA + 6, FRAME, d=PLATE, c=0.06)         # rear sill
+    # Body (rows 15.5-19.9): lengthwise plates only, no hoops round it (it is a gondola, not a keg).
+    # The raised dorsal spine; one broad smooth port shoulder from the spine to the flank seam (the
+    # sprite's pale column 10 is its sheen); to starboard the service trench between spine and
+    # shoulder (the core's dark metal: the sprite's column 12) with a conduit in it; a flank plate
+    # each side below a lengthwise seam, with a raised access panel; a plain belly.
+    SA, TR0, TR1, FL = 11.5, 13.0, 31.0, 62.0
+    y0, y1 = RING + 0.04, 19.9
+    PP(y0, y1, -SA, SA, POD_SPINE, d=PLATE + 0.12, c=0.1)
+    PP(y0, y1, -FL + 1.5, -SA - 2, POD)
+    PP(y0, y1, TR1 + 1, FL - 1.5, POD)
+    for s in (-1, 1):
+        a0, a1 = sorted((s * (FL + 1.5), s * FH))
+        PP(y0, y1, a0, a1, POD)
+        # The panel's skirt stops just inside the plate under it (a skirt down to the core would be
+        # nearly all hidden, and cull_hidden would take it whole, leaving a see-through slit).
+        a0, a1 = sorted((s * (FL + 7), s * (FH - 6)))
+        PP(16.5, 18.6, a0, a1, POD, d=PLATE + 0.06, c=0.04, depth=-(PLATE - 0.05))
+    PP(13.28, y1, FH + 3, 360 - FH - 3, POD_BELLY, ystep=1.3)
+    # The conduit in the trench, three clips: the trench's own dark metal (shape, not paint).
+    ca = (TR0 + TR1) / 2
     rings = []
-    for k in range(K + 1):
-        r = 1 - k / K * 0.96
-        ring = []
-        for x, y in C:
-            px, py = cx + (x - cx) * r, cy + (y - cy) * r
-            ring.append(G.v((px, py, pod_top(px, py) + base + h * (1 - r ** 2.4) ** 0.5)))
-        rings.append(ring)
-    for r0, r1 in zip(rings, rings[1:]):
-        for i in range(WS_N):
-            j = (i + 1) % WS_N
-            G.f((r0[i], r0[j], r1[j], r1[i]), GLASS, out=(0, 0, 1))
-    G.f(rings[-1], GLASS, out=(0, 0, 1))
-    low = [G.v((x, y, pod_top(x, y) - 0.25)) for x, y in C]
-    for i in range(WS_N):
-        j = (i + 1) % WS_N
-        G.f((low[i], low[j], rings[0][j], rings[0][i]), GLASS, out=(C[i][0] - cx, C[i][1] - cy, 0))
-    # Frame: a sill from the glass edge out over the plates, flat top, chamfered outer edge.
-    inner, top_out, ch_out = ws_outline(0.0), ws_outline(WS_FRAME * 0.6), ws_outline(WS_FRAME)
-    rings = []
-    for k in range(WS_N):
-        (xi, yi), (xo, yo), (xc, yc) = inner[k], top_out[k], ch_out[k]
-        zt = max(pod_top(xi, yi), pod_top(xo, yo)) + base + 0.1
-        rings.append([F.v((xi, yi, pod_top(xi, yi) - 0.2)), F.v((xi, yi, zt)), F.v((xo, yo, zt)),
-                      F.v((xc, yc, zt - 0.12)), F.v((xc, yc, pod_top(xc, yc) - 0.3))])
-    for k in range(WS_N):
-        j = (k + 1) % WS_N
-        ox, oy = top_out[k][0] - cx, top_out[k][1] - cy
-        for i in range(4):
-            out = [(-ox, -oy, 0), (0, 0, 1), (ox * 0.5, oy * 0.5, 1), (ox, oy, 0)][i]
-            F.f((rings[k][i], rings[j][i], rings[j][i + 1], rings[k][i + 1]), FRAME, out=out)
+    for y in frange(y0 + 0.2, 19.9, 0.6):
+        x, _, z = pod_pt(y, ca, 0.1)
+        rings.append([(x + dx, y, z + dz) for dx, dz in ((-0.1, 0.0), (0.0, 0.1), (0.1, 0.0), (0.0, -0.1))])
+    ring_loft(D, rings, POD_CORE)
+    for y in (16.6, 17.6, 18.6):
+        x, _, z = pod_pt(y, ca, 0.1)
+        hull(D, cbox(x - 0.17, x + 0.17, y - 0.07, y + 0.07, z - 0.12, z + 0.13, 0.04), POD_CORE)
+    # Tail collar: the plates' end ring, no prouder than they are.
+    plate(P, pod_loop, 19.98, POD_Y1 + 0.02, POD_TAIL, d=PLATE + 0.02, c=0.07, depth=0.12, ystep=0.3)
+    # Stern: a closed bulkhead, a steel nozzle with a centre plug, a vernier each side. Unlit.
+    pts, _ = pod_loop(POD_Y1)
+    z0 = (max(z for _, z in pts) + min(z for _, z in pts)) / 2
+    SU = [(x, z - z0) for x, z in pts]
 
-
-# --- U-band (built straight: x = across, outward +; y = arc length t; then bent) -----------------
-
-def band_loop(t, grow=0.0):
-    w = band_w(t) - B_PLATE
-    return [(w * u + grow * u, BAND_ZC + (BAND_RZ + grow) * v) for u, v in BAND_U], (0.0, BAND_ZC)
-
-
-def build_band(B):
-    T.loft(B, band_loop, frange(0.0, BAND_T, 0.45), BAND_RIM)
-    tm = BAND_T / 2
-    # The diagonal runs' middles: the plates are split there and at the bottom centre (the sprite's
-    # dark seam pixel, row 24 column 11).
-    td = [BAND_L[i] for i, (x, y) in enumerate(BAND_PTS) if abs(abs(x) - 4.5) < 0.6 and 22.5 < y < 23.6]
-    t1 = sum(t for t in td if t < tm) / max(1, len([t for t in td if t < tm]))
-    cuts = [0.15, t1, tm, BAND_T - t1, BAND_T - 0.15]
-
-    def S(a, b):
-        return dict(s0=ang_s(BAND_U, a), s1=ang_s(BAND_U, b))
-    for k in range(4):
-        y0 = cuts[k] + (0.0 if k == 0 else 0.09)
-        y1 = cuts[k + 1] - (0.0 if k == 3 else 0.09)
-        plate(B, band_loop, y0, y1, BAND, **S(-62, 62), d=B_PLATE, c=0.12, ystep=0.42, ch0=k > 0, ch1=k < 3)
-        plate(B, band_loop, y0, y1, BAND, **S(66, 128), d=B_PLATE, c=0.1, ystep=0.42, ch0=k > 0, ch1=k < 3)
-    # The seam plate at the bottom centre: a darker clamp across the band.
-    plate(B, band_loop, tm - 0.3, tm + 0.3, BAND_DK, **S(-66, 128), d=B_PLATE + 0.06, c=0.08, ystep=0.3)
-    for t in (t1, BAND_T - t1):  # and thinner clamps over the other two seams
-        plate(B, band_loop, t - 0.2, t + 0.2, BAND_DK, **S(-66, 128), d=B_PLATE + 0.04, c=0.07, ystep=0.4)
-    # Belly and the dark inner rim, continuous.
-    plate(B, band_loop, 0.2, BAND_T - 0.2, BAND_DK, **S(132, 228), d=0.18, c=0.08, ystep=0.5)
-    plate(B, band_loop, 0.2, BAND_T - 0.2, BAND_RIM, **S(232, 296), d=0.16, c=0.06, ystep=0.5)
-    # Ribs under the band.
-    for t in frange(1.4, BAND_T - 1.4, 1.25):
-        w = band_w(t) - 0.35
-        hull(B, cbox(-w, w, t - 0.16, t + 0.16, BAND_ZC - BAND_RZ - 0.45, BAND_ZC - BAND_RZ + 0.1, 0.06), GCORE)
+    def circ(r):
+        return [(r * math.sin(math.radians(a)), r * math.cos(math.radians(a))) for a in PA]
+    yb = POD_Y1
+    lathe(P, 0.0, z0, SU, [
+        (1.0, 1.0, yb, POD_BELLY, "+y"),
+        (0.93, 0.93, yb + 0.05, POD_BELLY, "+y"),
+        (1.0, 1.0, yb + 0.05, NOZZLE, "out", circ(1.1)),
+        (1.0, 1.0, yb + 0.1, NOZZLE, "+y", circ(1.1)),
+        (1.0, 1.0, yb + 0.1, NOZZLE, "out", circ(0.98)),
+        (1.0, 1.0, yb + 0.17, NOZZLE, "+y", circ(0.98)),
+        (1.0, 1.0, yb + 0.17, NOZZLE, "in", circ(0.82)),
+        (1.0, 1.0, yb - 0.4, THROAT, "+y", circ(0.68)),
+        (1.0, 1.0, yb - 0.4, NOZZLE, "out", circ(0.34)),
+        (0.0, 0.0, yb + 0.05, NOZZLE, "out"),
+    ])
+    # Louvre slats on the bulkhead either side of the nozzle.
+    for sx in (-1, 1):
+        for dz in (-0.3, 0.0, 0.3):
+            hull(D, [(sx * x, y, z0 + dz + z) for x, y, z in cbox(1.22, 1.72, yb + 0.02, yb + 0.12, -0.07, 0.07, 0.03)],
+                 POD_TAIL)
+    return z0
 
 
 # --- assembly -------------------------------------------------------------------------------------
 
 def build(coll, mats):
-    P = Part("uship_guns", smooth_angle=34)
+    P = Part("uship_rails", smooth_angle=34)
     D = Part("uship_details", smooth_angle=35)
     for sx in (-1, 1):
-        build_gun(P, D, sx)
+        build_rail(P, D, sx)
     Q = Part("uship_pod", smooth_angle=34)
-    build_pod(Q, D)
-    G = Part("uship_glass", smooth_angle=60)
-    F = Part("uship_frame", smooth_angle=30)
-    build_windshield(G, F)
-    B = Part("uship_band", smooth_angle=34)
-    build_band(B)
-    objs = [finish(p, mats, coll) for p in (P, D, Q, G, F)] + [finish(B, mats, coll, warp=band_warp)]
+    G = Part("uship_glass", smooth_angle=50)
+    build_pod(Q, D, G)
+    B = Part("uship_hoop", smooth_angle=34)
+    build_hoop(B)
+    objs = [finish(p, mats, coll) for p in (P, D, Q, G)] + [finish(B, mats, coll, warp=hoop_warp)]
     for o in objs:
         print("u-ship part", o.name, sum(len(q.vertices) - 2 for q in o.data.polygons))
     return objs
@@ -649,7 +711,7 @@ def build(coll, mats):
 
 # --- texture: baked occlusion and edge wear (no concept projection) ------------------------------
 
-TEXTURED = tuple(i for i in range(20) if i not in (GLASS, GLOW, CORE))
+TEXTURED = tuple(i for i in range(NSLOT) if i != GLASS)
 
 
 def bake_maps(obj, out_dir, size=1024, samples=96):
@@ -803,8 +865,13 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
         nt.links.new(sep.outputs[2], bsdf.inputs["Metallic"])
 
 
-# The game's roll at bank steps 1 and 2, degrees (spriteModels bank.roll, D93).
+
+# The game's pose for the banking frames: degrees of roll at half and full bank (D93), fitted to sprites
+# 267-275 with tools/bank_roll.py. With the game's own shift (src/render/bankShift.ts) the frames
+# measure 0.879 / 0.858 (half) and 0.765 / 0.758 (full) against bars of 0.80 / 0.70 (--fit would take
+# 57.5 at full bank with a -3.5 px shift on frame 267 for 0.818 / 0.803; not needed to pass).
 BANK_ROLL = [40, 55]
+ENGINE_AT = (0.0, 20.65, 0.1)   # sprite px: just behind the nozzle (the menus' engine glow, src/ui/backdrop.ts)
 
 
 def main():
@@ -816,13 +883,15 @@ def main():
     mats = materials(sprite)
     objs = build(coll, mats)
     obj = T.join(objs, NAME)
-    T.cull_hidden(obj)
+    # More directions than the Talon's 48: this ship's seams are narrow (0.06-0.15 px), and a core face
+    # seen only through one is missed by a coarse fan and culled, which leaves a see-through slit.
+    T.cull_hidden(obj, ndirs=192)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"u-ship: {len(obj.data.polygons)} faces, {tris} triangles")
-    # The menu backdrop's engine glow (src/ui/backdrop.ts): just behind the nozzle, glTF axes
-    # (x, y up, z aft), orange (palette 121).
-    obj["tyrian_engines"] = {"color": "#ff8a2a", "at": [[round(-0.5 * PX, 4), round((PZ - 0.1) * PX, 4),
-                                                         round((POD_Y1 + 0.4 - 14) * PX, 4)]]}
+    # The menu backdrop's engine glow: glTF axes (x, y up, z aft), orange (palette 121).
+    ex, ey, ez = ENGINE_AT
+    obj["tyrian_engines"] = {"color": "#ff8a2a", "at": [[round((ex - 0.5) * PX, 4), round(ez * PX, 4),
+                                                         round((ey - 14) * PX, 4)]]}
     fmt = "AUTO"
     if "--no-bake" not in argv:
         bake_maps(obj, tempfile.mkdtemp(prefix="uship_bake_"))
