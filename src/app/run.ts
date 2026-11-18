@@ -36,7 +36,7 @@ import { playAttractDemo } from "./attractDemo"; // [demos]
 import { TITLE_IDLE_MS } from "./idle"; // [demos]
 import { hasDemos, setNextDemo } from "../sim/demo"; // [demos]
 // port-story: the screens between levels and the level fades.
-import { BLACK, levelFade } from "./fade";
+import { BLACK, fadeInLevel, levelFade } from "./fade";
 import { closeStoryScreens, playStoryScreens } from "./storyScreens";
 import { showTrentWin } from "./arcade"; // [arcade]
 import { takeStorySteps } from "../sim/story";
@@ -270,9 +270,9 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       if (compare) compare.visible = true;
 
       // port-story: JE_main's fade_palette(colors, 50) (tyrian2.c L716). The C fades in before the
-      // first frame; here the level starts under the fade.
-      levelFade().set(1, BLACK);
-      void levelFade().fade(0, 50, BLACK);
+      // first frame; here the level starts under the fade, which leaves the playfield to the sim's
+      // own levelBrightness fade-in (D254).
+      void fadeInLevel(view.playfieldCornersOnWindow());
 
       controls.active = true;
       pauseButton.visible = true; // ui-framework

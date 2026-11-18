@@ -28,7 +28,7 @@ import * as THREE from "three";
 import { VFX_LAYER } from "./vfxMode";
 import { CLASSIC_TICK_HZ } from "../../core/timing";
 import { PX_PER_UNIT, screenWorldX, screenWorldZ } from "../../game/playfield";
-import { Pass, sparkColor, type Draw, type SparkPixel, type SpriteDraw, type TableSpriteDraw } from "../../sim/draw";
+import { Pass, type Draw, type SparkPixel, type SpriteDraw, type TableSpriteDraw } from "../../sim/draw";
 import type { PaletteTexture } from "../paletteTexture";
 import { passHeight } from "../passHeights";
 import type { SpriteMeshCache } from "../spriteMesh";
@@ -109,10 +109,9 @@ const SHIELD_RY = 11;
 /** Its intensity and size over the hit's three frames: it grows as the arcs do. */
 const SHIELD_FADE = [1, 0.8, 0.5];
 const SHIELD_GROW = [0.84, 0.94, 1.04];
-/** A spark's glow radius (screen px, its plus is three across), streak (of its last tick's flight) and gain. */
-const SPARK_RADIUS = 1.6;
-const SPARK_STREAK = 0.6;
-const SPARK_GAIN = 1.1;
+/** A spark's glow round its plus (D252): radius (screen px, the plus is three across) and gain on the plus's colour. */
+const SPARK_RADIUS = 2.5;
+const SPARK_GAIN = 0.35;
 /** A hit spark's flash alpha (D247; D169's was 0.5 in a fixed orange, over its streaks and puff). */
 const HIT_FLASH = 0.45;
 /** Bubbles one frame can draw (a hit a tick for three ticks, for two players, with room to spare). */
@@ -420,21 +419,19 @@ export class RemasteredFx {
   }
 
   /**
-   * A spark (JE_drawSP's superpixel, D147), its centre pixel at screen (x, y): a small additive
-   * glow drawn out back along its flight into a short streak, in its hue at the brightness the C's
-   * plus has over a bright screen, white-hot when new, fading with its life (z, 15 ticks). Stands
-   * for the whole five-pixel plus.
+   * A spark (JE_drawSP's superpixel, D147), its centre pixel at screen (x, y), drawn by the renderer
+   * as the C's plus in `index` (the colour the C wrote there, its screen mixed in): a soft glow of
+   * that colour round the plus's centre, fading with its life (z, 15 ticks). D252: it was the glow
+   * alone, at the colour over a bright screen, lifted to white and drawn out along its flight, so the
+   * red pluses read as white or pale-yellow dots.
    */
-  spark(x: number, y: number, pass: Pass, sp: SparkPixel): void {
+  spark(x: number, y: number, pass: Pass, sp: SparkPixel, index: number): void {
     const h = passHeight(pass);
     const s = (1 - h / this.cam.y) / PX_PER_UNIT;
     const life = sp.z / 15;
-    const c = this.palette.color(sparkColor(sp, 0x0f), this.colour);
-    const hot = 0.3 * life;
+    const c = this.palette.color(index, this.colour);
     const cx = x + 0.5, cy = y + 0.5;
-    const tail = SPARK_STREAK * Math.min(1, 6 / Math.max(1, Math.hypot(sp.dx, sp.dy)));
-    this.glow(this.glows, cx, cy, cx - sp.dx * tail, cy - sp.dy * tail, h, SPARK_RADIUS * (0.7 + 0.3 * life) * s,
-      mix(c.r, 1, hot) * SPARK_GAIN, mix(c.g, 1, hot) * SPARK_GAIN, mix(c.b, 1, hot) * SPARK_GAIN,
+    this.glow(this.glows, cx, cy, cx, cy, h, SPARK_RADIUS * s, c.r * SPARK_GAIN, c.g * SPARK_GAIN, c.b * SPARK_GAIN,
       0.3 + 0.7 * life, 0, GlowShape.Glow, 0);
   }
 
@@ -533,11 +530,11 @@ export class RemasteredFx {
         break;
       case Birth.Fireball: {
         // Small fireballs also mark every hit on a big enemy, many a second under a laser, so
-        // they're kept light: debris and smoke only now and then.
-        const flare = Math.sqrt(share);
-        this.flash(sx, sy, h, 5, 11, 0.14, r, g, b, 0.32 * flare);
-        this.sparks(sx, sy, h, crowdCount(3 * share * share), 80, 170, 0.14, 0.28, r, g, b);
-        this.embers(sx, sy, h, crowdCount(share), r, g, b);
+        // they're kept light: debris and smoke only now and then. No flash, spark streaks or embers
+        // (D253): the C's small fireball is a still red puff. The streaks (white where they cross),
+        // the embers' white-hot cores and the flash (its sprite's pale first-frame colour, white at
+        // its core, left where the fireball started while the fireball moves on with its enemy) read
+        // as little white stars and dots beside it (APPROACH t300).
         if (Math.random() < 0.3 * share) this.debris(sx, sy, h, 1, 1.0);
         if (Math.random() < 0.3 * share) this.smoke(sx, sy, h, 1, 3, 8);
         this.light(sx, sy, 2, 0.2, r, g, b);

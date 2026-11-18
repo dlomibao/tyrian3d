@@ -437,6 +437,12 @@ export class View {
     return this.corners;
   }
 
+  /** playfieldCorners from the window's top left instead of the canvas's. */
+  playfieldCornersOnWindow(): { x: number; y: number }[] {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    return this.corners.map((c) => ({ x: c.x + r.left, y: c.y + r.top }));
+  }
+
   private resize(): void {
     const w = this.options.fitContainer ? this.container.clientWidth : window.innerWidth;
     const h = this.options.fitContainer ? this.container.clientHeight : window.innerHeight;

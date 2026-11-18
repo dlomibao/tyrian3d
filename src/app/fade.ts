@@ -9,6 +9,12 @@
 // JE_main's level fades (tyrian2.c L716 fade_palette(colors, 50) after the level loads, L639
 // fade_black(10) after a death, and JE_endLevelAni's fade_black(15) after the level-end text) use
 // the layer over the 3D view, levelFade(); the story screens have their own (cinema.ts).
+//
+// The level's fade-in leaves the playfield out (fadeInLevel, D254). In the C the palette fade runs on
+// the interface picture before the first frame, and the playfield then fades in by itself: the level
+// starts at levelBrightness -14 and JE_filterScreen raises it a step a tick (backgrnd.c L565-578),
+// which the 3D view's palette already applies. Here the level starts under the fade, so a layer over
+// the playfield too stacked the two, and the 3D view stayed near black while the original was half lit.
 
 import "./story.css";
 import { CLASSIC_TICK_MS } from "../core/timing";
@@ -93,6 +99,7 @@ export class FadeLayer {
     this.run++;
     this.alpha = alpha;
     this.rgb = [...rgb];
+    this.clip(null);
     this.apply();
   }
 
@@ -112,14 +119,21 @@ export class FadeLayer {
    * fade_palette / fade_solid (palette.c L146-190): `steps` frames, one step each, on `clock`.
    * Resolves when done, or early if a later set() or fade() takes over.
    */
-  async fade(alpha: number, steps: number, rgb: readonly number[] = this.rgb, clock = new FrameClock()): Promise<void> {
+  async fade(alpha: number, steps: number, rgb: readonly number[] = this.rgb, clock = new FrameClock(), hole: readonly Point[] | null = null): Promise<void> {
     const run = ++this.run;
+    this.clip(hole);
     for (; steps > 0; steps--) {
       clock.setFrameCount(1);
       this.step(alpha, rgb, steps);
       await clock.waitUntilElapsed();
       if (run !== this.run) return;
     }
+    this.clip(null);
+  }
+
+  /** Leave the polygon `hole` (CSS px, the window's) uncovered, or cover everything (null). */
+  private clip(hole: readonly Point[] | null): void {
+    this.el.style.clipPath = hole && hole.length >= 3 ? holeClipPath(window.innerWidth, window.innerHeight, hole) : "";
   }
 
   private apply(): void {
@@ -128,6 +142,29 @@ export class FadeLayer {
     this.el.style.opacity = String(this.alpha);
     this.el.hidden = this.alpha <= 0;
   }
+}
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/** A CSS clip-path covering the w x h window but for the polygon `hole` (even-odd: the hole's inside is cut out). */
+export function holeClipPath(w: number, h: number, hole: readonly Point[]): string {
+  const r = (v: number) => Math.round(v * 10) / 10;
+  const poly = hole.map((p, i) => `${i ? "L" : "M"}${r(p.x)} ${r(p.y)}`).join(" ");
+  return `path(evenodd, "M0 0 H${r(w)} V${r(h)} H0 Z ${poly} Z")`;
+}
+
+/**
+ * JE_main's fade_palette(colors, 50) into a level (tyrian2.c L716) on the level fade, over all but the
+ * playfield, whose corners on the window are `playfield` (D254): the playfield fades in by the sim's
+ * levelBrightness alone, as the original's does.
+ */
+export function fadeInLevel(playfield: readonly Point[]): Promise<void> {
+  const layer = levelFade();
+  layer.set(1, BLACK);
+  return layer.fade(0, 50, BLACK, new FrameClock(), playfield);
 }
 
 export const BLACK = [0, 0, 0] as const;

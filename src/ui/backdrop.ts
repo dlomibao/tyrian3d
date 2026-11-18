@@ -31,8 +31,10 @@ const SHIP_LENGTH = 2.4;
 /** View's outline (src/render/view.ts), so the ship looks the same as in play. */
 const OUTLINE = { defaultThickness: 0.0045, defaultColor: INK_OUTLINE };
 const NO_OUTLINE = { outlineParameters: { visible: false } };
-/** A bound on the model's reach from its centre in scene units (half its length, the bob and the bank). */
+/** A bound on the model's reach from its centre in scene units (half its length, the bob and the bank), until its model loads. */
 const SHIP_RADIUS = SHIP_LENGTH / 2 + 0.2;
+/** How far the ship sways off its place (its position's drift in frame()), and a margin for its bank, scene units. */
+const SHIP_SWAY = Math.hypot(0.25, 0.2) + 0.1;
 /** Its height and bob, in scene units. */
 const SHIP_HEIGHT = 0.4;
 /** The smallest ship scale worth moving the ship to a free gap for. */
@@ -161,6 +163,10 @@ export class Backdrop implements BackdropControl {
   private readonly outline: OutlineEffect | null = null;
   private readonly ship = new THREE.Group();
   private readonly shipPivot = new THREE.Group();
+  /** The loaded ship's reach about its turning axis, scene units at scale 1 (shipRadius). */
+  private shipRadius = SHIP_RADIUS;
+  /** A camera to measure the ship's reach on screen with (shipReachPx). */
+  private readonly measure = new THREE.PerspectiveCamera();
   /** Engine glows: one per engine the model names (extras `tyrian_engines`), else one at the tail. */
   private glows: THREE.Sprite[] = [];
   private readonly planet = new THREE.Group();
@@ -291,6 +297,7 @@ export class Backdrop implements BackdropControl {
           return sprite;
         });
         this.shipPivot.add(...this.glows);
+        this.shipRadius = shipRadius(this.shipPivot);
       })
       .catch((err) => console.warn(`backdrop: ship model ${name} failed to load`, err));
   }
@@ -332,14 +339,13 @@ export class Backdrop implements BackdropControl {
     // Where the ship goes: the biggest free space beside, above or below the screen's panels (D55),
     // sized so the whole ship fits; with no panel up (or no way to measure one), the pose's own framing.
     const box = occupiedBox();
-    const dist = p.cam.distanceTo(p.look);
-    const pxPerUnit = h / 2 / (dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)));
-    // The ship turns about its vertical axis, so its reach is a circle on the ground: seen from
-    // above at `elev` that is an ellipse, plus the ship's height and bob.
-    const elev = Math.asin(Math.min(1, Math.max(0, (p.cam.y - p.look.y) / Math.max(dist, 1e-3))));
-    const reachX = pxPerUnit * SHIP_RADIUS;
-    const reachY = pxPerUnit * (SHIP_RADIUS * Math.sin(elev) + SHIP_HEIGHT);
-    const slot = box ? freeSlot(w, h, box, Math.sign(this.target.frameX), reachX, reachY, MIN_FIT) : null;
+    // The ship turns about its vertical axis, so its reach is a circle on the ground, of its own
+    // model's radius and its sway (D256): seen from above that is an ellipse, nearer side larger,
+    // plus the ship's height and bob.
+    this.measure.fov = this.camera.fov;
+    this.measure.aspect = aspect;
+    const reach = shipReachPx(this.measure, p.cam, p.look, this.shipRadius + SHIP_SWAY, SHIP_HEIGHT, w, h);
+    const slot = box ? freeSlot(w, h, box, Math.sign(this.target.frameX), reach.x, reach.y, MIN_FIT) : null;
     // Over the painted planet only the item screen shows the ship (D85), and only in a gap beside
     // its panes: where the panes fill the window (phones) it isn't drawn behind them.
     const shown = !planet || (this.mood === "hangar" && (!box || !!slot));
@@ -491,6 +497,64 @@ function engineGlow(color: THREE.ColorRepresentation, size: number, opacity: num
   sprite.scale.setScalar(size);
   sprite.userData.opacity = opacity;
   return sprite;
+}
+
+/**
+ * How far a ship model reaches from its turning axis (the pivot's Y axis), in the pivot's units: the
+ * farthest vertex of its meshes, or the edge of an engine glow (a sprite `size` across), on the ground
+ * plane. A long ship's diagonal reaches past half its length, a wide one (the U-Ship's guns) further.
+ */
+export function shipRadius(pivot: THREE.Object3D): number {
+  pivot.updateMatrixWorld(true);
+  const inv = pivot.matrixWorld.clone().invert();
+  const m = new THREE.Matrix4();
+  const v = new THREE.Vector3();
+  let r = 0;
+  pivot.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const sprite = o as THREE.Sprite;
+    if (sprite.isSprite) {
+      m.multiplyMatrices(inv, sprite.matrixWorld);
+      v.setFromMatrixPosition(m);
+      r = Math.max(r, Math.hypot(v.x, v.z) + sprite.scale.x / 2);
+      return;
+    }
+    const pos = mesh.isMesh ? mesh.geometry?.getAttribute("position") : undefined;
+    if (!pos) return;
+    m.multiplyMatrices(inv, mesh.matrixWorld);
+    const step = Math.max(1, Math.floor(pos.count / 20000));
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m);
+      r = Math.max(r, Math.hypot(v.x, v.z));
+    }
+  });
+  return r;
+}
+
+/**
+ * A ship's reach on screen in px from its centre at scale 1: a circle of `radius` round `look` on the
+ * ground, `height` above and below it, seen by `camera` (its fov and aspect set) from `cam`, in a
+ * w x h view. The near side, closer to the camera, reaches further than the far side; both count.
+ */
+export function shipReachPx(camera: THREE.PerspectiveCamera, cam: THREE.Vector3, look: THREE.Vector3, radius: number, height: number, w: number, h: number): { x: number; y: number } {
+  camera.clearViewOffset();
+  camera.position.copy(cam);
+  camera.lookAt(look);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+  const c = look.clone().project(camera);
+  const p = new THREE.Vector3();
+  let x = 0;
+  let y = 0;
+  for (let i = 0; i < 32; i++) {
+    const a = (i / 32) * Math.PI * 2;
+    for (const dy of [-height, height]) {
+      p.set(look.x + Math.cos(a) * radius, look.y + dy, look.z + Math.sin(a) * radius).project(camera);
+      x = Math.max(x, (Math.abs(p.x - c.x) * w) / 2);
+      y = Math.max(y, (Math.abs(p.y - c.y) * h) / 2);
+    }
+  }
+  return { x, y };
 }
 
 /** Where a glow goes behind an engine, its colour, size and base opacity. */
