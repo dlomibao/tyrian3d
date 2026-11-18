@@ -61,7 +61,7 @@ import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
 import { RemasteredFx, SpriteLook } from "./vfx/remasteredFx";
 import { VFX_LAYER, vfxModeFromSearch, type VfxMode } from "./vfx/vfxMode";
-import { EXPLOSION_SHEET_ID, flatExplosionFade } from "./vfx/explosionFrames";
+import { EXPLOSION_SHEET_ID, flatExplosionFade, isHitSpark } from "./vfx/explosionFrames";
 import { dominantBank, NdcRect, RawShades, topBanks, UNDER_GRAB_ORDER, UnderGrab, UnderGrabHook } from "./hueBlend";
 import { UnderShadePass } from "./underShade";
 import { decodeSprite2 } from "../data/sprites";
@@ -509,6 +509,8 @@ export class DrawListRenderer {
   /** This frame's camera, and a scratch point, for the grabs' screen areas. */
   private grabCamera: THREE.Camera | null = null;
   private readonly grabPoint = new THREE.Vector3();
+  /** Where this frame's enemy flat art (D244's asteroids) lies, which the sheets' copy predates (D247). */
+  private readonly flatEnemyArea = new NdcRect();
   /** The main palette bank of a sprite (by sheet, then index) and of a tile (by id), for the C's blend. */
   private readonly spriteBanks = new WeakMap<object, Map<number, number>>();
   private readonly tileBanks = new Map<string, [number, number]>();
@@ -1070,6 +1072,7 @@ export class DrawListRenderer {
     this.grabSheets.area.clear();
     this.grabExplosions.area.clear();
     this.grabTop.area.clear();
+    this.flatEnemyArea.clear();
     this.underShadeRects.length = 0;
     this.grabCamera = camera;
     this.under.shades.update(this.palette.texture.image.data as Uint8Array, this.palette.version);
@@ -1098,7 +1101,8 @@ export class DrawListRenderer {
           const r = this.router.route(d, sheetArt, this.emptyTile);
           // A damaged frame drawn with the intact model (D87): its damage, for the shaders.
           const damaged = r.damaged && this.damage !== null ? this.damage.state(d, r.frame) : null;
-          const flat = r.route === Route.Flat;
+          // The painted hit sparks are the remastered effects' (D247): `?vfx=original` keeps the C's sprite.
+          const flat = r.route === Route.Flat && (fx !== null || !isHitSpark(d.sheet.id, d.index));
           if (r.route === Route.Group || r.route === Route.Override || r.route === Route.Ungrouped) {
             const pool = this.modelPool(r.model);
             const look = this.objectLook(d, pool, now, frame);
@@ -1241,7 +1245,9 @@ export class DrawListRenderer {
     // The C's blended layers read the frame under them: copy it where they start, where they are (D174).
     // Each copy costs a break in the GPU's pass, so explosions away from the sheets read the sheets'
     // copy (made a little earlier: without the sheets, which aren't under them, and the shots' art).
-    if (!this.grabSheets.area.empty && !this.grabExplosions.area.near(this.grabSheets.area, 0.05)) {
+    // Not when they are over an enemy's flat art (D244's asteroids): that copy is from before it, and
+    // a hit spark or fireball on an asteroid read the black space behind it, crimson for orange (D247).
+    if (!this.grabSheets.area.empty && !this.grabExplosions.area.near(this.grabSheets.area, 0.05) && !this.grabExplosions.area.near(this.flatEnemyArea, 0.02)) {
       this.grabSheets.area.union(this.grabExplosions.area);
       this.grabExplosions.area.clear();
     }
@@ -1409,6 +1415,17 @@ export class DrawListRenderer {
     return this.placedExtents.length === 0 ? base : coverHeight(base, base, base, x, y, x + w, y + h, this.placedExtents);
   }
 
+  /** Add the screen area of game screen box (x, y), w x h px, to `area` (projected as addGrabArea does). */
+  private addNdcArea(area: NdcRect, x: number, y: number, w: number, h: number): void {
+    const cam = this.grabCamera;
+    if (!cam) return;
+    const p = this.grabPoint;
+    for (let c = 0; c < 4; c++) {
+      p.set(screenWorldX(c & 1 ? x + w : x), 0, screenWorldZ(c & 2 ? y + h : y)).project(cam);
+      area.add(p.x, p.y);
+    }
+  }
+
   /**
    * Add the screen area of a draw at game screen (x, y), w x h game pixels, to a grab's area. Every
    * draw lands on its original screen position whatever its height (D6), so the ground rectangle under
@@ -1470,6 +1487,7 @@ export class DrawListRenderer {
       return;
     }
     const alpha = (effect === "blend" ? (pass === Pass.Explosions ? EXPLOSION_ALPHA : BLEND_ALPHA) : 1) * fade;
+    if (pass < Pass.Explosions && pass !== Pass.PlayerShots && pass !== Pass.EnemyShots && pass !== Pass.Player) this.addNdcArea(this.flatEnemyArea, x + dx, y + dy, f.w, f.h);
     if (effect === "filter") this.artLayer.add(art, pass, q, f, FxMode.Filter, (filter >> 4) & 0x0f, 0, alpha);
     else if (effect === "hv") this.artLayer.add(art, pass, q, f, FxMode.HueValue, filter & 0x0f, value, alpha);
     else this.artLayer.add(art, pass, q, f, FxMode.None, 0, 0, alpha);

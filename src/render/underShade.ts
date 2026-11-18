@@ -229,6 +229,18 @@ const SHEET_MARK_OUTPUT = `float markBanks = (markHue * 16.0 + markHue) / 255.0;
 /** A flat-art texel's mark (headlight frames only); A (0) leaves the bank under it. */
 const ART_MARK_OUTPUT = `gl_FragColor = vec4(0.0, 0.0, ${ART_MARK.toFixed(3)}, 0.0);`;
 
+/** An enemy's flat-art texel (D247): the shade under it is not known (G 0), whatever was drawn there. */
+const ART_UNKNOWN_OUTPUT = `gl_FragColor = vec4(0.0);`;
+
+/**
+ * Whether a flat-art batch is of an enemy pass (under the explosions; not the shots or the ship): it
+ * stands where the terrain would be read (D244's asteroids, D247).
+ */
+export function coversTerrain(o: THREE.Object3D): boolean {
+  const pass = o.userData.artPass as number | undefined;
+  return pass !== undefined && pass < Pass.Explosions && pass !== Pass.PlayerShots && pass !== Pass.EnemyShots && pass !== Pass.Player;
+}
+
 /** Marks keep what is under them: each channel takes the larger of the two (B: the mark; R, G 0). */
 function markBlending(m: THREE.Material): void {
   m.transparent = true;
@@ -368,6 +380,8 @@ export class UnderShadePass {
   private readonly palShades: THREE.MeshBasicMaterial[] = [];
   /** The flat art's marks, one per atlas (headlight frames). */
   private readonly artMarks = new WeakMap<THREE.Texture, THREE.ShaderMaterial>();
+  /** The enemies' flat art's "not known" texels, one per atlas (D247). */
+  private readonly artUnknowns = new WeakMap<THREE.Texture, THREE.ShaderMaterial>();
   /** 1 while a headlight frame's pass runs: background2over 2's sheets and the flat art mark too. */
   private readonly marksTop = { value: 0 };
   /** The sheets' mark materials, depth-tested on headlight frames. */
@@ -543,6 +557,21 @@ export class UnderShadePass {
     if (this.warmRock && this.warmRock.map === rockShadeMap(material)) this.warmRock = null;
   }
 
+  /** The "not known" material for an enemy's flat-art batch drawn with `material` (one per atlas, D247). */
+  private artUnknown(material: THREE.ShaderMaterial): THREE.ShaderMaterial {
+    const map = material.uniforms.map.value as THREE.Texture;
+    let m = this.artUnknowns.get(map);
+    if (!m) {
+      m = flatArtMaskMaterial(map, ART_UNKNOWN_OUTPUT);
+      m.name = "under_shade_art_unknown";
+      // Replaces the texel (G 0 even over a known shade) and writes depth: the batch is ordered before
+      // the terrain, which would otherwise draw its shade over it.
+      m.blending = THREE.NoBlending;
+      this.artUnknowns.set(map, m);
+    }
+    return m;
+  }
+
   /** The mark material for a flat-art batch drawn with `material` (one per atlas). */
   private artMark(material: THREE.ShaderMaterial): THREE.ShaderMaterial {
     const map = material.uniforms.map.value as THREE.Texture;
@@ -604,6 +633,9 @@ export class UnderShadePass {
       if (!r.isMesh || !o.layers.test(camera.layers) || !r.material) return;
       if (isFlatArt(o)) {
         if (marks) drawn.push({ object: r, material: this.artMark(r.material as THREE.ShaderMaterial), layers: o.layers.mask });
+        // An enemy drawn as flat art (D244's asteroids) covers the terrain in the frame: its texels say
+        // "not known", so a blend over it reads the frame copy, the painting, not the ground (D247).
+        else if (coversTerrain(o)) drawn.push({ object: r, material: this.artUnknown(r.material as THREE.ShaderMaterial), layers: o.layers.mask });
         return;
       }
       if (cull && !this.reachesCover(r)) {

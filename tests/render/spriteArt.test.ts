@@ -161,7 +161,7 @@ describe("sprite art manifest", () => {
     expect(art.frame("mixed", 2)).toMatchObject({ w: 12, h: 10 });
   });
 
-  test("the shipped manifest paints every coin and gem value sprite (explosion types 35-52) and the explosions", async () => {
+  test("the shipped manifest paints every coin and gem value sprite (explosion types 35-52), the explosions and the hit sparks", async () => {
     const { readFileSync } = await import("node:fs");
     const { EXPLOSION_DATA } = await import("../../src/render/vfx/explosionFrames");
     const m = parseSpriteArtManifest(JSON.parse(readFileSync("public/art/sprites/manifest.json", "utf8")))!;
@@ -173,7 +173,9 @@ describe("sprite art manifest", () => {
     // The fireball (type 1, sprites 122-133) and big explosions (D80) at the sheet's scale.
     for (let i = 122; i <= 133; i++) expect(sheet.frames.get(i)).toMatchObject({ w: 12 * 8 });
     expect(sheet.frames.get(122)!.scale).toBeUndefined();
-    expect(sheet.frames.size).toBe(wanted.length + 108);
+    // The hit sparks (type 0, sprites 146-152), painted from their own pixels (D247).
+    for (let i = 146; i <= 152; i++) expect(sheet.frames.get(i)).toMatchObject({ w: 12 * 8 });
+    expect(sheet.frames.size).toBe(wanted.length + 108 + 7);
   });
 
   test("image URLs are escaped (sheet ids have '#')", () => {

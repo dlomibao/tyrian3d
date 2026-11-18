@@ -12,7 +12,8 @@
 //   it (with remastered sprite art it's the flat painting from public/art/sprites, D80: the router
 //   draws it flat and this look is ignored); when one starts, it throws sparks, embers and tumbling debris, leaves smoke drifting with
 //   the scroll, and lights its surroundings for a moment with one of a few pooled point lights.
-//   A shot's hit puff becomes a spark burst and a flash; smoke sprites become soft smoke puffs.
+//   A shot's hit spark stays the C's red sprite (flat art), with a small flash (D247); smoke
+//   sprites become soft smoke puffs.
 //   Flashes, sparks, embers and lights take the explosion's own colour (the mean of its sprite's
 //   colours), and flashes close together in place and time are thinned to one (D169).
 // - The shield's hit arcs become one energy bubble round the ship (shieldLayer.ts, D77), in the
@@ -112,6 +113,8 @@ const SHIELD_GROW = [0.84, 0.94, 1.04];
 const SPARK_RADIUS = 1.6;
 const SPARK_STREAK = 0.6;
 const SPARK_GAIN = 1.1;
+/** A hit spark's flash alpha (D247; D169's was 0.5 in a fixed orange, over its streaks and puff). */
+const HIT_FLASH = 0.45;
 /** Bubbles one frame can draw (a hit a tick for three ticks, for two players, with room to spare). */
 const MAX_SHIELDS = 16;
 /** Births queued between ticks and frames (a big boss death starts dozens at once). */
@@ -379,18 +382,17 @@ export class RemasteredFx {
     if (d.kind !== "sprite2" || d.pass !== Pass.Explosions || d.sheet.id !== EXPLOSION_SHEET_ID) return SpriteLook.Default;
     const f = explosionFrame(d.index);
     if (!f) return SpriteLook.Default;
-    if (hidden) return f.kind === ExplosionKind.Hit || f.kind === ExplosionKind.Smoke || f.kind === ExplosionKind.Shield ? SpriteLook.Hidden : SpriteLook.Hot;
+    if (hidden) return f.kind === ExplosionKind.Smoke || f.kind === ExplosionKind.Shield ? SpriteLook.Hidden : SpriteLook.Hot;
     const h = height;
     const k = h / this.cam.y;
     const s = (1 - k) / PX_PER_UNIT;
     const t = (f.frame + 0.5) / f.ttl;
     switch (f.kind) {
-      case ExplosionKind.Hit: {
-        // D169: (1, 0.75 + 0.2g, 0.45) at 0.9, a near-white puff; now a warm orange one.
-        const fade = (1 - t) * (1 - t);
-        this.glow(this.glows, cx, cy, cx, cy, h, (3 + 4 * t) * s, 1, 0.5 + 0.2 * info.g, 0.18, 0.6 * fade, 0, GlowShape.Glow, 0);
-        return SpriteLook.Hidden;
-      }
+      case ExplosionKind.Hit:
+        // D247: the C's red hit spark itself, opaque, so it reads on water, dirt and grass as well
+        // as on black (flat painted art; without it the sprite, emissive). D169's soft orange puff
+        // in its place was additive and all but vanished on bright ground.
+        return SpriteLook.Hot;
       case ExplosionKind.Fireball:
       case ExplosionKind.Large: {
         const fade = 1 - t;
@@ -524,8 +526,10 @@ export class RemasteredFx {
         this.flash(sx, sy, h, Math.max(2, radius * 0.7), Math.max(4, radius * 1.5), 0.08, mix(r, 1, 0.15), mix(g, 1, 0.15), mix(b, 1, 0.15), kind === Birth.PlayerShot ? 0.45 : 0.35);
         break;
       case Birth.Hit:
-        this.flash(sx, sy, h, 3, 7, 0.1, 1, 0.55, 0.22, 0.5);
-        this.sparks(sx, sy, h, 5, 70, 150, 0.12, 0.24, 1, 0.55, 0.2);
+        // D247: the spark sprite is the hit now; a small flash in its own red-orange (thinned per
+        // spot, so sustained fire doesn't stack it) gives it a moment of glow. D169's five orange
+        // streaks are gone: the C's spark sits still on the hit, it throws nothing.
+        this.flash(sx, sy, h, 2.5, 6, 0.09, r, g, b, HIT_FLASH);
         break;
       case Birth.Fireball: {
         // Small fireballs also mark every hit on a big enemy, many a second under a laser, so
