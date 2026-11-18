@@ -41,7 +41,8 @@ tools/build-models.sh [-j N] [-p previewdir] [-n] script.py ...   # Blender head
   Header of `src/debug/playHarness.ts` lists all.
 - `?debug=level&episode=E&main=N&front=ID:P&sidekick=L,R&skip=N&god=1` (`src/debug/levelHarness.ts`).
 - `?viewer=<model>` sprite vs model; `?debug=models&model=a,b&flash=1`; `?debug=sprites`.
-- Looks: `?bg=original`, `?vfx=original`, `?sprites=original`, `?terrain=original|hd`, `?terrainart=<dir>/`.
+- Looks: `?bg=original`, `?vfx=original`, `?sprites=original`, `?terrain=original|hd`, `?terrainart=<dir>/`,
+  `?spriteart=<dir>/` (another flat-art folder, e.g. a test cut).
 
 ## Worktrees
 Feature work never happens in `/Users/dlomibao/projects/tyrian` (main checkout). Per branch:

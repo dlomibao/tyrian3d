@@ -14561,3 +14561,77 @@ meshopt compression (D206) nor this week's renderer changes cause it.
 
 **Review:** check the in-game crop and `?viewer=usp_talon` at free angles. Fallback: use the fitted 35 / 52.5 roll
 (`common.with_bank_roll`) if the banks look too narrow.
+## D244 — The asteroid levels' loose asteroids are drawn flat from Gemini paintings (extends D42 to enemies); the belt's rock rim is painted terrain again (reverses D211's rim tile models; supersedes draft PR #279)
+
+**Date:** 2026-11-18
+
+**Problem:** the user found every 3D asteroid wrong: main's D175/D211 rocks read as smooth clay lumps, and #279's crag
+rework as "too jagged, not rounded like the sprites, a different feel". D211's complaint stands too: "some asteroids are
+textures and some models; looks inconsistent". Of the options built side by side (`tyrian-scratch/asteroid-gemini/REPORT.md`:
+A flat paintings, B rounder remodel, C B plus painted detail), only the paintings matched the sprites (edge concentration
+0.235-0.238 against the sprites' 0.228-0.240; main 0.243-0.349), at 31-84 draw calls a screen against 115-469.
+
+**Decision:**
+- **Flat art for the asteroids (D42 extended to enemies).** Every asteroid frame of `newshd.shp` is in
+  `public/art/sprites/newshd-shp.webp` (106 frames): the 24x28 loose rocks (newshd 5, 43, 85, 123), the glowing-vent rock
+  (18, 55, 93), the crystal rock (229-235), the 12x14 small rocks (95, 114, 133, 152), the two four-piece assemblies
+  (1/3/39/41, 7/9/45/47) and the ten-piece heap (13, 15, 31, 34, 49, 51, 53, 88, 89, 91), the multi-piece ones painted whole and cut per piece so they
+  meet. Four Gemini sheets (D43's pipeline, `tools/flat_art.py`, the four asteroid groups in `SHEET_GROUPS`, softened
+  inputs). The router (D42: an object goes by its first tile's art) now goes by its first **non-empty** tile:
+  assembly-45's corner piece newshd 7 has an empty first tile. Inventory found by playing every episode 1-4 level whose
+  map can draw them with the bot: the rocks draw in ASTEROID1 (1.5), ASTEROID2 (1.6), ASTEROID? (1.21), ASTCITY (2.8)
+  and AST. CITY (3.15); HOLES (1.28), GAUNTLET (3.2), CAMANIS (3.10) and MACES (3.25) list some rock frames statically
+  (D236's unloaded-bank listing) but the bot's runs draw none. Every frame the five levels draw is covered.
+- **Cut** (`flat_art.py`, new options): inventory `art_alpha` on every rock (D132: the sprite's dark ink ring leaves the
+  silhouette, so a rock over a floor has no black halo); recolour toward the sprite's grey ramp
+  (`flat_art_recolour.json`, layout 0.4) with two new keys, `"ink": true` (the ink ring left out of the target ramp, so
+  the painting's darks match the rock's dark limb and crevices) and `"hue": "art"` (brightness only, the painting's own
+  hue: the ramp's mean colour per brightness had tinted the vent rock pink and greyed out the vent and the crystal);
+  inventory `"steady": true` for the vent and crystal (their frames, painted in separate cells, drifted: the still rock
+  shimmered, mean |diff| 2.6-7.3, p95 8-25; now each frame takes the first frame's painting outside the pixels where its
+  sprite differs, 0.3-0.8, p95 2-3). The assemblies, painted 1.7x too big by Gemini, are registered over a wider scale
+  range and the cell's placement overridden (fit 0.94-0.96; the earlier warp of the answer reached 0.77-0.86). Shade gains
+  (D221) written for `newshd.shp`, which is hit-flashed like the pickups. Fit: loose 0.97-0.98, small 0.93-0.96,
+  assemblies 0.94-0.96, heap 0.98.
+- **Preload:** a model whose sprite the art's manifest paints is left out of the level's preload in the remastered sprite
+  look (`DrawListRenderer.levelModels`, `artListsSprite`), waiting for the manifest if it hasn't arrived. Switching to the
+  original sprites mid-level (the harness's A or V key) starts loading them.
+- **The rim** (`shapesz` 360-364, 370, 372-374, 380-382): D211's twelve tile models, their script and the
+  StructureInstances branch that kept their inked shells (`tyrian_tile_outline`; no other model is tagged) are removed,
+  so the rim draws the HD terrain painting it had before D211. `outlineEffect.js`'s instancing fix stays (correct for
+  any instanced shell). `lib_rim_rock.py` stays: `lib_l1kit.py` (D216) uses it.
+- **Kept:** the asteroid models (`newshd-*.glb` and their spriteModels JSON). The default look no longer draws them, but
+  `?sprites=original` / `?vfx=original`, the A key and a failed atlas still do.
+
+**Options considered:**
+- *Flat paintings (chosen):* the only look that matched the sprites, a tenth of the draw calls. Flat in motion (checked:
+  3 s clips at 30 fps, default camera): the rocks only translate, as in the original, and the models' look changed little
+  across a crossing.
+- *Rounder remodel (B):* kept as the fallback if the flat look is rejected; a third model look after two the user turned
+  down, at 4-8x the draw calls.
+- *Painted detail baked onto the remodel (C):* rule 4 (no concept-projection bake).
+- *Repaint the rim with Gemini in the rocks' rounded style:* intended; sheets and prompts made
+  (`tyrian-scratch/asteroid-gemini/rollout/rim/sheets`, `rollout/gemini/prompts.json`), but Gemini dropped three requests
+  in a row with no answer or message, so the rim keeps that earlier painting for now (see Follow-ups).
+
+**Measured** (`?debug=play`, headless Chrome, the HUD's figures, frozen frames, 4K / 390x844; main → new):
+- Draw calls: ASTEROID1 t80 343 → 31, t475 464-469 → 31, t600 157 → 33, t1525 215 → 43; ASTEROID2 t6125 212 → 84;
+  ASTEROID? t900 583 → 451; AST. CITY t1410 685-687 → 510-512, t680 307 → 201; ASTCITY t1210 509-526 → 322-339.
+  Renderer CPU per frame 0.94-3.18 ms → 0.50-2.09 ms.
+- Tone (painting inside alpha vs the sprite inside its ink ring, luma p5/p50/p95): loose rock 5 22/81/175 vs 12/81/186
+  (the mock 0/70/188, its p5 the black ring), assemblies 31-35/88-101 vs 40/93-108, heap 41/92/161 vs 40/93/165; the
+  heap's cream tint (R-B +3.1) gone (0.0, the sprite -0.1).
+- Hit flash (ASTEROID1 t187, filter 0xD0): the whole flat rock takes the original's blue, through D221's shade gains.
+- Rim/floor seams: the terrain atlas is unchanged; layer 0 over the 32 `shapesz` levels, ratio 0.574.
+- Steep camera: the rocks and belt show their top view only (the models showed their sides).
+
+**Review:** `?debug=play&episode=1&main=5&seed=1&skip=1525&freezeAt=1525&compare=1` (and 1.5 t80/475/600, 1.6 t6125,
+1.21 t900, 3.15 t680/t1410, 2.8 t1210); `&sprites=original` for the models. Captures, motion clips and the
+inventory: `tyrian-scratch/asteroid-gemini/rollout/` (not in git, D3). Fallback: delete `newshd.shp` from the manifest (the models come
+back) and restore D211's files from git.
+
+**Follow-ups:**
+- Repaint the rim (12 tiles, two region sheets, `terrain_hd.py sheets --recut 0:360,...`, prompts ready) so its boulders
+  are the rocks' rounded painting rather than the earlier, grittier one; then `cut --recut` the same tiles.
+- Retry the small rocks' sheet (prompt ready): the painting is photo-glossy and soft; the recolour holds its tones only.
+- The asteroid models are no longer drawn in the default look; drop them if the original-sprite look stops needing them.

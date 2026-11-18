@@ -321,6 +321,12 @@ every art step has a number (IoU, colour error, seam ratio) and a capture from t
   A painting paler, more orange or darker than its sprite (fire painted white, a tan cube grey) → list it in
   `tools/flat_art_recolour.json` and run `flat_art.py recolour --only SHEET:INDEX` once (the sprite's palette
   ramp, D172; `cut` reapplies the file). Beam pieces stacked edge to edge (Zica Laser) → its `joins`.
+  Enemies drawn flat (the asteroids, D244): inventory `art_alpha` (the sprite's dark ink ring leaves the
+  silhouette) and recolour `"ink": true` (the ring left out of the target ramp); a grey object with a small
+  coloured part → recolour `"hue": "art"` (brightness only); an animated object whose frames differ in a small
+  part (vent, crystal) shimmers when each frame is painted alone → inventory `"steady": true`. Gemini painting a
+  cell 1.5-2x too big → register it over a wider scale range and override the cell's `art` placement
+  (`tyrian-scratch/asteroid-gemini/rollout/tools/widefit.py`), rather than warping the answer.
 - **Cost/time:** level 1's 179 frames came from 11 sheets (D43); no workflow run log exists for it
   (done in the main loop). Budget ~12 Gemini requests per episode's new families, plus retries.
 - **Shop icons (D210, D226):** the item screen's pictures are Gemini paintings (`public/art/shop/icons.webp`,

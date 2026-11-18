@@ -282,6 +282,27 @@ LAYOUTS = {
 }
 
 
+def _pieces(base: int, pieces) -> tuple:
+    """A layout of whole enemies that travel together (an asteroid assembly): (sprite index, size,
+    left, top) per piece, 2 for a 2x2 enemy (its tiles index, +1, +19, +20), 1 for a 12x14 one."""
+    out = []
+    for index, size, x, y in pieces:
+        quads = ((0, 0, 0), (1, 12, 0), (19, 0, 14), (20, 12, 14)) if size == 2 else ((0, 0, 0),)
+        out += [(index - base + d, x + dx, y + dy) for d, dx, dy in quads]
+    return tuple(out)
+
+
+# The asteroid assemblies (newshd.shp, D239's family): painted whole, cut per piece, so the pieces meet.
+# Positions are the catalogue's assemblyLayout (assembly-newshd-39, -45) and the heap's tick-80 draws
+# (assembly-newshd-89's TILES on the asteroid-crags branch).
+LAYOUTS.update({
+    "asteroid-39": _pieces(1, ((1, 2, 0, 0), (3, 2, 24, 0), (39, 2, 0, 28), (41, 2, 24, 28))),
+    "asteroid-45": _pieces(7, ((7, 2, 0, 0), (9, 2, 24, 0), (45, 2, 0, 28), (47, 2, 24, 28))),
+    "asteroid-heap": _pieces(13, ((13, 2, 24, 0), (31, 1, 12, 14), (15, 1, 48, 0), (34, 1, 48, 14), (49, 2, 0, 28),
+                                  (51, 2, 24, 28), (53, 2, 48, 28), (88, 1, 12, 56), (89, 2, 24, 56), (91, 2, 48, 56))),
+})
+
+
 def object_tiles(gd: GameData, sheet: str, index: int, size: int, layout: str | None = None) -> list[dict]:
     """The tiles a frame is drawn as: (sprite index, offset in the picture, its own pixels)."""
     offs = LAYOUTS[layout] if layout else ((0, 0, 0),) if size == 1 else ((0, 0, 0), (1, 12, 0), (19, 0, 14), (20, 12, 14))
@@ -356,6 +377,14 @@ SHEET_GROUPS = [
     ("explosions-fireball", ["fireball"]),
     ("explosions-air", ["explosion-air"]),
     ("explosions-ground", ["explosion-ground"]),
+    # The loose asteroids (newshd.shp, D239's family), with per-sheet options: "cell" px, "cols",
+    # "aspect" (w, h: the sheet padded with black below/right to a ratio Gemini keeps) and "soft"
+    # (each picture upscaled bicubic from one pixel per sprite pixel, so Gemini repaints rather than
+    # copying the pixel blocks; the terrain sheets' lesson, docs/terrain-pipeline.html section 3).
+    ("asteroids-loose", ["asteroids-loose"], {"soft": True}),
+    ("asteroids-small", ["asteroids-small"], {"cols": 2, "soft": True}),
+    ("asteroids-assemblies", ["asteroids-assemblies"], {"cell": 512, "aspect": (16, 9), "soft": True}),
+    ("asteroids-heap", ["asteroids-heap"], {"cell": 1024, "soft": True}),
 ]
 MAX_CELLS = 12
 CELL = 256  # input cell size, px
@@ -371,7 +400,9 @@ def build_sheets(gd: GameData, inventory: dict, out: Path) -> dict:
     fams = {f["family"]: f for f in inventory["families"]}
     manifest = {"cell_note": "rect = [x, y, w, h] in input px; art = where the cell's picture (sprite px) sits: input px = (x + px * scale, y + py * scale). Each frame maps its own sprite px (u, v) to picture px: px = sx * u + tx, py = sy * v + ty (sy defaults to 1; sx = -1 for a mirrored sprite sharing the cell; an animation frame sharing a cell maps its bounding box onto the picture's, e.g. a coin's narrower spin frames squash the face).",
                 "palette": LEVEL1_PALETTE, "sheets": []}
-    for name, members in SHEET_GROUPS:
+    for name, members, *more in SHEET_GROUPS:
+        opts = more[0] if more else {}
+        cell_px = opts.get("cell", CELL)
         members = [m for m in members if m in fams]  # an inventory may cover only some families
         if not members:
             continue
@@ -393,7 +424,8 @@ def build_sheets(gd: GameData, inventory: dict, out: Path) -> dict:
                                     twin["frames"].append({"sheet": obj["sheet"], "index": fr, "sx": -1, "tx": m[0], "ty": m[1]})
                                     break
                     if twin is None:
-                        cells.append({"object": obj["name"], "family": fam, "sheet": obj["sheet"], "index": fr, "size": obj["size"], "layout": layout, "floor": obj.get("floor"), "alpha": obj.get("alpha"), "pic": pic, "frames": frames})
+                        cells.append({"object": obj["name"], "family": fam, "sheet": obj["sheet"], "index": fr, "size": obj["size"], "layout": layout, "floor": obj.get("floor"), "alpha": obj.get("alpha"),
+                                      "art_alpha": obj.get("art_alpha"), "steady": obj.get("steady"), "pic": pic, "frames": frames})
         # Balanced split, keeping each object's frames (a coin's spin) on one sheet where they fit.
         n_sheets = math.ceil(len(cells) / MAX_CELLS)
         per = math.ceil(len(cells) / n_sheets)
@@ -410,28 +442,42 @@ def build_sheets(gd: GameData, inventory: dict, out: Path) -> dict:
             cols = 3 if len(part) <= 9 and len(part) != 4 else 4
             if len(part) <= 3:
                 cols = len(part)
+            cols = opts.get("cols", cols)
             rows = math.ceil(len(part) / cols)
+            CELL_ = cell_px
             biggest = max(max(trim_box(c["pic"])[2] - trim_box(c["pic"])[0], trim_box(c["pic"])[3] - trim_box(c["pic"])[1]) for c in part)
-            px = max(2, min(24, int(CELL * FILL // biggest)))
-            img = background(cols * CELL, rows * CELL)
-            entry = {"name": sheet_name, "image": f"{sheet_name}.png", "size": [cols * CELL, rows * CELL],
-                     "grid": {"rows": rows, "cols": cols, "cell": CELL}, "scale": px, "cells": []}
+            px = max(2, min(24, int(CELL_ * FILL // biggest)))
+            sw, sh_ = cols * CELL_, rows * CELL_
+            if "aspect" in opts:  # pad to a ratio Gemini keeps
+                aw, ah = opts["aspect"]
+                sw, sh_ = max(sw, int(math.ceil(sh_ * aw / ah))), max(sh_, int(math.ceil(sw * ah / aw)))
+            img = background(sw, sh_)
+            entry = {"name": sheet_name, "image": f"{sheet_name}.png", "size": [sw, sh_],
+                     "grid": {"rows": rows, "cols": cols, "cell": CELL_}, "scale": px, "cells": []}
             for i, c in enumerate(part):
                 r, k = divmod(i, cols)
                 x0, y0, x1, y1 = trim_box(c["pic"])
                 # centre the visible part of the picture in the cell
-                ax = k * CELL + (CELL - (x1 - x0) * px) // 2 - x0 * px
-                ay = r * CELL + (CELL - (y1 - y0) * px) // 2 - y0 * px
+                ax = k * CELL_ + (CELL_ - (x1 - x0) * px) // 2 - x0 * px
+                ay = r * CELL_ + (CELL_ - (y1 - y0) * px) // 2 - y0 * px
                 rgba = gd.rgba(c["pic"])
-                big = np.kron(rgba, np.ones((px, px, 1), np.uint8))
-                h, w = big.shape[:2]
-                region = img[ay:ay + h, ax:ax + w]
-                m = big[..., 3] > 0
-                region[m] = big[..., :3][m]
-                entry["cells"].append({"row": r, "col": k, "rect": [k * CELL, r * CELL, CELL, CELL], "object": c["object"], "family": c["family"],
+                if opts.get("soft"):  # on black, upscaled bicubic: the same geometry, no pixel blocks
+                    rgb = rgba[..., :3] * (rgba[..., 3:] > 0)
+                    big = np.asarray(Image.fromarray(rgb.astype(np.uint8)).resize((rgb.shape[1] * px, rgb.shape[0] * px), Image.BICUBIC))
+                    h, w = big.shape[:2]
+                    region = img[ay:ay + h, ax:ax + w]
+                    np.maximum(region, big, out=region)
+                else:
+                    big = np.kron(rgba, np.ones((px, px, 1), np.uint8))
+                    h, w = big.shape[:2]
+                    region = img[ay:ay + h, ax:ax + w]
+                    m = big[..., 3] > 0
+                    region[m] = big[..., :3][m]
+                entry["cells"].append({"row": r, "col": k, "rect": [k * CELL_, r * CELL_, CELL_, CELL_], "object": c["object"], "family": c["family"],
                                        "art": {"sheet": c["sheet"], "index": c["index"], "size": c["size"], "layout": c["layout"], "x": ax, "y": ay,
                                                "w": int(c["pic"].shape[1]), "h": int(c["pic"].shape[0]), "scale": px},
-                                       "search": CELL // 5, "frames": c["frames"], **({"floor": c["floor"]} if c["floor"] else {}), **({"alpha": c["alpha"]} if c["alpha"] else {})})
+                                       "search": CELL_ // 5, "frames": c["frames"], **({"floor": c["floor"]} if c["floor"] else {}), **({"alpha": c["alpha"]} if c["alpha"] else {}),
+                                       **({"art_alpha": c["art_alpha"]} if c["art_alpha"] else {}), **({"steady": True} if c["steady"] else {})})
             Image.fromarray(img).save(out / entry["image"])
             manifest["sheets"].append(entry)
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
@@ -605,8 +651,53 @@ def cut_sheet(gd: GameData, sheet: dict, art: np.ndarray, palette: int) -> list[
                     rgb = np.where((sh & (alpha < 0.98))[..., None], 0.0, rgb)
             rgba = np.dstack([rgb * 255, alpha * 255]).round().astype(np.uint8)
             out.append({"sheet": fr["sheet"], "index": fr["index"], "rgba": rgba, "fit": fit, "input": sheet["name"],
+                        "object": cell["object"], "first": a["index"], "size": a["size"], "layout": a.get("layout"),
+                        "tx": fr["tx"], "ty": fr["ty"], "steady": bool(cell.get("steady")) and whole and fr["sx"] == 1,
                         "cell": [cell["row"], cell["col"]], "mirrored": fr["sx"] < 0, "shared": fr["index"] != a["index"] and fr["sx"] > 0 and cell["art"]["size"] == 1})
     return out
+
+
+def steady_frames(gd: GameData, frames: dict[tuple[str, int], dict]) -> int:
+    """Inventory "steady": true (an animated object whose frames differ only in a small part: the asteroid's
+    glowing vent, its crystal's twinkle): each frame painted in its own cell drifts a little from the first
+    one, so the still rock shimmered as it animated. Every later frame takes the object's first frame's
+    painting except where its sprite differs from the first frame's (grown by a pixel, a soft ~4-texel blend),
+    so only the animated part changes. Alpha stays each frame's own. Returns the frames changed."""
+    from scipy import ndimage
+
+    objects: dict[str, dict[int, list[dict]]] = {}
+    for f in frames.values():
+        if f.get("steady"):
+            objects.setdefault(f["object"], {}).setdefault(f["first"], []).append(f)
+    changed = 0
+    for name, by_frame in objects.items():
+        firsts = list(by_frame)
+        base = by_frame[firsts[0]]
+        bf = base[0]
+        base_pic = picture(gd, bf["sheet"], firsts[0], bf["size"], bf["layout"])
+        base_at = {(t["tx"], t["ty"]): t for t in base}
+        for first in firsts[1:]:
+            pic = picture(gd, bf["sheet"], first, bf["size"], bf["layout"])
+            h, w = min(pic.shape[0], base_pic.shape[0]), min(pic.shape[1], base_pic.shape[1])
+            moving = np.ones(pic.shape, bool)
+            moving[:h, :w] = pic[:h, :w] != base_pic[:h, :w]
+            moving = ndimage.binary_dilation(moving, iterations=1)
+            weight = soft_alpha(moving, 4.0, 0.15, 0.6)  # 1 where the sprite animates, 0 on the still rock
+            for f in by_frame[first]:
+                b = base_at.get((f["tx"], f["ty"]))
+                if b is None:
+                    continue
+                tx, ty = int(f["tx"]) * SCALE, int(f["ty"]) * SCALE
+                fh = min(f["rgba"].shape[0], b["rgba"].shape[0], weight.shape[0] - ty)
+                fw = min(f["rgba"].shape[1], b["rgba"].shape[1], weight.shape[1] - tx)
+                k = weight[ty:ty + fh, tx:tx + fw, None]
+                own = f["rgba"][:fh, :fw, :3].astype(np.float32)
+                still = b["rgba"][:fh, :fw, :3].astype(np.float32)
+                rgba = f["rgba"].copy()
+                rgba[:fh, :fw, :3] = (k * own + (1 - k) * still).round().astype(np.uint8)
+                f["rgba"] = rgba
+                changed += 1
+    return changed
 
 
 PAD = 8  # texels around each atlas frame (D42 asks ~8 for mipmaps), filled by extending its edge so 2x2 tiles meet cleanly
@@ -796,15 +887,19 @@ RECOLOUR = ROOT / "tools" / "flat_art_recolour.json"
 
 
 def ramp_recolour(art: np.ndarray, art_w: np.ndarray, orig: np.ndarray, orig_w: np.ndarray, strength: float = 1.0,
-                  layout: float = 0.6, bins: int = 48) -> np.ndarray:
+                  layout: float = 0.6, bins: int = 48, keep_hue: bool = False) -> np.ndarray:
     """art (..., 3) in 0..1 recoloured by orig's ramp (see above); art_w and orig_w weight the texels
     (alpha). orig is the sprite's colours smoothed (original_colour), so its brightness spread is
     continuous and the result isn't posterised into the palette's few steps. The brightness order is
     the painting's mixed with the sprite's own at each texel by `layout` (0: the painting's alone; 1:
     the sprite's, a smoothed sprite): where a painting puts its brightest texture off the sprite's
-    hot core, the core and rim still land where the sprite has them."""
+    hot core, the core and rim still land where the sprite has them. `keep_hue`: only the brightness
+    is matched, each texel keeping the painting's own hue and saturation (a grey rock with a small
+    coloured part, the asteroid's vent and crystal: the ramp's mean colour per brightness would
+    tint the grey with the vent's red and grey out the vent)."""
     o_l = (orig @ LUMA).ravel()
     a_l = (art @ LUMA).ravel()
+    own_l = a_l.copy()
     if layout > 0:
         a_l = (1 - layout) * a_l + layout * o_l
     aw, ow = art_w.ravel().astype(np.float64), orig_w.ravel().astype(np.float64)
@@ -827,6 +922,10 @@ def ramp_recolour(art: np.ndarray, art_w: np.ndarray, orig: np.ndarray, orig_w: 
     ramp = np.stack([np.interp(centres, centres[filled], (np.bincount(b, ow[keep_o] * oc[:, c], bins)[filled] / wsum[filled]))
                      for c in range(3)], -1)
     col = np.stack([np.interp(lum, centres, ramp[:, c]) for c in range(3)], -1)
+    if keep_hue:  # the painting's colour per unit luma (grey where it's too dark to have a hue)
+        unit = art.reshape(-1, 3) / np.maximum(own_l, 1e-4)[:, None]
+        unit = np.where((own_l > 0.03)[:, None], unit, 1.0)
+        col = unit * lum[:, None]
     # the ramp's colour has about the target luma already; scale it there exactly (keeps the hue)
     cl = col @ LUMA
     col = col * (lum / np.maximum(cl, 1e-4))[:, None]
@@ -835,10 +934,14 @@ def ramp_recolour(art: np.ndarray, art_w: np.ndarray, orig: np.ndarray, orig_w: 
 
 
 def recolour_tiles(gd: GameData, sheet: str, first: int, size: int, tiles: dict[int, np.ndarray], palette: int,
-                   strength: float = 1.0, layout: float = 0.6, sigma: float = 0.35, arrangement: str | None = None) -> dict[int, np.ndarray]:
+                   strength: float = 1.0, layout: float = 0.6, sigma: float = 0.35, arrangement: str | None = None,
+                   keep_hue: bool = False, ink: bool = False) -> dict[int, np.ndarray]:
     """Recolour one object's atlas tiles ({index: rgba uint8 (h*8, 96, 4)}), fitted over the whole
     object (a 2x2 pickup's four tiles get one mapping, so they still meet without seams). `arrangement`
-    is a LAYOUTS name for an object whose tiles aren't blit_sprite2x2's (the Zica flame, D214)."""
+    is a LAYOUTS name for an object whose tiles aren't blit_sprite2x2's (the Zica flame, D214).
+    `keep_hue`: see ramp_recolour. `ink`: the sprite's dark outline ring (its dark pixels next to
+    transparency, which art_alpha cuts away) is left out of the target ramp, so the painting's darkest
+    texels match the rock's own dark limb and crevices, not the ink."""
     obj = object_tiles(gd, sheet, first, size, arrangement)
     pic = picture(gd, sheet, first, size, arrangement)
     H, W = pic.shape[0] * SCALE, pic.shape[1] * SCALE
@@ -853,8 +956,14 @@ def recolour_tiles(gd: GameData, sheet: str, first: int, size: int, tiles: dict[
         art[y0:y0 + h, x0:x0 + im.shape[1]] = im[:h, :, :3]
         aw[y0:y0 + h, x0:x0 + im.shape[1]] = im[:h, :, 3]
     orig = original_colour(gd, pic, palette, sigma)
-    ow = smooth_alpha(pic >= 0)
-    rec = ramp_recolour(art, aw, orig, ow, strength, layout)
+    body = pic >= 0
+    if ink:
+        from scipy import ndimage
+
+        dark = gd.rgba(pic, palette)[..., :3].max(-1) <= 0.16 * 255
+        body = body & ~(dark & ndimage.binary_dilation(pic < 0, iterations=1))
+    ow = smooth_alpha(body)
+    rec = ramp_recolour(art, aw, orig, ow, strength, layout, keep_hue=keep_hue)
     out = {}
     for t in obj:
         if t["index"] not in tiles:
@@ -873,7 +982,7 @@ def recolour_entries(config: dict) -> list[dict]:
     for e in config.get("objects", []):
         for f in e["frames"]:
             out.append({"sheet": e["sheet"], "first": f, "size": e.get("size", 1), "strength": e.get("strength", 1.0), "layout": e.get("layout", 0.6),
-                        "tiles": e.get("tiles")})
+                        "tiles": e.get("tiles"), "keep_hue": e.get("hue") == "art", "ink": bool(e.get("ink"))})
     return out
 
 
@@ -930,7 +1039,7 @@ def apply_recolour(gd: GameData, frames: dict[tuple[str, int], np.ndarray], pale
         if not tiles:
             continue
         for i, rgba in recolour_tiles(gd, e["sheet"], e["first"], e["size"], tiles, palette, e["strength"], e["layout"],
-                                      arrangement=e["tiles"]).items():
+                                      arrangement=e["tiles"], keep_hue=e["keep_hue"], ink=e["ink"]).items():
             frames[(e["sheet"], i)] = rgba
             done.add((e["sheet"], i))
     for j in config.get("joins", []):
@@ -1012,6 +1121,9 @@ def cut(gd: GameData, inputs: dict, results: Path, out: Path, palette: int, chec
             frames[k]["rgba"] = rgba[k]
         if changed:
             print(f"  recoloured: {len(changed)} frames")
+    steady = steady_frames(gd, frames)
+    if steady:
+        print(f"  steady: {steady} frames take their object's first painting outside the sprite's animated pixels")
     out.mkdir(parents=True, exist_ok=True)
     manifest = {"scale": SCALE, "sheets": {}}
     # Keep the atlases this run doesn't rebuild: other tools' sheets (value_art.py), and with --merge
