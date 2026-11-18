@@ -455,10 +455,26 @@
   color: var(--ui-copper-hi);
 }
 
-/* Twenty rows: tighter than the local table's three. */
+/* Twenty rows: tighter than the local table's three. Rank, score, name, levels completed, difficulty (D265). */
 .hs-shared-table .hs-row {
+  grid-template-columns: 1.6rem 5.5rem minmax(0, 1fr) auto auto;
   min-height: 1.9rem;
   font-size: 0.95rem;
+}
+
+.hs-levels {
+  justify-self: end;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ui-bone-faint);
+}
+
+@media (max-width: 560px) {
+  .hs-shared-table .hs-row {
+    grid-template-columns: 1.6rem 4.4rem minmax(0, 1fr) auto;
+  }
 }
 
 .hs-shared-table .hs-score {

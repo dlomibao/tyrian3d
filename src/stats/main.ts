@@ -6,7 +6,7 @@
 
 import "../ui/tokens.css";
 import "./stats.css";
-import { fetchTopScores, SCORES_API, type SharedScore } from "../scores/api";
+import { fetchTopScores, levelsText, SCORES_API, type SharedScore } from "../scores/api";
 import { h } from "../ui/components";
 import { barList, dailyColumns, deathGrid, fmt, installTooltip, outcomeBar, pct, scoreRange, splitBar, type BarRow } from "./charts";
 import {
@@ -441,7 +441,7 @@ function topScores(names: GameNames): HTMLElement {
               h("span", { class: "st-score__rank", text: String(x.rank) }),
               h("span", { class: "st-score__name", text: x.name }),
               h("span", { class: "st-score__pts ui-phos", text: fmt(x.score) }),
-              h("span", { class: "st-score__diff", text: names.difficulty(x.difficulty) }),
+              h("span", { class: "st-score__diff", text: `${names.difficulty(x.difficulty)} · ${levelsText(x.levels)}` }),
             ),
           ),
         );

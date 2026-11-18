@@ -50,6 +50,11 @@ export async function submitScore(run: RunData & { name: string; hash: string })
   return r && typeof r.ok === "boolean" ? r : null;
 }
 
+/** A leaderboard row's levels completed (the server's level_count: finished levels only, D265). */
+export function levelsText(n: number): string {
+  return `${n} ${n === 1 ? "level" : "levels"}`;
+}
+
 export interface SharedScore {
   rank: number;
   name: string;
