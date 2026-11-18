@@ -45,8 +45,8 @@
     "uniqueSprites": 888,
     "units": 222,
     "enemyUnits": 159,
-    "enemyUnitsModelled": 159,
-    "enemyUnitsFlagship": 159,
+    "enemyUnitsModelled": 142,
+    "enemyUnitsFlagship": 142,
     "damageFramesMissing": 0,
     "tilesets": 2,
     "tilesetsWithHd": 2,
@@ -88,10 +88,10 @@
    "summary": {
     "levels": 12,
     "uniqueSprites": 683,
-    "units": 193,
-    "enemyUnits": 147,
-    "enemyUnitsModelled": 147,
-    "enemyUnitsFlagship": 146,
+    "units": 198,
+    "enemyUnits": 152,
+    "enemyUnitsModelled": 143,
+    "enemyUnitsFlagship": 136,
     "damageFramesMissing": 0,
     "tilesets": 2,
     "tilesetsWithHd": 2,
@@ -134,8 +134,8 @@
     "uniqueSprites": 1202,
     "units": 244,
     "enemyUnits": 186,
-    "enemyUnitsModelled": 186,
-    "enemyUnitsFlagship": 185,
+    "enemyUnitsModelled": 177,
+    "enemyUnitsFlagship": 177,
     "damageFramesMissing": 0,
     "tilesets": 3,
     "tilesetsWithHd": 3,
@@ -195,10 +195,10 @@
    "summary": {
     "levels": 20,
     "uniqueSprites": 766,
-    "units": 225,
-    "enemyUnits": 165,
-    "enemyUnitsModelled": 165,
-    "enemyUnitsFlagship": 164,
+    "units": 230,
+    "enemyUnits": 170,
+    "enemyUnitsModelled": 170,
+    "enemyUnitsFlagship": 169,
     "damageFramesMissing": 0,
     "tilesets": 5,
     "tilesetsWithHd": 5,
@@ -955,20 +955,7 @@
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {
-    "tiles/shapesz/rim-360": 42,
-    "tiles/shapesz/rim-361": 102,
-    "tiles/shapesz/rim-362": 39,
-    "tiles/shapesz/rim-363": 39,
-    "tiles/shapesz/rim-364": 33,
-    "tiles/shapesz/rim-370": 127,
-    "tiles/shapesz/rim-372": 122,
-    "tiles/shapesz/rim-373": 38,
-    "tiles/shapesz/rim-374": 48,
-    "tiles/shapesz/rim-380": 43,
-    "tiles/shapesz/rim-381": 94,
-    "tiles/shapesz/rim-382": 56
-   },
+   "tileModels": {},
    "banks": [
     "newshd.shp",
     "newshm.shp",
@@ -1233,20 +1220,7 @@
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {
-    "tiles/shapesz/rim-360": 24,
-    "tiles/shapesz/rim-361": 64,
-    "tiles/shapesz/rim-362": 20,
-    "tiles/shapesz/rim-363": 33,
-    "tiles/shapesz/rim-364": 33,
-    "tiles/shapesz/rim-370": 89,
-    "tiles/shapesz/rim-372": 77,
-    "tiles/shapesz/rim-373": 33,
-    "tiles/shapesz/rim-374": 32,
-    "tiles/shapesz/rim-380": 22,
-    "tiles/shapesz/rim-381": 75,
-    "tiles/shapesz/rim-382": 17
-   },
+   "tileModels": {},
    "banks": [
     "newshd.shp",
     "newshm.shp",
@@ -2356,19 +2330,7 @@
     "tiles/shapesz/l1bld-light-bridge": 1,
     "tiles/shapesz/l1bld-pipe-junction": 1,
     "tiles/shapesz/l1bld-red-bar": 1,
-    "tiles/shapesz/l1bld-ring-dome": 1,
-    "tiles/shapesz/rim-360": 30,
-    "tiles/shapesz/rim-361": 103,
-    "tiles/shapesz/rim-362": 28,
-    "tiles/shapesz/rim-363": 20,
-    "tiles/shapesz/rim-364": 20,
-    "tiles/shapesz/rim-370": 108,
-    "tiles/shapesz/rim-372": 98,
-    "tiles/shapesz/rim-373": 24,
-    "tiles/shapesz/rim-374": 24,
-    "tiles/shapesz/rim-380": 34,
-    "tiles/shapesz/rim-381": 95,
-    "tiles/shapesz/rim-382": 32
+    "tiles/shapesz/l1bld-ring-dome": 1
    },
    "banks": [
     "newshd.shp",
@@ -4124,12 +4086,12 @@
     {"type":625,"kind":"pickup","unit":"tyrian9-239","via":"drop","events":3,"ticks":0,"arcadeOnly":true},
     {"type":628,"kind":"pickup","unit":"tyrian9-41","via":"drop","events":21,"ticks":0,"arcadeOnly":true},
     {"type":629,"kind":"pickup","unit":"tyrian9-245","via":"drop","events":1,"ticks":0,"arcadeOnly":true},
-    {"type":739,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":11,"ticks":2282},
-    {"type":740,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":17,"ticks":3495},
-    {"type":741,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":11,"ticks":2282},
-    {"type":742,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":11,"ticks":2327},
-    {"type":743,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":17,"ticks":3559},
-    {"type":744,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":11,"ticks":2327},
+    {"type":739,"kind":"decor","unit":"newshh-117","via":"event","events":11,"ticks":2282},
+    {"type":740,"kind":"decor","unit":"newshh-129","via":"event","events":17,"ticks":3495},
+    {"type":741,"kind":"decor","unit":"newshh-153","via":"event","events":11,"ticks":2282},
+    {"type":742,"kind":"decor","unit":"newshh-157","via":"event","events":11,"ticks":2327},
+    {"type":743,"kind":"decor","unit":"newshh-205","via":"event","events":17,"ticks":3559},
+    {"type":744,"kind":"decor","unit":"newshh-207","via":"event","events":11,"ticks":2327},
     {"type":745,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":346},
     {"type":746,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":346},
     {"type":747,"kind":"air","unit":"assembly-newshj-43","via":"event","events":5,"ticks":346},
@@ -4203,7 +4165,6 @@
     "assembly-newshg-203",
     "assembly-newshg-231",
     "assembly-newshg-267",
-    "assembly-newshh-129",
     "assembly-newshh-159",
     "assembly-newshh-192",
     "assembly-newshh-197",
@@ -4220,7 +4181,13 @@
     "newshf-230",
     "newshf-238",
     "newshg-167",
+    "newshh-117",
+    "newshh-129",
+    "newshh-153",
     "newshh-155",
+    "newshh-157",
+    "newshh-205",
+    "newshh-207",
     "newshj-1",
     "newshj-117",
     "newshj-131",
@@ -4317,7 +4284,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 7661,
-    "unitsSeen": 38,
+    "unitsSeen": 43,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-203","tyrian10-279","tyrian10-51","tyrian9-153","tyrian9-155","tyrian9-157","tyrian9-163","tyrian9-191","tyrian9-197","tyrian9-199","tyrian9-235","tyrian9-239","tyrian9-245","tyrian9-267","tyrian9-41"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -5920,12 +5887,12 @@
     {"type":561,"kind":"pickup","unit":"tyrian10-127","via":"armour ship","ticks":0},
     {"type":562,"kind":"pickup","unit":"tyrian10-129","via":"armour ship","ticks":0},
     {"type":563,"kind":"pickup","unit":"tyrian10-131","via":"armour ship","ticks":0},
-    {"type":739,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":6,"ticks":434},
-    {"type":740,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":6,"ticks":434},
-    {"type":741,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":6,"ticks":361},
-    {"type":742,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":6,"ticks":438},
-    {"type":743,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":6,"ticks":438},
-    {"type":744,"kind":"decor","unit":"assembly-newshh-129","via":"event","events":6,"ticks":438},
+    {"type":739,"kind":"decor","unit":"newshh-117","via":"event","events":6,"ticks":434},
+    {"type":740,"kind":"decor","unit":"newshh-129","via":"event","events":6,"ticks":434},
+    {"type":741,"kind":"decor","unit":"newshh-153","via":"event","events":6,"ticks":361},
+    {"type":742,"kind":"decor","unit":"newshh-157","via":"event","events":6,"ticks":438},
+    {"type":743,"kind":"decor","unit":"newshh-205","via":"event","events":6,"ticks":438},
+    {"type":744,"kind":"decor","unit":"newshh-207","via":"event","events":6,"ticks":438},
     {"type":745,"kind":"air","unit":"assembly-newshj-43","via":"event","events":14,"ticks":855},
     {"type":746,"kind":"air","unit":"assembly-newshj-43","via":"event","events":14,"ticks":855},
     {"type":747,"kind":"air","unit":"assembly-newshj-43","via":"event","events":14,"ticks":945},
@@ -5956,10 +5923,15 @@
     "assembly-newshg-203",
     "assembly-newshg-231",
     "assembly-newshg-267",
-    "assembly-newshh-129",
     "assembly-newshj-127",
     "assembly-newshj-43",
     "newshg-167",
+    "newshh-117",
+    "newshh-129",
+    "newshh-153",
+    "newshh-157",
+    "newshh-205",
+    "newshh-207",
     "newshj-1",
     "newshj-19",
     "newshj-77",
@@ -5997,7 +5969,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 1430,
-    "unitsSeen": 14,
+    "unitsSeen": 19,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-279"],
     "unitsFoundByBot": [],
     "typesNotListed": [],
@@ -7329,20 +7301,7 @@
     {"layer":1,"tiles":1,"hd":0,"modelled":0,"covered":0},
     {"layer":2,"tiles":1,"hd":0,"modelled":0,"covered":0}
    ],
-   "tileModels": {
-    "tiles/shapesz/rim-360": 13,
-    "tiles/shapesz/rim-361": 21,
-    "tiles/shapesz/rim-362": 10,
-    "tiles/shapesz/rim-363": 14,
-    "tiles/shapesz/rim-364": 8,
-    "tiles/shapesz/rim-370": 12,
-    "tiles/shapesz/rim-372": 11,
-    "tiles/shapesz/rim-373": 11,
-    "tiles/shapesz/rim-374": 18,
-    "tiles/shapesz/rim-380": 8,
-    "tiles/shapesz/rim-381": 21,
-    "tiles/shapesz/rim-382": 18
-   },
+   "tileModels": {},
    "banks": [
     "newshd.shp",
     "newshm.shp",
@@ -11807,14 +11766,14 @@
     {"type":561,"kind":"pickup","unit":"tyrian10-127","via":"armour ship","ticks":0},
     {"type":562,"kind":"pickup","unit":"tyrian10-129","via":"armour ship","ticks":0},
     {"type":563,"kind":"pickup","unit":"tyrian10-131","via":"armour ship","ticks":0},
-    {"type":645,"kind":"ground","unit":"assembly-newsh9-54","via":"event","events":1,"ticks":5677},
-    {"type":646,"kind":"ground","unit":"assembly-newsh9-54","via":"event","events":1,"ticks":5677},
-    {"type":647,"kind":"ground","unit":"assembly-newsh9-54","via":"event","events":1,"ticks":5677},
-    {"type":648,"kind":"ground","unit":"assembly-newsh9-54","via":"event","events":1,"ticks":5677},
+    {"type":645,"kind":"ground","unit":"newsh9-16","via":"event","events":1,"ticks":5677},
+    {"type":646,"kind":"ground","unit":"newsh9-18","via":"event","events":1,"ticks":5677},
+    {"type":647,"kind":"ground","unit":"newsh9-54","via":"event","events":1,"ticks":5677},
+    {"type":648,"kind":"ground","unit":"newsh9-56","via":"event","events":1,"ticks":5677},
     {"type":649,"kind":"ground","unit":"assembly-newsh9-92","via":"event","events":1,"ticks":5677},
     {"type":650,"kind":"ground","unit":"assembly-newsh9-92","via":"event","events":1,"ticks":5677},
-    {"type":651,"kind":"ground","unit":"assembly-newsh9-92","via":"event","events":1,"ticks":5677},
-    {"type":652,"kind":"ground","unit":"assembly-newsh9-92","via":"event","events":1,"ticks":5677},
+    {"type":651,"kind":"ground","unit":"newsh9-92","via":"event","events":1,"ticks":5677},
+    {"type":652,"kind":"ground","unit":"newsh9-94","via":"event","events":1,"ticks":5677},
     {"type":653,"kind":"ground","unit":"assembly-newshl-39","via":"event","events":2,"ticks":11648},
     {"type":654,"kind":"ground","unit":"assembly-newshl-39","via":"event","events":2,"ticks":11648},
     {"type":655,"kind":"ground","unit":"assembly-newshl-39","via":"event","events":2,"ticks":11648},
@@ -11841,7 +11800,6 @@
     {"type":676,"kind":"ground","unit":null,"via":"event","events":1,"ticks":190,"unloadedBank":28}
    ],
    "units": [
-    "assembly-newsh9-54",
     "assembly-newsh9-92",
     "assembly-newshl-153",
     "assembly-newshl-197",
@@ -11851,6 +11809,12 @@
     "assembly-newshl-77",
     "newsh5-267",
     "newsh5-286",
+    "newsh9-16",
+    "newsh9-18",
+    "newsh9-54",
+    "newsh9-56",
+    "newsh9-92",
+    "newsh9-94",
     "newshl-115",
     "newshl-116",
     "newshl-117",
@@ -11886,7 +11850,7 @@
     "difficulty": "normal",
     "completed": true,
     "ticks": 6060,
-    "unitsSeen": 15,
+    "unitsSeen": 20,
     "unitsNotSeen": ["tyrian10-127","tyrian10-129","tyrian10-131","tyrian10-279"],
     "unitsFoundByBot": ["assembly-newshl-153","assembly-newshl-197"],
     "typesNotListed": [],
@@ -12627,7 +12591,7 @@
     "newsh#.shp|2": [1,3,5,7,9,11,13,15,39,41,43,45,47,49,51,53,157,159,161,163,165,167,195,197,199,201,203,205,229,231,233,235,267,269,271,273]
    },
    "damageFrames": {},
-   "status": "basic",
+   "status": "flagship",
    "damage": "none",
    "framesSeen": {
     "newsh#.shp|2": [157,159,161,163,165,167,195,197,199,201,203,205,229,231,233,235,267,269,271,273]
@@ -14501,36 +14465,6 @@
    "ticks": 8654
   },
   {
-   "id": "assembly-newsh9-54",
-   "kind": "ground",
-   "sheet": "newsh9.shp",
-   "size": 2,
-   "frames": {
-    "newsh9.shp|2": [16,18,54,56,126,128,168,170,206,208,250,252]
-   },
-   "damageFrames": {},
-   "status": "flagship",
-   "damage": "none",
-   "framesSeen": {
-    "newsh9.shp|2": [16,18,54,56,126,128,168,170,206,208,250,252]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e4:645",
-    "e4:646",
-    "e4:647",
-    "e4:648"
-   ],
-   "levels": [
-    "4.17"
-   ],
-   "episodes": [
-    4
-   ],
-   "events": 4,
-   "ticks": 13360
-  },
-  {
    "id": "assembly-newsh9-85",
    "kind": "ground",
    "sheet": "newsh9.shp",
@@ -14572,20 +14506,18 @@
    "sheet": "newsh9.shp",
    "size": 2,
    "frames": {
-    "newsh9.shp|2": [92,94,130,132,244,246,282,284]
+    "newsh9.shp|2": [244,246]
    },
    "damageFrames": {},
    "status": "flagship",
    "damage": "none",
    "framesSeen": {
-    "newsh9.shp|2": [92,94,130,132,244,246,282,284]
+    "newsh9.shp|2": [244,246]
    },
    "unmodelledUnseen": {},
    "types": [
     "e4:649",
-    "e4:650",
-    "e4:651",
-    "e4:652"
+    "e4:650"
    ],
    "levels": [
     "4.17"
@@ -14593,8 +14525,8 @@
    "episodes": [
     4
    ],
-   "events": 4,
-   "ticks": 22676
+   "events": 2,
+   "ticks": 11324
   },
   {
    "id": "assembly-newsha-1",
@@ -15141,7 +15073,7 @@
     "newshd.shp|2": [1,3,39,41]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [1,3,39,41]
@@ -15172,7 +15104,7 @@
     "newshd.shp|2": [7,9,45,47]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "partial",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [7,9,45,47]
@@ -15203,7 +15135,7 @@
     "newshd.shp|2": [13,49,51,53,89,91]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [13,49,51,53,89,91]
@@ -15798,39 +15730,6 @@
    ],
    "events": 8,
    "ticks": 724
-  },
-  {
-   "id": "assembly-newshh-129",
-   "kind": "decor",
-   "sheet": "newshh.shp",
-   "size": 2,
-   "frames": {
-    "newshh.shp|2": [117,129,153,157,165,167,169,203,205,207,234,236,238,240,242,244,267,269,272,274,276,278,280,282]
-   },
-   "damageFrames": {},
-   "status": "flagship",
-   "damage": "none",
-   "framesSeen": {
-    "newshh.shp|2": [117,129,153,157,165,167,169,203,205,207,234,236,238,240,242,244,267,269,272,274,276,278,280,282]
-   },
-   "unmodelledUnseen": {},
-   "types": [
-    "e1-3:739",
-    "e1-3:740",
-    "e1-3:741",
-    "e1-3:742",
-    "e1-3:743",
-    "e1-3:744"
-   ],
-   "levels": [
-    "2.1",
-    "2.12"
-   ],
-   "episodes": [
-    2
-   ],
-   "events": 114,
-   "ticks": 18547
   },
   {
    "id": "assembly-newshh-159",
@@ -20325,6 +20224,60 @@
    "ticks": 4517
   },
   {
+   "id": "newsh9-16",
+   "kind": "ground",
+   "sheet": "newsh9.shp",
+   "size": 2,
+   "frames": {
+    "newsh9.shp|2": [16,168,250]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newsh9.shp|2": [16,168,250]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e4:645"
+   ],
+   "levels": [
+    "4.17"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 1,
+   "ticks": 2211
+  },
+  {
+   "id": "newsh9-18",
+   "kind": "ground",
+   "sheet": "newsh9.shp",
+   "size": 2,
+   "frames": {
+    "newsh9.shp|2": [18,170,252]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newsh9.shp|2": [18,170,252]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e4:646"
+   ],
+   "levels": [
+    "4.17"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 1,
+   "ticks": 2211
+  },
+  {
    "id": "newsh9-235",
    "kind": "ground",
    "sheet": "newsh9.shp",
@@ -20552,6 +20505,114 @@
    ],
    "events": 2,
    "ticks": 1016
+  },
+  {
+   "id": "newsh9-54",
+   "kind": "ground",
+   "sheet": "newsh9.shp",
+   "size": 2,
+   "frames": {
+    "newsh9.shp|2": [54,126,206]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newsh9.shp|2": [54,126,206]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e4:647"
+   ],
+   "levels": [
+    "4.17"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 1,
+   "ticks": 4469
+  },
+  {
+   "id": "newsh9-56",
+   "kind": "ground",
+   "sheet": "newsh9.shp",
+   "size": 2,
+   "frames": {
+    "newsh9.shp|2": [56,128,208]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newsh9.shp|2": [56,128,208]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e4:648"
+   ],
+   "levels": [
+    "4.17"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 1,
+   "ticks": 4469
+  },
+  {
+   "id": "newsh9-92",
+   "kind": "ground",
+   "sheet": "newsh9.shp",
+   "size": 2,
+   "frames": {
+    "newsh9.shp|2": [92,130,282]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newsh9.shp|2": [92,130,282]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e4:651"
+   ],
+   "levels": [
+    "4.17"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 1,
+   "ticks": 5676
+  },
+  {
+   "id": "newsh9-94",
+   "kind": "ground",
+   "sheet": "newsh9.shp",
+   "size": 2,
+   "frames": {
+    "newsh9.shp|2": [94,132,284]
+   },
+   "damageFrames": {},
+   "status": "flagship",
+   "damage": "none",
+   "framesSeen": {
+    "newsh9.shp|2": [94,132,284]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e4:652"
+   ],
+   "levels": [
+    "4.17"
+   ],
+   "episodes": [
+    4
+   ],
+   "events": 1,
+   "ticks": 5676
   },
   {
    "id": "newsha-125",
@@ -21316,7 +21377,7 @@
     "newshd.shp|1": [114]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [114]
@@ -21407,7 +21468,7 @@
     "newshd.shp|2": [123]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [123]
@@ -21475,7 +21536,7 @@
     "newshd.shp|1": [133]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [133]
@@ -21509,7 +21570,7 @@
     "newshd.shp|1": [15]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [15]
@@ -21536,7 +21597,7 @@
     "newshd.shp|1": [152]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [152]
@@ -21657,7 +21718,7 @@
     "newshd.shp|2": [18,55,93]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [18,55,93]
@@ -21755,7 +21816,7 @@
     "newshd.shp|2": [229,231,233,235]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [229,231,233,235]
@@ -21874,7 +21935,7 @@
     "newshd.shp|1": [31]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [31]
@@ -21901,7 +21962,7 @@
     "newshd.shp|1": [34]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [34]
@@ -21928,7 +21989,7 @@
     "newshd.shp|2": [43]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [43]
@@ -21963,7 +22024,7 @@
     "newshd.shp|2": [5]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [5]
@@ -22062,7 +22123,7 @@
     "newshd.shp|2": [85]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|2": [85]
@@ -22097,7 +22158,7 @@
     "newshd.shp|1": [88]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [88]
@@ -22124,7 +22185,7 @@
     "newshd.shp|1": [95]
    },
    "damageFrames": {},
-   "status": "flagship",
+   "status": "flat",
    "damage": "none",
    "framesSeen": {
     "newshd.shp|1": [95]
@@ -23114,6 +23175,34 @@
    "ticks": 1029
   },
   {
+   "id": "newshh-117",
+   "kind": "decor",
+   "sheet": "newshh.shp",
+   "size": 2,
+   "frames": {
+    "newshh.shp|2": [117,165,234,240]
+   },
+   "damageFrames": {},
+   "status": "concept",
+   "damage": "none",
+   "framesSeen": {
+    "newshh.shp|2": [117,165,234,240]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e1-3:739"
+   ],
+   "levels": [
+    "2.1",
+    "2.12"
+   ],
+   "episodes": [
+    2
+   ],
+   "events": 17,
+   "ticks": 2630
+  },
+  {
    "id": "newshh-127",
    "kind": "ground",
    "sheet": "newshh.shp",
@@ -23139,6 +23228,34 @@
    ],
    "events": 2,
    "ticks": 172
+  },
+  {
+   "id": "newshh-129",
+   "kind": "decor",
+   "sheet": "newshh.shp",
+   "size": 2,
+   "frames": {
+    "newshh.shp|2": [129,167,236,242]
+   },
+   "damageFrames": {},
+   "status": "concept",
+   "damage": "none",
+   "framesSeen": {
+    "newshh.shp|2": [129,167,236,242]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e1-3:740"
+   ],
+   "levels": [
+    "2.1",
+    "2.12"
+   ],
+   "episodes": [
+    2
+   ],
+   "events": 23,
+   "ticks": 3893
   },
   {
    "id": "newshh-131",
@@ -23168,6 +23285,34 @@
    "ticks": 1058
   },
   {
+   "id": "newshh-153",
+   "kind": "decor",
+   "sheet": "newshh.shp",
+   "size": 2,
+   "frames": {
+    "newshh.shp|2": [153,169,238,244]
+   },
+   "damageFrames": {},
+   "status": "concept",
+   "damage": "none",
+   "framesSeen": {
+    "newshh.shp|2": [153,169,238,244]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e1-3:741"
+   ],
+   "levels": [
+    "2.1",
+    "2.12"
+   ],
+   "episodes": [
+    2
+   ],
+   "events": 17,
+   "ticks": 2619
+  },
+  {
    "id": "newshh-155",
    "kind": "custom",
    "sheet": "newshh.shp",
@@ -23193,6 +23338,90 @@
    ],
    "events": 14,
    "ticks": 1085
+  },
+  {
+   "id": "newshh-157",
+   "kind": "decor",
+   "sheet": "newshh.shp",
+   "size": 2,
+   "frames": {
+    "newshh.shp|2": [157,203,272,278]
+   },
+   "damageFrames": {},
+   "status": "concept",
+   "damage": "none",
+   "framesSeen": {
+    "newshh.shp|2": [157,203,272,278]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e1-3:742"
+   ],
+   "levels": [
+    "2.1",
+    "2.12"
+   ],
+   "episodes": [
+    2
+   ],
+   "events": 17,
+   "ticks": 2699
+  },
+  {
+   "id": "newshh-205",
+   "kind": "decor",
+   "sheet": "newshh.shp",
+   "size": 2,
+   "frames": {
+    "newshh.shp|2": [205,267,274,280]
+   },
+   "damageFrames": {},
+   "status": "concept",
+   "damage": "none",
+   "framesSeen": {
+    "newshh.shp|2": [205,267,274,280]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e1-3:743"
+   ],
+   "levels": [
+    "2.1",
+    "2.12"
+   ],
+   "episodes": [
+    2
+   ],
+   "events": 23,
+   "ticks": 3963
+  },
+  {
+   "id": "newshh-207",
+   "kind": "decor",
+   "sheet": "newshh.shp",
+   "size": 2,
+   "frames": {
+    "newshh.shp|2": [207,269,276,282]
+   },
+   "damageFrames": {},
+   "status": "concept",
+   "damage": "none",
+   "framesSeen": {
+    "newshh.shp|2": [207,269,276,282]
+   },
+   "unmodelledUnseen": {},
+   "types": [
+    "e1-3:744"
+   ],
+   "levels": [
+    "2.1",
+    "2.12"
+   ],
+   "episodes": [
+    2
+   ],
+   "events": 17,
+   "ticks": 2743
   },
   {
    "id": "newshh-284",
@@ -34321,10 +34550,9 @@
     53,
     170
    ],
-   "tileModels": 158,
+   "tileModels": 146,
    "tileModelTiers": {
     "concept": 94,
-    "flagship": 12,
     "basic": 52
    }
   },
@@ -35107,6 +35335,87 @@
  "ranking": {
   "units": [
    {
+    "id": "newshd-95",
+    "what": "ground",
+    "status": "flat",
+    "levels": 5,
+    "episodes": 3,
+    "events": 0,
+    "ticks": 5108
+   },
+   {
+    "id": "newshd-152",
+    "what": "ground",
+    "status": "flat",
+    "levels": 5,
+    "episodes": 3,
+    "events": 0,
+    "ticks": 4140
+   },
+   {
+    "id": "newshd-114",
+    "what": "ground",
+    "status": "flat",
+    "levels": 5,
+    "episodes": 3,
+    "events": 0,
+    "ticks": 3909
+   },
+   {
+    "id": "newshd-133",
+    "what": "ground",
+    "status": "flat",
+    "levels": 5,
+    "episodes": 3,
+    "events": 0,
+    "ticks": 3027
+   },
+   {
+    "id": "newshd-5",
+    "what": "ground",
+    "status": "flat",
+    "levels": 5,
+    "episodes": 3,
+    "events": 0,
+    "ticks": 2311
+   },
+   {
+    "id": "newshd-123",
+    "what": "ground",
+    "status": "flat",
+    "levels": 5,
+    "episodes": 3,
+    "events": 0,
+    "ticks": 2015
+   },
+   {
+    "id": "newshd-43",
+    "what": "ground",
+    "status": "flat",
+    "levels": 5,
+    "episodes": 3,
+    "events": 3,
+    "ticks": 1803
+   },
+   {
+    "id": "newshd-85",
+    "what": "ground",
+    "status": "flat",
+    "levels": 5,
+    "episodes": 3,
+    "events": 0,
+    "ticks": 1410
+   },
+   {
+    "id": "newshd-18",
+    "what": "ground",
+    "status": "flat",
+    "levels": 4,
+    "episodes": 3,
+    "events": 0,
+    "ticks": 1793
+   },
+   {
     "id": "assembly-newshj-127",
     "what": "air+decor",
     "status": "basic",
@@ -35116,13 +35425,85 @@
     "ticks": 6340
    },
    {
-    "id": "assembly-newsh-hash-195",
+    "id": "assembly-newshd-45",
     "what": "ground",
-    "status": "basic",
+    "status": "partial",
     "levels": 2,
     "episodes": 1,
-    "events": 80,
-    "ticks": 6294
+    "events": 160,
+    "ticks": 9456
+   },
+   {
+    "id": "assembly-newshd-39",
+    "what": "ground",
+    "status": "flat",
+    "levels": 2,
+    "episodes": 1,
+    "events": 156,
+    "ticks": 6594
+   },
+   {
+    "id": "newshh-205",
+    "what": "decor",
+    "status": "concept",
+    "levels": 2,
+    "episodes": 1,
+    "events": 23,
+    "ticks": 3963
+   },
+   {
+    "id": "newshh-129",
+    "what": "decor",
+    "status": "concept",
+    "levels": 2,
+    "episodes": 1,
+    "events": 23,
+    "ticks": 3893
+   },
+   {
+    "id": "newshh-207",
+    "what": "decor",
+    "status": "concept",
+    "levels": 2,
+    "episodes": 1,
+    "events": 17,
+    "ticks": 2743
+   },
+   {
+    "id": "newshh-157",
+    "what": "decor",
+    "status": "concept",
+    "levels": 2,
+    "episodes": 1,
+    "events": 17,
+    "ticks": 2699
+   },
+   {
+    "id": "newshh-117",
+    "what": "decor",
+    "status": "concept",
+    "levels": 2,
+    "episodes": 1,
+    "events": 17,
+    "ticks": 2630
+   },
+   {
+    "id": "newshh-153",
+    "what": "decor",
+    "status": "concept",
+    "levels": 2,
+    "episodes": 1,
+    "events": 17,
+    "ticks": 2619
+   },
+   {
+    "id": "assembly-newshd-89",
+    "what": "ground",
+    "status": "flat",
+    "levels": 1,
+    "episodes": 1,
+    "events": 48,
+    "ticks": 3014
    },
    {
     "id": "newsh5-160",
@@ -35132,6 +35513,51 @@
     "episodes": 1,
     "events": 16,
     "ticks": 1633
+   },
+   {
+    "id": "newshd-88",
+    "what": "ground",
+    "status": "flat",
+    "levels": 1,
+    "episodes": 1,
+    "events": 8,
+    "ticks": 474
+   },
+   {
+    "id": "newshd-31",
+    "what": "ground",
+    "status": "flat",
+    "levels": 1,
+    "episodes": 1,
+    "events": 8,
+    "ticks": 446
+   },
+   {
+    "id": "newshd-34",
+    "what": "ground",
+    "status": "flat",
+    "levels": 1,
+    "episodes": 1,
+    "events": 8,
+    "ticks": 446
+   },
+   {
+    "id": "newshd-15",
+    "what": "ground",
+    "status": "flat",
+    "levels": 1,
+    "episodes": 1,
+    "events": 8,
+    "ticks": 436
+   },
+   {
+    "id": "newshd-229",
+    "what": "ground",
+    "status": "flat",
+    "levels": 1,
+    "episodes": 1,
+    "events": 0,
+    "ticks": 163
    }
   ],
   "pickups": [],
@@ -35139,7 +35565,7 @@
    {
     "id": "shapesz",
     "what": "tiles 275/60/178 (layers 0/1/2)",
-    "status": "HD art 266/53/73, in structure models 85/12/97, 158 structure models",
+    "status": "HD art 266/53/73, in structure models 85/12/97, 146 structure models",
     "uncovered": [9,7,8],
     "levels": 32,
     "episodes": 4,
