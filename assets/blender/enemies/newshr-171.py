@@ -45,7 +45,10 @@ SPEC = {
     # bias < 0 matches the facets a step paler (QA 2026-11-17: the pebble read 75,54,36 in game where the
     # sprite averages 89,68,50): the sprite's dark limb pixels are its lighting, and the game's sun
     # already darkens the facets turned away, so matching them dark as well shaded the limb twice
-    "ramp": {"sprite": 0.8, "bias": -0.1},
+    # QA 2026-11-18 (round 3, SAWBLADES t5130): still read dark against the sprite, so the ramp is
+    # also compressed toward its upper half (strength 0.75) and set a further step paler (bias -0.22):
+    # the facets the game's sun turns away take 165-166, not the limb's 162-163
+    "ramp": {"sprite": 0.8, "bias": -0.22, "strength": 0.75},
     "h_top": 0.36,          # about 4.3 px above the waist (9 px wide rock)
     "h_bot": 0.30,
     "rise": 0.7,
@@ -108,7 +111,11 @@ TIP_R = 0.85   # sprite px
 #: normals. The sprite draws its rim in dark browns (162/163), ink on only 31% of it, so a 9 px pebble
 #: read heavily inked with the game's full ink ring (QA 2026-11-17); set in, the ring shows about half
 #: as wide past the rock's silhouette and stays on the silhouette only.
-SHELL_INSET = 0.045
+SHELL_INSET = 0.085
+# QA 2026-11-18 (round 3): at 0.045 (about half the ink) the pebble still read heavily outlined: the
+# game's ink pushes out about 1.1 sprite px at this size, a full ring on a 9 px stone the original
+# draws with no ink at all (its dark limb is the rock's own lighting). Set in about 1 px, only a
+# hairline survives where the rock's lumps stand flush with the shell.
 
 
 def _inset_shell(outline_shell):

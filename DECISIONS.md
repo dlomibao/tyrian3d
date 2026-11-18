@@ -15096,3 +15096,24 @@ tainted but not eligible (the bounds model a one-player full game); the hidden d
 **Play reports:** at each level's end (finished, died, quit) a beacon with the level's summary, when Options →
 "Share anonymous play stats" is on (default on), with a random id kept in the browser; the server stores only a
 country code (DB-IP Lite, CC BY 4.0) and a monthly-salted IP hash for rate limits.
+
+## D259 — Walkthrough round 3 model fixes: GYGES drill cap, eye pods, EYESPY shell, SAWBLADES pebbles, IXMUCANE cracked egg, ASTCITY slab
+
+**Date:** 2026-11-18
+
+**Decision** (fix-round workflow, Opus, strict review "ship" 7-8 each):
+- **GYGES drill cap** (`newshh-79.py`): a domed crown shaped by slope so the light makes the sprite's hotspot (max 252 vs
+  253), a polished roughness patch where the sun's lobe falls (D176's sheen method), and each row keeps the sprite's
+  palette index (104-108) with a smooth multiplier between them, no ring edges. Top-view IoU 0.9597.
+- **GYGES eye pods** (`newshg-121.py` pod group): softer rings, pupil low-left, thinner ink ring. IoU 0.983.
+- **EYESPY shell** (`assembly-newsh9-191.py`): the swirl is a grey-on-grey shaded yin-yang, not a white S with heavy ink;
+  the shell darker to match. The iris and D227 limbs untouched.
+- **SAWBLADES pebbles** (`newshr-171.py`, `newshr-190.py`): lighter, thinner outline.
+- **IXMUCANE egg** (`newsh8-102.py`): the damaged sprite newsh8-140 gets its own cracked frame (amends D87's routing).
+- **ASTCITY slab** (`assembly-newshp-191.py`): tone and hue matched to the sprite (was 1.17x bright and blue).
+
+**Held back** (review "fix"): STARGATE's small bubble newshe-235, HARVEST's bubble newshu-91, ASTEROID?'s station floor.
+**Not a model issue:** the Stalker's blue-grey cast was the invulnerable blend (D258's 0.8 model opacity).
+
+**Review:** the drill cap's per-row shade multiplier is close to painted tone; if it reads as bands, drop it and keep the
+per-row indices only.
