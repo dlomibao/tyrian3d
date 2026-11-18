@@ -1,9 +1,10 @@
 // D171: airborne models' shadows fall the same way under every camera (sun.ts), the camera ray's
 // roll is taken out of a banking ship's (sun.ts rayRoll), and the ship's shadow is the C's darken
-// draw as a decal (shadowDecals.ts).
+// draw as a decal (shadowDecals.ts). D243: an airborne model's shadow shifts count its height from the
+// background-2/3 surface under it (sun.ts SurfaceTiles), so a tank on a platform casts it at its tracks.
 import * as THREE from "three";
 import { describe, expect, test } from "vitest";
-import { AIR_SHADOW_DROP, SUN_POSITION, airShadowShift, isAirborne, rayRoll } from "../../src/render/sun";
+import { AIR_SHADOW_DROP, SUN_POSITION, SurfaceTiles, airShadowShift, isAirborne, rayRoll } from "../../src/render/sun";
 import { DARKEN, DECAL_HEIGHT, ShadowDecals, shadowMask, shadowPlayerOfKey } from "../../src/render/shadowDecals";
 import { CAMERA_TILT, CAMERA_TILT_GENTLE, CAMERA_TILT_OVERHEAD, PLAYFIELD_RECT, fitCamera } from "../../src/render/view";
 import { PASS_HEIGHT } from "../../src/render/passHeights";
@@ -46,6 +47,78 @@ describe("airborne shadows (sun.ts)", () => {
     expect(((pos.z - aim.z) / pos.y - SUN_POSITION.z / SUN_POSITION.y) * h).toBeLessThan(0);
     expect(isAirborne(PASS_HEIGHT[Pass.GroundEnemies])).toBe(false);
     expect(isAirborne(PASS_HEIGHT[Pass.SkyEnemies])).toBe(true);
+  });
+});
+
+/**
+ * Where the shadow of a model at screen point g (world xz on the ground), height h, falls on a surface
+ * at height r, as an offset from g in screen terms (ground-plane units), with the renderer's shifts
+ * (placeModel) counted from `from`: D133's (g - aim)·(h - from)/C.y and D171's air·(h - from). The
+ * model and the surface are both lifted along their camera rays (D6).
+ */
+function shadowOnSurface(tilt: number, g: THREE.Vector2, h: number, r: number, from: number): THREE.Vector2 {
+  const { pos, aim } = camera(tilt);
+  const c = new THREE.Vector2(pos.x, pos.z);
+  const a = new THREE.Vector2(aim.x, aim.z);
+  const caster = g.clone().add(c.clone().sub(g).multiplyScalar(h / pos.y));
+  const air = airShadowShift(pos, aim, new THREE.Vector2()).multiplyScalar(h - from);
+  const d133 = g.clone().sub(a).multiplyScalar((h - from) / pos.y);
+  const sun = new THREE.Vector2(-SUN_POSITION.x / SUN_POSITION.y, -SUN_POSITION.z / SUN_POSITION.y).multiplyScalar(h - r);
+  const world = caster.add(d133).add(air).add(sun);
+  // The surface point drawn at screen point q sits at q + (c - q)·r/C.y.
+  const q = world.sub(c.clone().multiplyScalar(r / pos.y)).divideScalar(1 - r / pos.y);
+  return q.sub(g);
+}
+
+describe("shadows on a raised surface (D243)", () => {
+  const tilts = [CAMERA_TILT_OVERHEAD, CAMERA_TILT_GENTLE, CAMERA_TILT];
+  const top = PASS_HEIGHT[Pass.TopEnemies];
+  const platform = PASS_HEIGHT[Pass.Background3];
+  const points = [new THREE.Vector2(0, 0), new THREE.Vector2(-10, -7), new THREE.Vector2(10, 6), new THREE.Vector2(9, -7)];
+
+  test("counted from the platform, a top enemy's shadow is at its tracks, the same anywhere on screen", () => {
+    for (const tilt of tilts) {
+      const { pos } = camera(tilt);
+      const want = new THREE.Vector2(-SUN_POSITION.x / SUN_POSITION.y, AIR_SHADOW_DROP).multiplyScalar((top - platform) / (1 - platform / pos.y));
+      for (const g of points) {
+        const o = shadowOnSurface(tilt, g, top, platform, platform);
+        expect(o.x).toBeCloseTo(want.x, 9);
+        expect(o.y).toBeCloseTo(want.y, 9);
+        expect(o.length() * PX_PER_UNIT).toBeLessThan(2.5);
+      }
+    }
+  });
+
+  test("counted from the ground (before), it fell 11+ px below the tank and drifted out to the screen's edges", () => {
+    const o = (g: THREE.Vector2) => shadowOnSurface(CAMERA_TILT_OVERHEAD, g, top, platform, 0).multiplyScalar(PX_PER_UNIT);
+    expect(o(points[0]).y).toBeGreaterThan(11);
+    expect(o(points[2]).x - o(points[1]).x).toBeGreaterThan(10);
+  });
+
+  test("on the ground nothing changes: counted from 0 is D171's drop", () => {
+    for (const tilt of tilts) {
+      for (const g of points) {
+        const o = shadowOnSurface(tilt, g, PASS_HEIGHT[Pass.Player], 0, 0);
+        expect(o.y * PX_PER_UNIT).toBeCloseTo(10, 6);
+      }
+    }
+  });
+
+  test("SurfaceTiles.under: the highest opaque tile pixel lower than the model, else the ground", () => {
+    const solid = new Uint8Array(24 * 28).fill(5);
+    const holed = solid.slice();
+    holed[10 * 24 + 12] = 0; // a transparent pixel at (12, 10)
+    const s = new SurfaceTiles();
+    s.begin();
+    s.add(PASS_HEIGHT[Pass.Background2Mid], 100, 50, solid);
+    s.add(platform, 100, 50, holed);
+    expect(s.under(105, 55, top)).toBe(platform);
+    expect(s.under(112.5, 60.5, top)).toBe(PASS_HEIGHT[Pass.Background2Mid]); // through the hole, background 2
+    expect(s.under(105, 55, PASS_HEIGHT[Pass.SkyEnemies])).toBe(PASS_HEIGHT[Pass.Background2Mid]); // background 3 is above a sky enemy
+    expect(s.under(99, 55, top)).toBe(0); // off the tiles
+    expect(s.under(124, 55, top)).toBe(0);
+    s.begin();
+    expect(s.under(105, 55, top)).toBe(0);
   });
 });
 

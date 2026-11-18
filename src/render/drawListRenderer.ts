@@ -54,7 +54,7 @@ import { damageModeFromSearch } from "./damage/damageMode";
 import { ShipCondition } from "./damage/shipDamage";
 import { Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
-import { airShadowShift, isAirborne, rayRoll } from "./sun";
+import { SurfaceTiles, airShadowShift, isAirborne, rayRoll } from "./sun";
 import { ShadowDecals } from "./shadowDecals";
 import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
@@ -513,6 +513,8 @@ export class DrawListRenderer {
   private readonly shadowRef = new THREE.Vector3();
   /** Airborne models' extra shadow shift per unit of height, for this frame's camera (D171). */
   private readonly airShadow = new THREE.Vector2();
+  /** This frame's background-2 and -3 tiles: an airborne model's shadow shifts count from the one under it (D243). */
+  private readonly surfaces = new SurfaceTiles();
   private readonly viewDir = new THREE.Vector3();
   /** Which star pixels background 1 hides (D127). */
   private readonly starCover = new StarCover();
@@ -1036,6 +1038,7 @@ export class DrawListRenderer {
     this.hdTiles = 0;
     this.placedExtents.length = 0;
     this.solidTiles.length = 0;
+    this.surfaces.begin();
     this.blendSheets.length = 0;
     this.grabSheets.area.clear();
     this.grabExplosions.area.clear();
@@ -1119,6 +1122,8 @@ export class DrawListRenderer {
           const x = prevX[i] + (d.x - prevX[i]) * alpha;
           const y = prevY[i] + (d.y - prevY[i]) * alpha;
           if (!this.isSpaceTile(d)) this.solidTiles.push(x, y);
+          // A surface for the models drawn after it (D243); a blended sheet (TYRIAN's ice clouds) is not one.
+          if (d.layer !== 0 && d.effect !== "blend") this.surfaces.add(passHeight(d.pass), x, y, d.tile);
           if (d.layer === 0 && STAND_IN_IDS.has(d.tileId)) this.standInTiles.set(d.tileId, d.tile);
           if (this.background === "remaster" && this.drawRemasterTile(d, x, y, cam, frame)) {
             instances++;
@@ -1938,9 +1943,14 @@ export class DrawListRenderer {
     // than it looks, and its shadow drifted toward the middle with it, away from it on screen. Its
     // shadow is drawn where the lift would put it from the camera's aim point instead (D133).
     // An airborne model's shadow also falls the same way below it under every camera (D171); whether
-    // it is airborne is its pass's, not raised over another model (D181).
-    const air = isAirborne(base) ? h : 0;
-    this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * k + this.airShadow.x * air, (gz - this.shadowRef.z) * k + this.airShadow.y * air);
+    // it is airborne is its pass's, not raised over another model (D181). Both shifts count an
+    // airborne model's height from the background-2 or -3 surface under it, the one its shadow falls
+    // on (D243): a tank on a platform casts it at its tracks, not as if it flew over the ground.
+    const airborne = isAirborne(base);
+    const surface = airborne ? this.surfaces.under(cx, cy, base) : 0;
+    const ks = (ha - surface) / cam.y;
+    const air = airborne ? h - surface : 0;
+    this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * ks + this.airShadow.x * air, (gz - this.shadowRef.z) * ks + this.airShadow.y * air);
     this.placedExtents.push({
       pass: d.pass,
       left,
