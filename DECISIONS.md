@@ -15117,3 +15117,23 @@ country code (DB-IP Lite, CC BY 4.0) and a monthly-salted IP hash for rate limit
 
 **Review:** the drill cap's per-row shade multiplier is close to painted tone; if it reads as bands, drop it and keep the
 per-row indices only.
+
+## D260 — TORM boss crown ridges and shield, TORM waterfall contrast and crest strands, New Deli boss eye pods and H block (Fable fix round, walkthrough round 3)
+
+**Date:** 2026-11-18
+
+**Decision** (fix-round workflow on Fable at the user's standing request for repeat-failure items; strict review "ship" 7-8 each):
+- **TORM / BOTANY boss** (`assembly-newshj-191.py`): ten real round crown ridges on the sprite's seam columns, one palette
+  index (37), the band sloped toward the game's sun so the light makes the crests (p99 240 vs the original's 254, was 181);
+  the painted pale rib removed. Posts become the sprite's short knobs. The pod is a shallow shield and `tyrian_anchor`
+  goes 2.0 → 1.85 on all 21 models (amends D185's value), so the outline sits within 2-3 sprite px of the sprite's. The
+  slit is back at the sprite's width. Worst piece IoU 0.9512 (was 0.8998).
+- **TORM waterfall** (`assembly-newshh-129.py`, `lib_newshh_falls.py`): the water layers take the ground light (D223's
+  `rock_material(ground=True)`) so dark water stays dark (p10 23 → 10 vs 9); each zone's tones are matched back to the
+  art's own histogram (p99 171 → 207 vs 210); the haze band is gone; the crest strands are restored in the model, since
+  the HD river tiles have none (D212). Correlation with the original 0.973 → 0.990 (amends D212).
+- **New Deli boss** (`assembly-newsht-39.py`): the goggle eggs and red cradles become low black sockets with a dark
+  glass ball high under the brow; the grey cylinder becomes the sprite's dark wedge carrying a polished-steel H.
+
+**Review:** the waterfall's crest strands are brighter and denser than the original's, and the curtain reads as a crisp
+pixel mosaic at 4K full screen; the TORM boss crown is lit evenly where the sprite is brighter on its left.
