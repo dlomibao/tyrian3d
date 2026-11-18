@@ -56,6 +56,7 @@ import { JE_initEpisode } from "../sim/episodes";
 import { CompareView, compareFromUrl } from "./compareView";
 // The shared high-score list and play reports (src/scores/; inert without VITE_SCORES_API).
 import * as shared from "../scores/session";
+import { scoresEnabled } from "../scores/api"; // D267: the title's Play Stats
 import { sharedHighScores } from "./sharedScores";
 
 /** D158: the side-by-side comparison's original half, with `?compare=1`. */
@@ -180,6 +181,12 @@ export async function runGame(view: View, onPlay: () => void = () => {}): Promis
       // [high scores] the title menu's High Scores (JE_highScoreScreen)
       highScoresLabel: g.miscText[50]?.trim() || undefined,
       onHighScores: () => showHighScoreScreen({ ...names, episodes, sfx, episode: choice.episode, difficultyNames: difficultyNamesByLevel(names.difficultyName) }),
+      // D267: the public play stats page (built only with VITE_SCORES_API), in a new tab so the game stays.
+      onStats: scoresEnabled()
+        ? async () => {
+            window.open("stats/", "_blank", "noopener");
+          }
+        : undefined,
       idleMs: demos ? TITLE_IDLE_MS : undefined, // [demos]
       destructReady: () => destructHook.open !== null, // [destruct]
       // [arcade] what the codes typed at the title start

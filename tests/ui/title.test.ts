@@ -7,7 +7,7 @@ import { PAD_BUTTONS } from "../../src/ui/nav";
 describe("TITLE_PAD", () => {
   const entries = Object.values(TITLE_PAD);
 
-  test("gives Load Game, Options and High Scores a button each", () => {
+  test("gives Load Game, Options, High Scores and Play Stats a button each", () => {
     expect(new Set(entries.map((e) => e.button)).size).toBe(entries.length);
     expect(TITLE_PAD.loadGame.glyph).toBe("LB");
   });

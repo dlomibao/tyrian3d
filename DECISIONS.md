@@ -15325,3 +15325,11 @@ instructions with the mobile and keyboard controls and the general goal, super c
 **Options considered:** a hint strip over the first seconds of play (gone before a first-timer reads it; covers the
 playfield); showing it at the title or before the first shop (the shop is its own lesson; the controls matter when
 the ship appears); hard-coded default keys (wrong after a rebind).
+## D267 — The title menu gets "Play Stats", opening the public stats page in a new tab (lomibao.net build only; follows D263)
+
+**Date:** 2026-11-18
+
+**Decision** (the user's call): in builds with the global leaderboard (`VITE_SCORES_API`), the title's main step lists
+Start New Game, Load Game, High Scores, **Play Stats**, Options, Music. Play Stats opens `stats/` in a new tab
+(`noopener`), so the game and its music keep running in this one. Shortcuts follow the other entries: key S, pad RB
+(button 5, not a navigation intent; `TITLE_PAD.stats`). Without the API the entry isn't there.
