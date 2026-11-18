@@ -37,6 +37,12 @@ D248 (PAINTED_RIM): the stones are gone. The rim's rock is the HD terrain's pain
 asteroids (D244, D246); rock_layout / rock_field only mark the area (rock_mask), the bed is built
 without it by rocks() (build_beds), a PAINT_FOOT px dark talus round the deck, and the deck's walls
 reach the ground. painted() / model_mask() give the area and the model's own footprint (IoU).
+
+D260 (PAINTED_FLOOR): the floor goes the same way. The deck, bed, kerb comb, paving and channel dirt
+read as uniform smooth plates beside the original's woven, shaded brick painting, and the HD terrain
+under the model already paints that floor; only what stands up is built, lowered onto the painting
+(to_ground). FLOOR_RELIEF is the compared option B (a relief deck), off. With PAINTED_FLOOR the
+model_mask() IoU is not meaningful (the floor is the terrain's own draw).
 """
 
 import math
@@ -113,8 +119,42 @@ SUN = (-6.0 / 22.47, -8.4 / 22.47, 20.0 / 22.47)
 PAINTED_RIM = True
 PAINT_FOOT = 1  # px: the bed's dark foot round what stands on it, over the painting's inner edge
 DECK_WALL_FOOT = BOTTOM if PAINTED_RIM else BED_TOP - 0.02  # the deck's walls go down to the ground beside the painting
+# D260: the floor is the HD terrain's painting too. The deck, its bed, the kerb comb, the paving and
+# the channels' dirt are not built (deck(), bed(), kerb(), paving(), dirt() build nothing; channels()
+# still returns its mask), so the painted woven bricks, mortar lines, comb and mud show, as the
+# original paints them. What stands up (lights, pods, hatches, the turret, the bunker's collar, the
+# ring dome, the red bar's rack, the light bridge's machinery, the cross pad's cross) is built as
+# before on the deck's height and then lowered by FLOOR_DROP onto the painting (to_ground(): faces
+# left wholly under GROUND_CUT, the painting's z, are dropped). False rebuilds D248's 3D deck.
+PAINTED_FLOOR = True
+FLOOR_DROP = DECK_TOP - 0.01 if PAINTED_FLOOR else 0.0  # what stood on the deck stands 0.01 over the painting (no z-fight)
+GROUND_CUT = 0.0
+# D260 option B (compared, not chosen; PAINTED_FLOOR False and FLOOR_RELIEF True): the 3D deck with the
+# art's brick relief: no groove plate, each brick stands on the deck (the deck in the art's mortar
+# line index, PAL_MORTAR_RELIEF) RELIEF_H +- RELIEF_JIT proud with a RELIEF_TILT lean, in the art's
+# own palette index under it (the trimmed median of its pixels, as the pipe junction's bricks), and
+# the channels' dirt coloured by a coarser blur with no pebbles.
+FLOOR_RELIEF = False
+PAL_MORTAR_RELIEF = 2
+RELIEF_H, RELIEF_JIT, RELIEF_TILT = 0.042, 0.009, 0.006
 RIM_RINGS = ((1.0, 0.0, 0.0), (0.93, 0.42, 0.35), (0.74, 0.74, 0.5), (0.44, 0.93, 0.35))
 RIM_SIDES = 1  # the foot's corners per layout corner (2: midpoints pushed out, rounder, 1.6x the triangles)
+
+
+def to_ground(bm):
+    """D260 (PAINTED_FLOOR): lower a model's bmesh by FLOOR_DROP, from the deck's height onto the
+    painted ground, and drop the faces left wholly under GROUND_CUT (hidden under the painting: the
+    parts' feet, the blasted hatches' cavities). Returns the number of faces dropped."""
+    if not PAINTED_FLOOR:
+        return 0
+    for v in bm.verts:
+        v.co.z -= FLOOR_DROP
+    gone = [f for f in bm.faces if max(v.co.z for v in f.verts) < GROUND_CUT]
+    bmesh.ops.delete(bm, geom=gone, context="FACES")
+    loose = [v for v in bm.verts if not v.link_faces]
+    bmesh.ops.delete(bm, geom=loose, context="VERTS")
+    print(f"to_ground: lowered {FLOOR_DROP}, {len(gone)} faces under the painting dropped, {len(bm.faces)} left")
+    return len(gone)
 
 
 def rim_ramp(faces, grid, lum, band):
@@ -428,7 +468,7 @@ class Kit:
         M = b.m
         self.mat = dict(
             bed=M(PAL_BED, roughness=0.95),
-            mortar=M(PAL_MORTAR, roughness=0.9),
+            mortar=M(PAL_MORTAR_RELIEF if FLOOR_RELIEF else PAL_MORTAR, roughness=0.9),
             mortar_plate=M(PAL_MORTAR, roughness=0.85, metallic=0.05),
             kerb=M(PAL_KERB, roughness=0.6, metallic=0.25, plain=True),
             pave=M(PAL_PAVE, roughness=0.42),  # satin (D148), more sheen and no metal's dark diffuse (D150)
@@ -475,6 +515,8 @@ class Kit:
         PAINTED_RIM (D248) it is built later, by build_beds() (rocks() calls it), without the
         painted rock (painted())."""
         self.bed_mask |= mask
+        if PAINTED_FLOOR:  # D260: no bed, the painting is the floor
+            return
         if PAINTED_RIM:
             self._beds.append((mask.copy(), chamfer, drop))
             return
@@ -520,6 +562,8 @@ class Kit:
         """The mortar deck (the joint colour) at DECK_TOP over `deck_mask`, walls down into the bed
         (D248, PAINTED_RIM: to the ground, DECK_WALL_FOOT, as the bed beside them is only a foot)."""
         g = self.g
+        if PAINTED_FLOOR:  # D260: the painting is the deck
+            return
         for outer, holes in regions(deck_mask, tol=1.6, min_px=30):
             o = g.outer(outer)
             hs = [g.hole(h) for h in holes]
@@ -626,6 +670,8 @@ class Kit:
         KERB_STEP px round every deck outline (the dark mortar shows between them), none in `no_post`
         (open edges, hatch frames, parts), none a rim stone (rock_layout) covers. Returns the count."""
         g, H, W = self.g, self.H, self.W
+        if PAINTED_FLOOR:  # D260: the painting's comb
+            return 0
 
         def inside(m, x, y):
             xi, yi = int(math.floor(x)), int(math.floor(y))
@@ -895,6 +941,8 @@ class Kit:
         art's own spread, 4 with patches of 3 and 5 (the coarse noise), so it reads as the art's
         grey ground, not a black trench."""
         b, g, H, W, rng = self.b, self.g, self.H, self.W, self.rng
+        if PAINTED_FLOOR:  # D260: the painting's mud
+            return 0
         grid = np.maximum(b.grid, 0)
         z_of = z_of or (lambda py: DIRT_Z)
         skirt = DECK_TOP - 0.01 if skirt is None else skirt
@@ -902,7 +950,7 @@ class Kit:
         dark = (grid <= 2) & mask
         bden = gauss(brown.astype(float), 0.9)  # the mud's height
         dden = gauss(dark.astype(float), 0.8)
-        cden = gauss(brown.astype(float), 1.4)  # its colour: coarser, so mud reads as blobs, not a mosaic
+        cden = gauss(brown.astype(float), 2.2 if FLOOR_RELIEF else 1.4)  # its colour: coarser, so mud reads as blobs, not a mosaic
         # local medians: the mud's and the earth's index round each px (radius 1.5)
         offs = disk_offsets(1)
         def local_median(sel, allowed):
@@ -1002,7 +1050,7 @@ class Kit:
                     ntri += 2
         # pebbles: small plain stones scattered over the earth (none on the mud)
         ys, xs = np.nonzero(ero_disk(mask, 2) & (bden < 0.3))
-        npb = int(len(ys) * pebbles)
+        npb = 0 if FLOOR_RELIEF else int(len(ys) * pebbles)  # D260 B: soft dirt, no grit
         for k_ in rng.choice(len(ys), size=min(npb, len(ys)), replace=False) if len(ys) else []:
             px, py = xs[k_] + rng.random(), ys[k_] + rng.random()
             rad = 0.55 + 0.55 * rng.random()
@@ -1028,7 +1076,11 @@ class Kit:
         bricks are bevelled on their long sides only (brick()); D148's chipped corners are gone
         (`chip` only keeps the random sequence, so the layout of everything after is unchanged)."""
         g, H, W, rng = self.g, self.H, self.W, self.rng
+        if PAINTED_FLOOR:  # D260: the painting's woven bricks
+            return 0
         z_seam = SEAM_TOP if seam is None else seam
+        if FLOOR_RELIEF:
+            return self._paving_relief(zone)
         cells = np.zeros((H, W), bool)  # the cells D148 floored: 6 px or more of the zone
         for r in range(H // TH):
             for c in range(W // TW):
@@ -1067,7 +1119,55 @@ class Kit:
                             n += 1
         return n
 
-    def brick(self, rect, horiz, z0, z1):
+    def _paving_relief(self, zone):
+        """D260 option B: the weave's bricks straight on the deck (its top the mortar line), each in
+        the art's index under it and its own height and lean."""
+        H, W, rng = self.H, self.W, self.rng
+        grid = self.b.grid
+        lum = self.b.ts.lum
+        n = 0
+        for r in range(H // TH):
+            for c in range(W // TW):
+                x0, y0 = c * TW, r * TH
+                if not zone[y0:y0 + TH, x0:x0 + TW].any():
+                    continue
+                for bx0, by0, bx1, by1 in WEAVE:
+                    X0, Y0, X1, Y1 = x0 + bx0, y0 + by0, x0 + bx1, y0 + by1
+                    m = zone[Y0:Y1, X0:X1]
+                    horiz = (X1 - X0) > (Y1 - Y0)
+                    full = list(m.all(axis=0) if horiz else m.all(axis=1)) + [False]
+                    start = None
+                    for k, ok in enumerate(full):
+                        if ok and start is None:
+                            start = k
+                        elif not ok and start is not None:
+                            a_, b_ = start, k
+                            start = None
+                            if b_ - a_ < 2:
+                                continue
+                            e0 = 0.08 if a_ == 0 else 0.5
+                            e1 = 0.08 if b_ == len(full) - 1 else 0.5
+                            rect = (X0 + a_ + e0, Y0 + 0.08, X0 + b_ - e1, Y1 - 0.08) if horiz else (X0 + 0.08, Y0 + a_ + e0, X1 - 0.08, Y0 + b_ - e1)
+                            vals = grid[int(rect[1]):int(math.ceil(rect[3])), int(rect[0]):int(math.ceil(rect[2]))].ravel()
+                            vals = vals[(vals >= 4) & (vals < 16)]
+                            if len(vals):
+                                order = np.argsort(lum[vals], kind="stable")
+                                q = len(vals) // 6
+                                keep = vals[order[q:len(vals) - q]] if len(vals) > 6 else vals
+                                vi = int(np.median(keep))
+                            else:
+                                vi = PAL_PAVE - 1
+                            vi = int(min(10, max(4, vi + 1)))  # a step lighter for the render's light (D150)
+                            key = f"pave{vi}"
+                            if key not in self.mat:
+                                self.mat[key] = self.b.m(vi, roughness=0.5)
+                            ztop = DECK_TOP + RELIEF_H + RELIEF_JIT * (2 * rng.random() - 1)
+                            tilt = [RELIEF_TILT * (2 * rng.random() - 1) for _ in range(2)]
+                            self.brick(rect, horiz, DECK_TOP - 0.004, ztop, mat=self.mat[key], tilt=tilt)
+                            n += 1
+        return n
+
+    def brick(self, rect, horiz, z0, z1, mat=None, tilt=(0.0, 0.0)):
         """One paving brick (D150): a top over `rect` (pattern px) at z1, its two long sides bevelled
         BEVEL px down to z0 (the art's lit edge and dark trailing edge, as D148's frustum), its short
         ends cut square and left open: seen from the game's camera an end is a sliver 0.027 tall
@@ -1085,8 +1185,10 @@ class Kit:
         # pattern px are y down: (x_a, y_a) -> (x_b, y_a) -> (x_b, y_b) is clockwise on screen, so
         # reversed it is counter-clockwise in the world (+z up), as Geo.outer
         L = [g.v(x, y, z0) for x, y in lo]
-        T = [g.v(x, y, z1) for x, y in hi]
-        m = self.mat["pave"]
+        tx_, ty_ = tilt  # D260 B: a lean (z per unit of the rect's x / y extent, centred)
+        cxr, cyr = (x_a + x_b) / 2, (y_a + y_b) / 2
+        T = [g.v(x, y, z1 + tx_ * (x - cxr) / max(1.0, x_b - x_a) * 2 + ty_ * (y - cyr) / max(1.0, y_b - y_a) * 2) for x, y in hi]
+        m = self.mat["pave"] if mat is None else mat
         g.face((T[3], T[2], T[1], T[0]), m)
         g.face((L[1], L[0], T[0], T[1]), m)  # the long side through lo[0] -> lo[1]
         g.face((L[3], L[2], T[2], T[3]), m)  # the opposite long side
@@ -1250,6 +1352,7 @@ class Kit:
         import common
         b = self.b
         coll = coll or common.reset_collection(f"{lb.SHAPES}-{b.prefix}-{b.name}")
+        to_ground(self.g.bm)  # D260
         obj = lb.mesh_object(f"{lb.SHAPES}-{b.prefix}-{b.name}-parts", self.g.bm, b.pal.materials, coll)
         self.g.bm = bmesh.new()
         return [obj]
