@@ -33,13 +33,18 @@ from input sheets of the original sprites. This tool does both ends of that loop
         (and joins beam pieces), in the committed atlases, once; `cut` applies the same file to what it
         cuts (D172).
 
+    python tools/flat_art.py paint [--check PNG]
+        Paints the PAINTED frames the committed atlases lack and appends them below their sheet's frames,
+        every committed frame kept as it is (as --append does): the hit sparks were added this way (D247).
+
     python tools/flat_art.py shade [--sheets tyrian.shp#10]
         Writes each frame's shade gain ("shade" in its manifest rect) for the renderer's palette
         effects: the gain that spreads the painting's brightness shades as its sprite's palette
         indices spread (D221). Run it after a cut or recolour of those sheets.
 
 A few frames are painted here instead of cut from Gemini's art (PAINTED: the Vulcan Cannon's
-tracers, D56); `cut` draws them with their painter and packs them with the rest.
+tracers, D56; the shots' hit sparks, D247); `cut` draws them with their painter and packs them with
+the rest, `paint` adds the missing ones alone.
 
 The original sprites are read from the game data (--data, default data/): tyrian.shp's Sprite2
 tables and the newsh<c>.shp sheets (src/data/sprites.ts) and palette.dat (src/data/palette.ts).
@@ -852,21 +857,49 @@ def paint_tracer(gd: GameData, sheet: str, index: int, palette: int) -> np.ndarr
     return rgb
 
 
-# Frames drawn by a painter instead of cut from Gemini's art, with why (DECISIONS.md D56).
-# The Vulcan Cannon's bullets: Gemini painted them as flame plumes, the Pulse-Cannon's fire family,
-# so the two weapons read alike; the original draws slim tracers (yellow head, red tail).
+def paint_hit_spark(gd: GameData, sheet: str, index: int, palette: int) -> tuple[np.ndarray, np.ndarray]:
+    """A shot's hit spark (explosion type 0, newsh6.shp 146-152, D247): rgb (h*8, 96, 3) in 0..1 and alpha.
+
+    The sprite's own pixels, their colours blended smoothly between pixel centres (a normalised
+    gaussian of 0.5 px, so the transparent surround doesn't darken the edge): the yellow-orange core
+    of the first frames, the red body, the dark red rim that makes it read on bright ground. The
+    outline is the sprite's, its corners rounded (a 5-texel blur cut at its middle), so the edge stays
+    where the pixels' edge was and is drawn hard, like the original's opaque blit. No glow, no noise.
+    """
+    from scipy import ndimage
+
+    own = gd.sprite(sheet, index)
+    m = (own >= 0).astype(np.float32)
+    col = gd.rgba(own, palette)[..., :3].astype(np.float32) / 255
+    big = np.kron(col * m[..., None], np.ones((SCALE, SCALE, 1), np.float32))
+    weight = np.kron(m, np.ones((SCALE, SCALE), np.float32))
+    pad, sigma = 3 * SCALE, 0.5 * SCALE
+    blur = lambda a: ndimage.gaussian_filter(np.pad(a, pad), sigma)[pad:-pad, pad:-pad]  # noqa: E731
+    w = blur(weight)
+    rgb = np.stack([blur(big[..., k]) for k in range(3)], -1) / np.maximum(w, 1e-4)[..., None]
+    return np.clip(rgb, 0, 1), soft_alpha(own >= 0, 5.0, 0.42, 0.58)
+
+
+# Frames drawn by a painter instead of cut from Gemini's art, with why. A painter returns rgb, or
+# (rgb, alpha) for an outline of its own (else the silhouette, smooth_alpha).
+# The Vulcan Cannon's bullets (D56): Gemini painted them as flame plumes, the Pulse-Cannon's fire
+# family, so the two weapons read alike; the original draws slim tracers (yellow head, red tail).
+# A shot's hit spark (D247): a 6x5 px blob, its own colours drawn clean; nothing for Gemini to add.
+# `python tools/flat_art.py paint` appends the ones an atlas lacks.
 PAINTED = {
     ("tyrian.shp#7", 67): paint_tracer,  # Vulcan Cannon, power 1-6
     ("tyrian.shp#7", 70): paint_tracer,  # Vulcan Cannon, power 7-11: two tracers side by side
     ("tyrian.shp#7", 148): paint_tracer,  # Vulcan Shot Option sidekick (weapon 11): three Vulcan tracers (D214)
+    **{("newsh6.shp", i): paint_hit_spark for i in range(146, 153)},  # hit sparks, explosion type 0's 7 frames (D247)
 }
 
 
 def painted_frame(gd: GameData, sheet: str, index: int, palette: int) -> dict:
-    """A PAINTED frame, its alpha the silhouette as cut frames have it."""
+    """A PAINTED frame, its alpha the silhouette as cut frames have it (or the painter's own)."""
     own = gd.sprite(sheet, index)
-    alpha = smooth_alpha(own >= 0)
-    rgb = bleed(np.clip(PAINTED[(sheet, index)](gd, sheet, index, palette), 0, 1), alpha)
+    painted = PAINTED[(sheet, index)](gd, sheet, index, palette)
+    painted, alpha = painted if isinstance(painted, tuple) else (painted, smooth_alpha(own >= 0))
+    rgb = bleed(np.clip(painted, 0, 1), alpha)
     rgba = np.dstack([rgb * 255, alpha * 255]).round().astype(np.uint8)
     return {"sheet": sheet, "index": index, "rgba": rgba, "fit": {"score": 1.0}, "input": "painted",
             "cell": None, "mirrored": False, "shared": False}
@@ -1231,6 +1264,32 @@ def shade_atlas(gd: GameData, out: Path, sheets: tuple[str, ...], inventory: dic
     (out / "manifest.json").write_text(dump_manifest(manifest))
 
 
+def append_painted(gd: GameData, out: Path, palette: int, check: Path | None = None) -> None:
+    """`paint`: the PAINTED frames missing from the committed atlases, painted and appended below
+    their sheet's frames (pack_append: every committed frame keeps its rect and pixels)."""
+    manifest = json.loads((out / "manifest.json").read_text())
+    missing = [k for k in PAINTED if str(k[1]) not in manifest["sheets"].get(k[0], {}).get("frames", {})]
+    if not missing:
+        print("  paint: every painted frame is in the atlases")
+        return
+    frames = [painted_frame(gd, sid, i, palette) for sid, i in missing]
+    for sid in sorted({k[0] for k in missing}):
+        mine = [f for f in frames if f["sheet"] == sid]
+        entry = manifest["sheets"].get(sid)
+        if entry is None:
+            atlas, rects = pack(mine)
+            entry = {"image": sheet_file(sid), "frames": {}}
+        else:
+            atlas, rects = pack_append(np.asarray(Image.open(out / entry["image"]).convert("RGBA")), entry["frames"], mine)
+        Image.fromarray(atlas, "RGBA").save(out / entry["image"], "WEBP", quality=92, alpha_quality=100, method=6, exact=True)
+        manifest["sheets"][sid] = {**entry, "frames": dict(sorted({**entry["frames"], **rects}.items(), key=lambda kv: int(kv[0])))}
+        print(f"  {out / entry['image']}: +{len(rects)} painted frames ({', '.join(sorted(rects, key=int))}), {atlas.shape[1]}x{atlas.shape[0]}")
+    manifest["sheets"] = dict(sorted(manifest["sheets"].items()))
+    (out / "manifest.json").write_text(dump_manifest(manifest))
+    if check:
+        contact_sheet(gd, frames, palette, check, cols=len(frames))
+
+
 def contact_sheet(gd: GameData, frames: list[dict], palette: int, path: Path, cols: int = 6) -> None:
     """original (nearest, 8x) | remastered, for every frame, on a checker; label under each pair."""
     from PIL import ImageDraw
@@ -1278,6 +1337,9 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--config", type=Path, default=RECOLOUR)
     r.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
     r.add_argument("--only", help="comma-separated sheet:index (first tiles / join frames) to apply, e.g. tyrian.shp#7:121")
+    p = sub.add_parser("paint", help="append the PAINTED frames the committed atlases lack (every committed frame kept, D214's --append)")
+    p.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
+    p.add_argument("--check", type=Path, help="also write a contact sheet of the appended frames: original | painted")
     g = sub.add_parser("shade", help="write the frames' shade gains (D221) into the manifest; run after a cut or recolour of those sheets")
     g.add_argument("--out", type=Path, default=ROOT / "public" / "art" / "sprites")
     g.add_argument("--sheets", default=",".join(SHADE_SHEETS), help="comma-separated sheet ids (default the pickups, tyrian.shp#10)")
@@ -1286,6 +1348,9 @@ def main(argv: list[str] | None = None) -> None:
     gd = GameData(args.data)
     if args.cmd == "shade":
         shade_atlas(gd, args.out, tuple(args.sheets.split(",")), json.loads(args.inventory.read_text()))
+        return
+    if args.cmd == "paint":
+        append_painted(gd, args.out, args.palette, args.check)
         return
     if args.cmd == "recolour":
         config = json.loads(args.config.read_text())

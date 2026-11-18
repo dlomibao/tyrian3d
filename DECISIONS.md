@@ -14675,3 +14675,55 @@ faceted 3D rock over the painted belt.
 1.5 t80/t1525, 3.15 t680/t1410, 2.8 t1210. Captures and sheets: `tyrian-scratch/asteroid-gemini/paint2/` (not in git,
 D3). Fallback: `git checkout` D244's `public/art/terrain/shapesz/manifest.json` (and delete `0-5.webp`), or
 `public/art/sprites/newshd-shp.webp` and `manifest.json`.
+## D247 — The shots' red hit sparks are drawn again in the remastered look: the C's sprite as crisp painted art, its D169 puff and streaks gone; a blended explosion over an asteroid's painting reads the painting (amends D169; follows D35, D42, D56, D147, D174, D224, D244)
+
+**Date:** 2026-11-18
+
+**Problem** (Episode 3 walkthrough, `tyrian-scratch/qa-all/e3/REPORT.md` L1; the user's call): where a shot hits an
+enemy that survives, the C draws a small red spark, explosion type 0 (`JE_setupExplosion(x, y, 0, 0, ...)`:
+game.ts's player-shot hit, an enemy shot on the ship, a sidekick catching up). Its seven frames are newsh6.shp
+146-152 (`explosion_data[0]` = sprite 144, ttl 7; drawn at start + 2 + frame), a 6x5 px blob in the fire ramp
+(0x70): an orange-yellow core (121-125) on the first frames, red (116-119), a dark red rim (112-114), carried down
+with the scroll in the Explosions pass, opaque (or `blit_sprite2_blend` where `explosionTransparent`). The remastered
+effects hid it (`ExplosionKind.Hit` -> `SpriteLook.Hidden`) for D169's soft orange glow, a flash and five spark
+streaks. The glow is additive, so on water, dirt and grass it all but vanished; the streaks, tripled at their
+centre by the particle shader, read as small white starbursts (TYRIAN t643: 51 near-white pixels round one hit
+cluster, 0 spark-red; the original 288 spark-red).
+
+**Options:** (a) the C's sprite drawn as the other small effect sprites are (flat art); (b) D169's puff re-tuned to
+throw a few red streaks. (a): the original's feedback is a still, crisp red blob sitting on the hit for 0.2 s,
+opaque, so it reads on any ground by its dark rim on bright ground and its bright core on dark; (b) would keep an
+additive effect (the reason it vanished) and invent motion the C doesn't have.
+
+**Decision:**
+- **Painted art** (`tools/flat_art.py`, `paint_hit_spark` in `PAINTED`, no Gemini): each frame's own pixels, colours
+  blended smoothly between pixel centres (normalised gaussian, 0.5 px), the sprite's outline with rounded corners
+  (5-texel blur cut at its middle), alpha-tested hard like the rest of the flat art; palette 5's fire ramp as the other
+  explosion art. Appended to `public/art/sprites/newsh6-shp.webp` by a new `flat_art.py paint` (every committed
+  frame keeps its rect and pixels; the atlas stays 832x4096).
+- **Remastered effects** (`remasteredFx.ts`): a hit frame is `SpriteLook.Hot`, so it is drawn as that art (with
+  `?sprites=original`, the sprite, emissive). The per-frame glow and the five streaks are gone; the birth keeps one
+  flash, smaller (2.5 -> 6 px, 0.09 s, alpha 0.45) and in the sprite's own red-orange instead of a fixed orange, still
+  thinned to one per spot (D169), so beams and the Vulcan don't stack it. The spark itself is opaque: nothing adds up.
+- **Original effects** (`?vfx=original`): unchanged. `drawListRenderer.ts` routes a hit frame to its flat art only
+  with the remastered effects (`isHitSpark`, explosionFrames.ts); `?vfx=original` captures before and after are
+  identical (TYRIAN t643, ASTEROID1 t1073: 0 pixels over 8 levels).
+- **Blends over an enemy's painting** (found here): ASTEROID1's sparks are blended, and on the asteroids they came out
+  crimson, (106, 10, 6) mean, where the C's are orange-red, (155, 34, 6). The under-shade pass (D204, D207) gave the
+  blend the terrain's shade (black space) because D244's flat-art asteroids aren't in it. Now an enemy pass's flat-art
+  batch (`userData.artPass`, spriteArtLayer.ts; `coversTerrain` in underShade.ts) draws "not known" there, so the
+  blend reads the frame copy, which has the painting: (189, 38, 10). And explosions over an enemy's flat art keep
+  their own copy instead of the sheets' earlier one (`flatEnemyArea`). Fireballs on the asteroids are fixed alike.
+
+**Checked** (`tyrian-scratch/hit-sparks/`; `cmp/*.png` are before (main) over after, each `&compare=1`, original |
+remaster, 1920x1080): SAVARA t1282 (jungle, water, the red cruiser), TYRIAN t643 (dirt), WINDY t140 (grass),
+ASTEROID1 t1073 (space, blended), CAMANIS t3100 (episode 3 under its hue filter: the spark takes the filter's hue as
+the C's does, a pale cyan blob), and phone 390x844 (`cmp/phone_*.png`). The hit ticks were found by stepping the
+harness and reading newsh6 146-152 in the draw list (`tools/scan.js`). `&stress=800` HUD cpu ms, TYRIAN, two runs each,
+medians before 2.43 / 2.16, after 2.20 / 2.16; ASTEROID1 1.09 / 1.02. Tests: `tests/render/hitSpark.test.ts`;
+`spriteArt.test.ts` counts the 7 new frames.
+
+**Open:** the art is in palette 5's fire ramp like the other explosion art; a level whose palette moves those indices
+would show it red anyway. Under the screen filters the spark is as faint as the C's.
+
+**Cost:** one Opus agent, no workflow, no Gemini: about 40 headless captures.

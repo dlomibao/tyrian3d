@@ -93,6 +93,14 @@ for (let type = 0; type <= 34; type++) {
   for (let frame = 0; frame < ttl; frame++) FRAMES[sprite + 2 + frame] = { type, kind: kindOf(type), frame, ttl };
 }
 
+/**
+ * Whether a draw is a shot's hit spark (type 0) on the explosion sheet. Its flat art (D247) belongs to
+ * the remastered effects: the original effects look keeps the C's sprite.
+ */
+export function isHitSpark(sheetId: string, index: number): boolean {
+  return sheetId === EXPLOSION_SHEET_ID && FRAMES[index]?.kind === ExplosionKind.Hit;
+}
+
 /** The explosion type and frame a draw of `index` on the explosion sheet shows, if it's a moving one. */
 export function explosionFrame(index: number): ExplosionFrame | undefined {
   return FRAMES[index];

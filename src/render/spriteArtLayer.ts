@@ -311,6 +311,8 @@ export class SpriteArtLayer {
       // render only: that copy came before the blend sheets, without their stencil, over a stale
       // copy (D193). The other passes draw once with two draws' output (artDrawnTwice, D206).
       b.mesh.userData.outlineSkip = true;
+      // Its pass, for the under-shade pass (underShade.ts): an enemy's art hides the terrain's shade (D247).
+      b.mesh.userData.artPass = pass;
       // Under the screen filters the shots are drawn again over their halos (SHOT_ART_LAYER, D215).
       if (pass === Pass.PlayerShots || pass === Pass.EnemyShots) b.mesh.layers.enable(SHOT_ART_LAYER);
       this.all.push(b);
