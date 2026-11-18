@@ -15,7 +15,8 @@
     "catalogue": "CATALOGUE_OUT=${CATALOGUE_OUT:-reference/models} vitest run tests/tools/spriteCatalogue.test.ts",
     "pictures": "PICTURES_OUT=${PICTURES_OUT:-reference/pictures} vitest run tests/tools/pictureCatalogue.test.ts",
     "tiles": "TILES_OUT=${TILES_OUT:-reference/tiles} vitest run tests/tools/tileReference.test.ts",
-    "inventory": "node tools/inventory.mjs"
+    "inventory": "node tools/inventory.mjs",
+    "max-scores": "MAX_SCORES_OUT=${MAX_SCORES_OUT:-server/scores/maxScores.json} vitest run tests/tools/maxScores.test.ts"
   },
   "dependencies": {
     "three": "^0.186.1"

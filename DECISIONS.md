@@ -14847,3 +14847,33 @@ process 780 → 503 → 876 MB. The same dev server with this change reverted: t
 process 777 → 506 → 878 MB. Memory follows the level as D236 made it.
 **Fallback:** the `objectLook` line back to `if (o.look === ObjectLook.Holding) { ... }` (D54's lock); the harness's
 `loading` wait is independent of it.
+## D249 — A shared high-score list for the lomibao.net build only: plausibility from the level data, a run token, cheat taint; plus anonymous per-level play reports (new)
+
+**What:** with `VITE_SCORES_API` set (only `deploy.sh`'s build), a qualifying one-player full game is sent to a
+small Node 22 + `node:sqlite` service (`server/scores/`) when the original would record a high score (the episode's
+end, or quitting), and the high-score screen shows that episode's shared top 20 beside the local tables. Builds
+without the flag (GitHub Pages, dev) behave exactly as before: no requests, no new Options rows, saves unchanged.
+
+**No replay on the server** (the VPS is small). A submission carries the levels played in order with each one's
+sim ticks and score; the server checks (`server/scores/lib/plausibility.mjs`):
+- the path through the episode's level graph (story order, the item screen's `]G[` choices, `]J[`/`]H[`/`]h[`
+  jumps by difficulty class, in-level warps);
+- each finished level's ticks against its floor (fewest ticks to its end event at the fastest scroll, -3%) and,
+  for levels that can't stall, a ceiling; the summed ticks against the wall time since the token;
+- the score against the sum of the levels' bounds, each level's own gain against its bound, and its gain per tick.
+The bounds come from `tools/maxScores/maxScores.ts` (committed as `server/scores/maxScores.json`; regenerate with
+`npm run max-scores`): every enemy and pick-up the event script spawns, with drops, damaged second lives and
+difficulty scaling, plus per-tick rates for random spawns, launchers and event loops, and the gear value a level's
+power-ups can add. They are upper bounds, loose by design (a level's power-ups alone may add 484,440 of gear value).
+
+**Run token:** HMAC-signed by the server at a new game, kept in the save (30-day expiry), single use. **Run hash:**
+a SHA-256 over the run, computed by both sides; a consistency check only (the code ships in the page).
+
+**Taint:** the debug console (opened or `tyrianConsole.run`, for the page session), the in-flight cheat chords,
+`?loot`, `?seed`, `?debug=` taint the run (`src/sim/runRecord.ts`), kept in its saves; a tainted run never
+submits and the local table still records it, with a note. Arcade, two-player, Super Arcade and Super Tyrian are not
+tainted but not eligible (the bounds model a one-player full game); the hidden difficulties are eligible.
+
+**Play reports:** at each level's end (finished, died, quit) a beacon with the level's summary, when Options →
+"Share anonymous play stats" is on (default on), with a random id kept in the browser; the server stores only a
+country code (DB-IP Lite, CC BY 4.0) and a monthly-salted IP hash for rate limits.
