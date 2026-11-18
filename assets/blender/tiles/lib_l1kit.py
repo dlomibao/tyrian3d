@@ -31,6 +31,12 @@ D150 (D148 read too dark and too heavy: the base complex 9.15 MB): GRIT lighter 
 12%), the rock ramp a step lighter, bricks index 7 with no metal, the earth 3 / 4 / 5 in patches; the
 bricks bevelled on their long sides only (Kit.brick), one groove-floor plate per zone part, the dirt
 grid 2.5 px with half the pebbles, no crown ring under CROWN_MIN, no UV map on the plain mesh.
+
+D248 (PAINTED_RIM): the stones are gone. The rim's rock is the HD terrain's painting under the model
+(the patterns keep their tiles), the same rounded painted rock as the belt's rim and the loose
+asteroids (D244, D246); rock_layout / rock_field only mark the area (rock_mask), the bed is built
+without it by rocks() (build_beds), a PAINT_FOOT px dark talus round the deck, and the deck's walls
+reach the ground. painted() / model_mask() give the area and the model's own footprint (IoU).
 """
 
 import math
@@ -98,6 +104,15 @@ SUN = (-6.0 / 22.47, -8.4 / 22.47, 20.0 / 22.47)
 # matched to the art's own shades in the rim band (lib_rim_rock's weights and dark bias), one
 # matte material per grey; before, the sun-facing ramp (facet_index) made them a step or two lighter
 # and blockier than the belt's rock beside them on ASTEROID?.
+# D248: the rim's rock is the HD terrain's painting, as the asteroid belt's rim beside the bases (D244,
+# D246). The base patterns keep their tiles (layer 0: keepTiles ?? layer === 0), so the painted rim
+# tiles are drawn under the model anyway; with PAINTED_RIM the models build no rim stones and leave
+# the rock band (rock_layout / rock_field's area) open, so the painting shows there at z = 0, and the
+# bed under the deck, the channels and the parts ends PAINT_FOOT px past them in a dark talus (the
+# bed's chamfer), the art's dark crevice where the stones meet the kerb. False builds D216's stones.
+PAINTED_RIM = True
+PAINT_FOOT = 1  # px: the bed's dark foot round what stands on it, over the painting's inner edge
+DECK_WALL_FOOT = BOTTOM if PAINTED_RIM else BED_TOP - 0.02  # the deck's walls go down to the ground beside the painting
 RIM_RINGS = ((1.0, 0.0, 0.0), (0.93, 0.42, 0.35), (0.74, 0.74, 0.5), (0.44, 0.93, 0.35))
 RIM_SIDES = 1  # the foot's corners per layout corner (2: midpoints pushed out, rounder, 1.6x the triangles)
 
@@ -445,6 +460,9 @@ class Kit:
         self.mat.update({f"rock{i}": M(i, roughness=0.9 if i < 6 else 0.8, plain=True) for i in range(2, 11)})
         self.mat["pebble"] = M(PAL_ROCK, roughness=0.9, plain=True)
         self.stones = []  # rock_layout(): [x, y, rad, kind, foot polygon (pattern px)]
+        self.rock_mask = np.zeros((self.H, self.W), bool)  # the rock band / field (D248: left to the painting)
+        self._beds = []  # bed() calls, built by build_beds() once the rock is known (PAINTED_RIM)
+        self.bed_mask = np.zeros((self.H, self.W), bool)  # every bed() mask together
 
     def box(self, x0, y0, x1, y1):
         return box_mask((self.H, self.W), x0, y0, x1, y1)
@@ -453,9 +471,41 @@ class Kit:
 
     def bed(self, mask, chamfer=1.5, drop=0.10):
         """The foundation bed: `mask` (the footprint, holes cut: pits, cavities) as closed prisms
-        from BOTTOM to BED_TOP in the rubble colour, a talus chamfer round the outside."""
+        from BOTTOM to BED_TOP in the rubble colour, a talus chamfer round the outside. With
+        PAINTED_RIM (D248) it is built later, by build_beds() (rocks() calls it), without the
+        painted rock (painted())."""
+        self.bed_mask |= mask
+        if PAINTED_RIM:
+            self._beds.append((mask.copy(), chamfer, drop))
+            return
         for outer, holes in regions(mask, tol=1.9):
             self.g.prism(outer, holes, BOTTOM, BED_TOP, self.mat["bed"], chamfer=chamfer, drop=drop)
+
+    def painted(self):
+        """D248: the rock left to the HD terrain's painting: the rock band / field (rock_mask) but a
+        PAINT_FOOT px ring round the rest of the bed (the deck, channels, parts, open edges), which
+        stays as the bed's dark talus foot. All False without PAINTED_RIM."""
+        if not PAINTED_RIM:
+            return np.zeros((self.H, self.W), bool)
+        keep = self.bed_mask & ~self.rock_mask
+        return self.rock_mask & ~dil_disk(keep, PAINT_FOOT)
+
+    def model_mask(self, fp):
+        """The footprint the model itself covers (its top-view IoU mask): `fp` but the painted rock."""
+        return fp & ~self.painted()
+
+    def build_beds(self):
+        """D248: the deferred beds (bed()), the painted rock cut out; their chamfer runs round the
+        new edge, so the deck stands on a dark talus foot over the painting's inner edge."""
+        paint = self.painted()
+        n = 0
+        for mask, chamfer, drop in self._beds:
+            for outer, holes in regions(mask & ~paint, tol=1.9):
+                self.g.prism(outer, holes, BOTTOM, BED_TOP, self.mat["bed"], chamfer=chamfer, drop=drop)
+                n += 1
+        if self._beds:
+            print(f"kit bed: {n} parts, {int(paint.sum())} px of rock left to the painting")
+        self._beds = []
 
     def deck_mask(self, fp, cut=None):
         """The deck inside the rock band: footprint px deeper than ROCK_BAND - 1, opened / closed by
@@ -467,25 +517,34 @@ class Kit:
         return d & ~cut if cut is not None else d
 
     def deck(self, deck_mask):
-        """The mortar deck (the joint colour) at DECK_TOP over `deck_mask`, walls down into the bed."""
+        """The mortar deck (the joint colour) at DECK_TOP over `deck_mask`, walls down into the bed
+        (D248, PAINTED_RIM: to the ground, DECK_WALL_FOOT, as the bed beside them is only a foot)."""
         g = self.g
         for outer, holes in regions(deck_mask, tol=1.6, min_px=30):
             o = g.outer(outer)
             hs = [g.hole(h) for h in holes]
-            g.walls(o, o, BED_TOP - 0.02, DECK_TOP, self.mat["mortar"])
+            g.walls(o, o, DECK_WALL_FOOT, DECK_TOP, self.mat["mortar"])
             for h in hs:
-                g.walls(h, h, BED_TOP - 0.02, DECK_TOP, self.mat["mortar"])
+                g.walls(h, h, DECK_WALL_FOOT, DECK_TOP, self.mat["mortar"])
             g.cap([o] + hs, DECK_TOP, self.mat["mortar"])
 
     # ---- the rim rocks and the kerb -------------------------------------------------------------
 
-    def rock_layout(self, fp, deck_mask, exclude=None):
+    def rock_layout(self, fp, deck_mask, exclude=None, paint_exclude=False):
         """Where the rim stones go (built later by rocks(), so the kerb keeps clear of them): one
         chain of angular stones (about 9-10 px across) down the middle of the ROCK_BAND, small stones
         in its gaps, each leaving a crevice of the dark bed round it, as the art's near-black gaps.
-        `exclude` (bool px) keeps stones away (an open edge, a part of the building's own)."""
+        `exclude` (bool px) keeps stones away (an open edge, a part of the building's own).
+        D248 (PAINTED_RIM): no stones; the band (less `paint_exclude`: by default `exclude`, None
+        to paint all of it, e.g. a band running on past an open edge as the painting does) becomes
+        rock_mask, left to the terrain's painting."""
         dep = lb.depth(fp)
         bandm = fp & (dep <= ROCK_BAND)
+        if PAINTED_RIM:
+            pe = exclude if paint_exclude is False else paint_exclude
+            self.rock_mask |= bandm & ~deck_mask & (~pe if pe is not None else True)
+            self.stones = []
+            return []
         if exclude is not None:
             bandm &= ~exclude
         return self._layout(fp, deck_mask, bandm & (dep >= 5) & (dep <= 7), bandm & (dep >= 2) & (dep <= 11))
@@ -493,7 +552,12 @@ class Kit:
     def rock_field(self, mask, fp, deck_mask, rmax=6.5):
         """rock_layout() over a whole area of rock (`mask`, e.g. the cross pad's mound round its
         cross; D148), not just the rim band: chain-sized stones on a jittered grid about 9-12 px
-        apart wherever the area is 3 px deep, small stones in their gaps; built by rocks()."""
+        apart wherever the area is 3 px deep, small stones in their gaps; built by rocks().
+        D248 (PAINTED_RIM): no stones, the area becomes rock_mask (the terrain's painting)."""
+        if PAINTED_RIM:
+            self.rock_mask |= mask & ~deck_mask
+            self.stones = []
+            return []
         dep = lb.depth(mask)
         return self._layout(fp, deck_mask, mask & (dep >= 3), mask & (dep >= 1), rmax=rmax)
 
@@ -641,7 +705,11 @@ class Kit:
         ENEMY_MAX on an enemy's cell, under RIM_MAX elsewhere. D216: the chips take the asteroid
         belt rim rock's ramp (shade_rim / rim_ramp: the art's brightness under each, its face to the
         art's light, its height, matched to the rim band's own shades), so the bases' rims read as the
-        belt's rock beside them; D148's sun ramp (facet_index, 3..8) was a step or two lighter."""
+        belt's rock beside them; D148's sun ramp (facet_index, 3..8) was a step or two lighter.
+        D248 (PAINTED_RIM): no stones (the terrain's painting is the rock); builds the deferred beds."""
+        if PAINTED_RIM:
+            self.build_beds()
+            return
         g, rng = self.g, self.rng
         enemy = self.b.enemy_mask
         self._rim_faces = []

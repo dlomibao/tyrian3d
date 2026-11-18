@@ -180,7 +180,7 @@ def build(bake=True):
     cross(s)
     objects = objects_of(s, k)
     s.check(objects)
-    iou = s.top_iou(objects, fp)
+    iou = s.top_iou(objects, k.model_mask(fp))
     tris = sum(len(p.vertices) - 2 for o in objects for p in o.data.polygons)
     print(f"RESULT iou={iou:.4f} tris={tris}")
     if bake:

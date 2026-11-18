@@ -22,6 +22,9 @@ What the tiles paint, and how it is built (pattern px, y down; 1 unit = 12 px; z
   base's channel height (0.312), and the deck, bricks and rubble meet the base's heights (deck 0.300,
   plates 0.345).
 
+D248 (lib_l1kit.PAINTED_RIM): no boulders; the rock band is the HD terrain's painting (the pattern
+keeps its tiles), the floor slab and rubble bed end 1 px past the deck (PAINT_FOOT), a dark foot.
+
 No ground enemies sit on it. Underside: the slabs' flat bottoms only.
 
     blender --background --factory-startup --python assets/blender/tiles/l1bld_pipe_junction.py -- [--no-bake] [--views <dir>]
@@ -338,6 +341,10 @@ def build(bake=True, views=None):
     # the stem's rock bands run straight on into row 10 (where the rim row widens fpf, the band would end)
     rock[END_PY:JOIN_PY] |= rock[END_PY - 1][None, :] & ext[END_PY:JOIN_PY]
     chan = channel_mask(b) & fp & ~rock
+    # D248 (lib_l1kit.PAINTED_RIM): the rock band is the HD terrain's painting (the pattern keeps its
+    # tiles): no boulders, and the floor slab and bed leave it open but a PAINT_FOOT px dark foot
+    # round the deck, the bed's talus over the painting's inner edge.
+    paint = rock & ~kit.dil_disk(fp & ~rock, kit.PAINT_FOOT) if kit.PAINTED_RIM else np.zeros_like(rock)
     mason = fp & ~rock & ~chan
     post = mason & disc_dilate(rock, POST_BAND)
     ys_, xs_ = np.nonzero(fp)
@@ -365,11 +372,11 @@ def build(bake=True, views=None):
     mat_wall = m(idx["mortar"] + 1, roughness=0.85)
 
     # 1. The channel floor: one slab over the whole footprint (the rubble and the deck stand on it).
-    for outer, holes in loops_of(fp, tol=0.9):
+    for outer, holes in loops_of(fp & ~paint, tol=0.9):
         prism(b, outer, holes, Z_BOTTOM, FLOOR, mat_floor, side_mat=mat_bed)
 
     # 2. The rubble bed under the boulders: the footprint's outline, the rocks' inner edge a hole.
-    for outer, holes in loops_of(rock | (fp & ~fpf), tol=0.9):
+    for outer, holes in loops_of((rock | (fp & ~fpf)) & ~paint, tol=0.9):
         prism(b, outer, holes, Z_BOTTOM + 0.01, BED, mat_bed, chamfer=1.0, drop=0.02)
 
     # 3. The mortar deck round the channels and the islands (holes: the channels).
@@ -469,7 +476,7 @@ def build(bake=True, views=None):
     nr = 0
     bbm = bmesh.new()  # every boulder, shaded together in the belt rock's ramp (D216)
     for ys, xs in stones:
-        if len(ys) < 5:
+        if len(ys) < 5 or kit.PAINTED_RIM:  # D248: the painting is the rock
             continue
         cx, cy, rx, ry, ang = lt.ellipse(ys, xs)
         rx, ry = min(7.5, max(2.6, rx * 1.15)), min(7.5, max(2.6, ry * 1.15))
@@ -503,7 +510,7 @@ def build(bake=True, views=None):
     obj = lb.mesh_object("shapesz-l1bld-pipe-junction", b.parts, b.pal.materials, coll)
     objects = [obj]
     b.check(objects)
-    iou = b.top_iou(objects, fp)
+    iou = b.top_iou(objects, fp & ~paint)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"triangles {tris}")
     if bake:
