@@ -9,6 +9,7 @@
 
 import { s32, u32, u8 } from "./cint";
 import { buildResources, type TyrianFiles } from "./resources";
+import { parseRunRecord, runRecordFromSave, runRecordToSave, type RunRecord } from "./runRecord";
 import { g, SA_ARCADE, SA_NONE, SA_NORTSHIPZ, SA_SUPERTYRIAN, FRONT_WEAPON, LEFT_SIDEKICK, REAR_WEAPON, RIGHT_SIDEKICK, type PlayerItems } from "./state";
 
 /** config.h SAVE_FILES_NUM: 11 one-player slots, then 11 two-player ones. */
@@ -41,6 +42,8 @@ export interface JE_SaveFileType {
   input2: number;
   gameHasRepeated: boolean;
   initialDifficulty: number;
+  /** Not in the C: the shared high-score list's run record (src/sim/runRecord.ts), in builds that have the list. */
+  run?: RunRecord;
 }
 
 /** An empty slot, as loadSaves leaves an invalid or missing file (config.c L835-845). */
@@ -128,6 +131,7 @@ function parseSlot(o: unknown): JE_SaveFileType | null {
     input2: r.input2 as number,
     gameHasRepeated: r.gameHasRepeated as boolean,
     initialDifficulty: r.initialDifficulty as number,
+    ...(r.run !== undefined && parseRunRecord(r.run) ? { run: parseRunRecord(r.run)! } : {}),
   };
 }
 
@@ -213,6 +217,10 @@ export function JE_saveGame(slot: number, name: string): void {
 
   f.initialDifficulty = u8(g.initialDifficulty);
   f.gameHasRepeated = g.gameHasRepeated;
+  // The shared list's run record (only in builds that have the list; otherwise the slot has none).
+  const run = runRecordToSave();
+  if (run) f.run = run;
+  else delete f.run;
   f.level = g.saveLevel;
 
   if (g.superTyrian) player[0].items.super_arcade_mode = SA_SUPERTYRIAN;
@@ -333,6 +341,7 @@ export function JE_loadGame(slot: number, files: TyrianFiles): void {
   JE_initEpisode(episode, files);
   g.saveLevel = g.mainLevel;
   g.lastLevelName = g.levelName;
+  runRecordFromSave(f.run); // the shared list's run record, with its taint
 }
 
 // --- mainint.c ---
