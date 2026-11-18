@@ -131,6 +131,9 @@ The rest of the score rules:
 - On a day, a player is "returning" if they were first seen on an earlier day.
 - In a month, a player is "returning" if they were first seen in an earlier month.
 
+The public page at `/stats/` (`stats/index.html`, `src/stats/`, D263) draws this summary; it is only built
+with `VITE_SCORES_API`.
+
 ## Database schema
 
 SQLite in WAL mode, `busy_timeout` 5000 ms. `lib/db.mjs` holds the migrations, and

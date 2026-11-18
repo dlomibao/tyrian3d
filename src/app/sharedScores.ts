@@ -57,7 +57,10 @@ export function sharedListPanel(names: string[], difficultyNameB: string[]): { e
   const tabs = h("div", { class: "hs-shared-tabs", attrs: { role: "tablist" } });
   const list = h("ol", { class: "hs-table hs-shared-table" });
   const status = h("p", { class: "hs-shared-status", attrs: { "aria-live": "polite" } });
-  const el = h("section", { class: "hs-shared", attrs: { "aria-label": "Shared high scores" } }, h("span", { class: "ui-label", text: "Shared list" }), tabs, list, status);
+  // The public play stats (stats/index.html, D263), built alongside the game in these builds only.
+  // A new tab, so following it never ends the game in this one.
+  const stats = h("a", { class: "hs-shared-stats", text: "Play stats from every pilot ›", attrs: { href: "stats/", target: "_blank", rel: "noopener" } });
+  const el = h("section", { class: "hs-shared", attrs: { "aria-label": "Shared high scores" } }, h("span", { class: "ui-label", text: "Shared list" }), tabs, list, status, stats);
 
   const drawTabs = () =>
     tabs.replaceChildren(

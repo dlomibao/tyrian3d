@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, resolve, sep } from "node:path";
+import { loadEnv } from "vite";
 import { defineConfig, type Plugin } from "vitest/config";
 
 /** Serve a local folder at a URL path: its files, and index.json listing its top-level files. If the
@@ -56,13 +57,23 @@ function localFiles(): Plugin {
  */
 const scoresProxy = process.env.SCORES_PROXY ? { "/api": { target: process.env.SCORES_PROXY, changeOrigin: false } } : undefined;
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // Relative asset URLs so the build works from the GitHub Pages subpath.
   base: "./",
   plugins: [localFiles()],
+  build: {
+    rolldownOptions: {
+      // The play-stats page (stats/index.html, D263) is only built with the shared scores API
+      // (VITE_SCORES_API, the lomibao.net deploy): other builds have no /stats/.
+      input: {
+        main: resolve("index.html"),
+        ...(loadEnv(mode, process.cwd(), "VITE_").VITE_SCORES_API ? { stats: resolve("stats/index.html") } : {}),
+      },
+    },
+  },
   server: { proxy: scoresProxy },
   preview: { proxy: scoresProxy },
   test: {
     include: ["tests/**/*.test.ts"],
   },
-});
+}));
