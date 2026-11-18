@@ -14727,3 +14727,65 @@ medians before 2.43 / 2.16, after 2.20 / 2.16; ASTEROID1 1.09 / 1.02. Tests: `te
 would show it red anyway. Under the screen filters the spark is as faint as the C's.
 
 **Cost:** one Opus agent, no workflow, no Gemini: about 40 headless captures.
+
+## D248 — ASTEROID?'s seven station bases leave their rim to the painted terrain: no 3D rim stones, the rock band is the same HD painting as the belt's rim, the deck on a dark 1 px foot (follows D141, D148, D211, D216, D244, D246)
+
+**Date:** 2026-11-18
+
+**Problem:** D244 and D246 drew the asteroid levels' loose rocks as flat paintings and the belt's rim (`shapesz`
+360-364, 370, 372-374, 380-382) as painted terrain, both in one rounded, pitted style. ASTEROID? (1.21) still drew its
+seven `l1bld` bases (D141; base complex, pipe junction, cross pad, red bar, bunker, ring dome, light bridge) with
+D216's faceted 3D rim stones, so the level mixed faceted model rock with the rounded painted rock beside it: the
+inconsistency the user flagged for D211 ("some asteroids are textures and some models"). D246 left this open. A scan
+of every tick (the renderer's ground structures) and the inventory find the bases only on ASTEROID?; AST. CITY (3.15)
+and ASTCITY (2.8) place none.
+
+**Options:**
+- *(a) No rim stones; the painted terrain under the model shows (chosen).* The bases are layer-0 tile models with no
+  `keepTiles` key, so they keep their tiles (`keepTiles ?? layer === 0`, drawListRenderer). The rim tiles inside each
+  pattern are already drawn as the HD painting under the model, from the same atlas (D246's `0-5.webp`) as the belt.
+  None of the bases' cells is a D86 covered painting. Removing the stones and the bed under them shows that painting.
+  The rock in a base is then the belt's rock, pixel for pixel, and the seam where a base's rim runs on into the belt's
+  is terrain against terrain, D246's measured seams. Nothing changes in the renderer or the contract.
+- *(b) The painted rim art on low relief (UV from the terrain atlas):* the bases would need the terrain shader
+  (terrainMaterial.ts: the hue, filter and shade logic of D204/D224, instanced flat quads) on a model mesh, a second
+  draw path for the same painting. Projecting a painting onto geometry is also what art rule 4 forbids for models.
+- *(c) Rounded soft boulders coloured from the painting:* a third modelled rock after two the user turned down (D244),
+  and colour from the painting is a projection bake (rule 4).
+
+**Decision** (`lib_l1kit.PAINTED_RIM`, on; False rebuilds D216's stones):
+- `Kit.rock_layout` / `rock_field` place no stones; they mark the rock area (`rock_mask`: the rim band, or the cross
+  pad's mound, less the deck and the parts the scripts already kept clear). `Kit.bed` is deferred and built by
+  `rocks()` (`build_beds`) without the painted area (`painted()`): the bed stays under the deck, channels and parts and
+  ends `PAINT_FOOT` (1 px) past them, its talus chamfer a dark foot over the painting's inner edge, where the art has
+  the crevice between the stones and the kerb. The deck's walls now go down to the ground (`DECK_WALL_FOOT`). The kerb
+  no longer loses posts to stones. The light bridge also paints the rim band by its open right edge, where the
+  stones stopped short and the bed showed. The base complex's open bottom-right edge stays bed as before.
+- The base complex (its own inline bed, deck and layout) and the pipe junction (its own floor slab, bed and
+  boulders) follow the same rule. The base complex still runs its stone layout for its random draws (the blasted
+  hatches' leaves after it are unchanged).
+- Kept: deck height 0.30 (the ground enemies at 0.45 sit on it), every machined part, the GRIT bake, every
+  `src/render/tileModels/*.json` (byte-identical) and `lib_rim_rock.py` (rim_ramp, for the False path).
+- Top-view IoU against each model's own footprint (`model_mask`: the art's footprint less the painted rock): base
+  complex 0.987, cross pad 0.992, pipe junction 0.992, light bridge 0.985, bunker 0.981, ring dome 0.972, red bar 0.968.
+
+**Measured** (`?debug=play&episode=1&main=21&seed=1&skip=T&freezeAt=T&compare=1`, headless Chrome, HUD figures;
+main → new):
+- Draw calls (4K): t900 452 → 442, t1500 299 → 284, t2370 (pipe junction) 268 → 238, t2570 (cross pad) 286 → 271,
+  t2650 (red bar, bunker) 387 → 372, t2760 (bunker) 291 → 276, t3300 (ring dome) 405 → 390, t3510 (light bridge)
+  659 → 644. Each base loses the five rim grey materials, one draw each. The phone (390x844) shows the same drops.
+- Renderer CPU per frame (4K): 1.46-3.42 ms → 1.56-3.14 ms. It moves both ways by up to 0.3 ms between runs on a
+  loaded machine; no change shows.
+- The seven GLBs: 204,486 → 128,853 triangles, 7.05 → 4.85 MB (base complex 91.5k → 56.5k triangles, 3.23 → 2.17 MB).
+
+**Look:** the bases' rims read as the belt's rounded, pitted painted boulders, and the stations' decks, kerbs,
+channels and machinery stay 3D. A base's rim joins the belt's with no line, because it is the same terrain draw.
+**Parallax** (open): the deck stands 0.30 over the flat painting. Its top covers up to about 3 px of the
+painted rock on the side toward the screen centre, and a dark wall shows on the far side; the deck also casts its
+shadow on the painting (t900, t1500 pits). D216's stones stood with the deck, so they had neither.
+
+**Review:** sheets in `tyrian-scratch/ast-bases/sheets/` (`compare-sheet.png`, `compare-e1m21-t*.png`,
+`phone-sheet.png`, `zoom-e1m21-t*.png` base-to-rim junctions, main | new), captures in `shots/`, HUD lines in
+`perf.txt` (not in git, D3). Fallback: `PAINTED_RIM = False` and rebuild the seven `l1bld_*.py`.
+
+**Cost:** one Opus agent; about 55 headless captures, three Blender builds of the seven scripts (about 80 s each).

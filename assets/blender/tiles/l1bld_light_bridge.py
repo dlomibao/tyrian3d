@@ -131,7 +131,7 @@ def build(bake=True, views=None, preview=None):
         k.bed(fp)
         dm = k.deck_mask(fp)
         k.deck(dm)
-        k.rock_layout(fp, dm, exclude=kit.dil4(openm, 10))
+        k.rock_layout(fp, dm, exclude=kit.dil4(openm, 10), paint_exclude=None)  # D248: the band runs on painted
     finally:
         lb.depth = depth_open.__defaults__[1]
     k.kerb(dm, no_post=parts | kit.dil4(openm, 8))
@@ -245,7 +245,7 @@ def build(bake=True, views=None, preview=None):
     k.no_needles()
     objects = k.objects()
 
-    res = b.finish(objects, fp, bake=bake, preview=preview, grit=kit.GRIT)
+    res = b.finish(objects, k.model_mask(fp), bake=bake, preview=preview, grit=kit.GRIT)
     if views:
         render_views(objects, Path(views), b)
     return objects

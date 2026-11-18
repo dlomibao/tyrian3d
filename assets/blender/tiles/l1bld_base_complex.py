@@ -32,6 +32,12 @@ placement and colours):
   hatches (318-329) and the turret block (298-309) as machined parts, each region in the art's
   own palette index (trimmed median of its pixels; table in blueprint.json "regions").
 
+D248: the rim rocks are no longer built (lib_l1kit.PAINTED_RIM): the pattern keeps its tiles (layer 0),
+so the rock band is the HD terrain's painting, as the asteroid belt's rim and the loose rocks (D244,
+D246). The bed stays only under the deck, channels and parts, ending 1 px past them in its talus
+chamfer (lib_l1kit.PAINT_FOOT), and the deck's walls go down to the ground. The layout code below still
+runs (so the blasted hatches' random leaves, drawn after it, stay as they were) and gives the painted area.
+
 Only AO/roughness from the model's own bake (Building.bake_model, ground=0.0 occluder, D86, with the
 kit's worn finish lib_l1kit.GRIT: deeper occlusion, edge sheen, a grime mottle, D148); no
 concept projection ("bake": "model" in textures/shapesz-l1bld-base-complex/maps.json). No D51 outline shell
@@ -169,8 +175,9 @@ def build(bake=True):
     cav = np.zeros((H, W), bool)
     for (x0, y0, x1, y1) in HATCH:
         cav |= box(x0 + 3, y0 + 4.5, x1 - 3, y1 - 3)
-    for outer, holes in regions(fpg & ~cav, tol=1.9):
-        g.prism(outer, holes, BOTTOM, BED_TOP, m_bed, chamfer=1.5, drop=0.10)
+    if not kit.PAINTED_RIM:  # D248: else the kit builds it below, the painted rock cut out
+        for outer, holes in regions(fpg & ~cav, tol=1.9):
+            g.prism(outer, holes, BOTTOM, BED_TOP, m_bed, chamfer=1.5, drop=0.10)
 
     # 2. Deck (the joint colour) inside the rock band.
     deck_mask = fp & (dep > ROCK_BAND - 1)
@@ -182,13 +189,15 @@ def build(bake=True):
     for outer, holes in deck_loops:
         o = g.outer(outer)
         hs = [g.hole(h) for h in holes]
-        g.walls(o, o, BED_TOP - 0.02, DECK_TOP, m_mortar)
+        g.walls(o, o, kit.DECK_WALL_FOOT, DECK_TOP, m_mortar)  # D248: to the ground beside the painted rock
         for h in hs:
-            g.walls(h, h, BED_TOP - 0.02, DECK_TOP, m_mortar)
+            g.walls(h, h, kit.DECK_WALL_FOOT, DECK_TOP, m_mortar)
         g.cap([o] + hs, DECK_TOP, m_mortar)
     # the station kit's parts (lib_l1kit, D148) on this model's mesh: dirt, paving, rocks
     kt = kit.Kit(s)
     kt.g = g
+    if kit.PAINTED_RIM:
+        kt.bed(fpg & ~cav, chamfer=1.5, drop=0.10)  # deferred: build_beds() below
 
     # Rim-rock layout (placed now, built in step 6, so the kerb can keep clear of the stones): as the
     #    art paints them, one chain of angular stones (about 9-10 px across) down the middle of the
@@ -265,6 +274,9 @@ def build(bake=True):
     mouth = box(ccx0 - CH_HX - 1, 0, ccx0 + CH_HX + 1, JOIN_Y + 8)
     no_post = dil4(openm & ~box(*OPEN[0]), 3) | cav_near | feat | mouth
     kt.stones = [[x, y, rad, kind, pts] for (x, y, rad, kind), pts in zip(taken, feet)]
+    if kit.PAINTED_RIM:  # D248: no stones; the band is the terrain's painting (the layout above keeps the rng's draws)
+        kt.stones = []
+        kt.rock_mask |= bandm & ~deck_mask
     nposts = kt.kerb(deck_mask, no_post=no_post)  # the kit's worn, jittered posts (D148)
 
     # 4. Channels: the channel tiles' strips (arms meeting at the centre square, clipped to the
@@ -289,6 +301,7 @@ def build(bake=True):
             if px > W - 2.0 and OPEN[1][1] - 2 <= py <= H:
                 v.co.x = s.x(W)
 
+    kt.build_beds()  # D248 (PAINTED_RIM): the bed without the painted rock, before the open edges are snapped
     snap_open()
 
     coll = common.reset_collection("shapesz-l1bld-base-complex")
@@ -468,7 +481,7 @@ def build(bake=True):
     bmesh.ops.delete(bm, geom=drop_f, context="FACES_ONLY")
     print(f"slivers removed: {len(drop_f)}")
 
-    return s, g, coll, nposts, nplates, len(taken), fpg, openm
+    return s, g, coll, nposts, nplates, len(kt.stones), kt.model_mask(fpg), openm
 
 
 def main(bake=True, preview=None):
