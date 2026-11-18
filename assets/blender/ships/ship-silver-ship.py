@@ -2,8 +2,10 @@
 fighter built cross-sections first from a multi-view blueprint (the flagship pipeline: blueprint, two
 competing designs, judge, strict review; CLAUDE.md art rule 8, PLAYBOOK lesson 22).
 
-What the ship is: a slim armoured fuselage (the only tall part: 7 px wide at the waterline, a 5 px
-bright spine deck on its back, a deep V keel), a small dark windshield with a polished hoop behind it,
+What the ship is: a slim armoured fuselage (the only tall part: 7 px wide at the waterline, a deep V
+keel, and on its back a 5 px machined spine deck: the canopy's fairing run aft as a raised polished spine
+between two channels and two longeron rails, the three members on the three pipes' lines), a small dark
+windshield with a polished hoop behind it,
 two swept canards, and behind the waist a thick faceted sponson each side (the sprite's "bulge": a
 45 degree leading edge, a straight side, a 45 degree rear) that carries one engine tight against the
 hull: a raked polished intake lip over a dark mouth, a cowl, two cooling louvre hoops with the red hot
@@ -21,16 +23,21 @@ shoulder, vertical wall, chamfered bilge), the nozzle a 3 x 4 px barrel, the hul
 How it is built: lofts through explicit sections (solid(): any section, concave too, oriented as a
 closed solid), V grooves modelled in the lofts for panel lines, proud armour plates (usp_talon.plate),
 convex faceted blocks (usp_talon.hull) with the cooling slot and the intake ramp cut out of the
-sponsons by an exact boolean, a deck of four plates with real gaps and raised hatches in its channel,
-AO/roughness bake only (no concept projection: "bake": "model" in its maps.json), outline shell from a
-filled copy (D51, D90), tyrian_engines at the two scarfed exits.
+sponsons by an exact boolean, the spine deck one loft whose section carries the channels, their gutters,
+the louvre pockets and the intake slots (build_deck), AO/roughness bake only (no concept projection:
+"bake": "model" in its maps.json; the deck unwrapped on its own at twice the texel density with every
+chamfer an island, the margin extended from each island's own texels: unwrap, fill_unbaked), outline
+shell from a filled copy (D51), tyrian_engines at the two scarfed exits.
 
 Frame: sprite px. x from the ship's centre line (the middle of sprite column 11), y = sprite row as an
 edge coordinate (row r spans y r..r+1, aft is +y), z up. Blender: X = (x - 0.5) / 12, Y = (14 - y) / 12,
 Z = z / 12.
 
     Blender --background --factory-startup --python ship-silver-ship.py -- [--out path.glb] [--no-bake]
-            [--measure top.json] [--preview png]
+            [--measure top.json] [--preview png] [--no-ink]
+
+--no-ink shrinks the outline shell to nothing: the reference for measuring the ink the shell draws over
+the model's interior (viewer captures with and without it).
 """
 
 import json
@@ -45,7 +52,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
-from usp_talon import Part, cbox, cull_hidden, hull, join, offset_loop, plate  # noqa: E402
+from usp_talon import Part, cbox, hull, join, offset_loop, plate  # noqa: E402
 from usp_talon import pchip as _pchip  # noqa: E402
 
 NAME = "ship-silver-ship"
@@ -57,7 +64,9 @@ AXIS = -0.5
 SLOTS = [  # name, palette index, tag, metallic (x METAL), roughness, emission
     ("NOSE", 5, "nose", 0.55, 0.40, 0.0),     # nose cone, cockpit hull, canards
     ("HULL", 6, "hull", 0.55, 0.40, 0.0),     # aft hull flanks, manifold
-    ("DECK", 11, "deck", 0.60, 0.32, 0.0),    # spine deck plate, nose ridge
+    ("DECK", 11, "deck", 0.60, 0.32, 0.0),    # spine deck casing, nose ridge
+    ("DECKP", 11, "deckpol", 0.90, 0.18, 0.0),  # the dorsal spine's polished top, bolt heads (same index)
+    ("CHAN", 10, "channel", 0.60, 0.36, 0.0),   # the deck's channel floors (cols 10 and 12: median 10)
     ("TRIM", 12, "trim", 0.90, 0.20, 0.0),    # canopy hoop, intake lips: polished
     ("STRAKE", 8, "strake", 0.55, 0.38, 0.0),  # chine strakes
     ("LOUV1", 10, "louvre1", 0.65, 0.30, 0.0),  # louvre hoop between the red vents (row 19: 12 11 10)
@@ -183,6 +192,15 @@ def ring_y(x, y, z, r, n=12, rot=0.0, rz=None):
             for k in range(n)]
 
 
+def ring_z(x, y, z, r, n=6, rot=0.5):
+    return [(x + r * math.cos(2 * math.pi * (k + rot) / n), y + r * math.sin(2 * math.pi * (k + rot) / n), z) for k in range(n)]
+
+
+def stud(part, x, y, z, r, h, mat, n=6, c=0.02):
+    """A bolt head or cap standing h proud of z: an n-sided prism with a chamfered top edge."""
+    solid(part, [ring_z(x, y, z - 0.04, r, n), ring_z(x, y, z + h - c, r, n), ring_z(x, y, z + h, r - c, n)], mat)
+
+
 def box(part, x0, x1, y0, y1, z0, z1, ch, mat, side=1, chz=None):
     hull(part, [(side * x, y, z) for x, y, z in cbox(x0, x1, y0, y1, z0, z1, ch, chz)], mat)
 
@@ -239,6 +257,9 @@ def fuse_ring(y, d=0.0):
 
 
 GROOVE_W, GROOVE_D = 0.05, 0.07
+FUSE_YS = [1.0, 1.15, 1.3, 1.6, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.3, 5.6, 6.0, 6.5, 7.25, 8.0, 9.0,
+           10.0, 11.0, 12.0, 14.0, 16.0, 17.5, 19.0, 20.5, 21.2, 21.6, 22.0]
+FUSE_GROOVES = [2.7, 4.2, 12.6, 16.2, 19.6]   # frame lines: V grooves round the hull
 
 
 def grooved(stations, grooves):
@@ -269,9 +290,7 @@ def cowl_z(x, H=None):
 def build_fuselage(P):
     # One tube, nose tip to stern: nose cone (5), cockpit hull (5), aft hull (6). Panel lines are V
     # grooves modelled in the loft.
-    st = grooved([1.0, 1.15, 1.3, 1.6, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.3, 5.6, 6.0, 6.5, 7.25, 8.0, 9.0,
-                  10.0, 11.0, 12.0, 14.0, 16.0, 17.5, 19.0, 20.5, 21.2, 21.6, 22.0],
-                 [2.7, 4.2, 12.6, 16.2, 19.6])
+    st = grooved(FUSE_YS, FUSE_GROOVES)
     rings = [fuse_ring(y, d) for y, d in st]
     # a rounded tip in front of row 1
     tip = fuse_ring(1.0)
@@ -334,36 +353,200 @@ def build_hoop(P):
     solid(P, rings, TRIM)
 
 
-# Spine deck (rows 10-21, cols 9-13): four armour plates on a dark gunmetal bed, with real gaps between
-# them (rows 13, 16, 19) that show the bed, each plate a raised longeron along either edge and a 3 px
-# channel between; raised hatch lands in the channel. One index (11); it follows the hull's camber,
-# so its brightening toward row 18 is the crest in the light, and its relief (longeron chamfers, gaps,
-# hatch rims) is what the game's lights pick out.
-DK = dict(W=2.55, rail=0.42, chan=0.17, land=0.29, bed=0.04, end=21.97)
-DECK_PLATES = ((10.0, 12.91), (13.09, 15.91), (16.09, 18.91), (19.09, DK["end"]))
-DECK_HATCHES = ((-0.8, 0.8, 10.7, 12.2), (-1.05, -0.15, 13.6, 15.4), (0.15, 1.05, 13.6, 15.4), (-0.8, 0.8, 16.7, 18.3),
-                (-0.6, 0.6, 19.7, 20.9))
-DECK_YS = (11.0, 12.0, 14.0, 15.0, 17.0, 17.5, 18.0, 20.0, 20.8, 21.4)
+# Spine deck (rows 10-21, cols 9-13): a machined dorsal casing in the deck's index (11), its shading from
+# form (no tone bands: a raised part is brighter only because the lights reach it).
+# Across it, three raised members on the three exhaust pipes' lines (cols 9, 11, 13) with a channel either
+# side of the middle one (the sprite's rows 10 and 20, cols 9-13: 11 10 12 10 10 and 12 10 13 10 11):
+#   - the dorsal spine: the canopy's fairing, 2.6 px wide behind the hoop, necked to 1.25 px by row 13 and
+#     run aft to the stern, its top crowned and polished (DECKP, the same index), 0.74 px proud;
+#   - a longeron rail along either edge, 0.5 px proud, its top falling outboard to a wide edge chamfer
+#     (the deck is crowned in facets: spine, rail, chamfer, then the hull's own shoulder knee);
+#   - the channels between, 0.18 px proud (their floors the sprite's cols 10 and 12: index 10), a dark
+#     drain gutter along the spine's foot and the rail's foot, that carry the fittings: an access hatch, a
+#     louvre bank over a dark pocket (five raked slats, open aft), a filler cap and an inspection door.
+# Panel lines follow the form: the rails' seams sit on the hull's frame lines (rows 12.6, 16.2, 19.6) and
+# run on down the flanks as its grooves, the spine's own seams are staggered between them (13.3, 18.3)
+# with a recessed waist band at row 15.6. A bleed-air intake slot is let into each edge chamfer beside the
+# engine (rows 13-16), a sensor blister rides the fairing, bolt heads flank every seam. A low closing frame
+# across the stern (STERN_BAR) ends the channels and their gutters square.
+DK = dict(W=2.56, foot=2.5, lip=0.08, x_out=2.04, x_in=1.49, rail=0.5, rail_out=0.39, floor=0.18, gut=0.12,
+          gx0=0.79, gx1=1.295, gx2=1.38, base=-0.14, pk0=0.84, pk1=1.25, pk_d=0.13, pocket=(15.0, 17.56),
+          notch=(12.95, 16.0), notch_d=0.1, y0=10.02, y1=21.97, taper=21.4)
+DECK_SEAMS = (12.6, 16.2, 19.6)
+SPINE_SEAMS = (13.3, 18.3)
+SPINE_BAND = (15.4, 15.8)
+SEAM_D = 0.06
+SPW = pchip([(9.98, 1.3), (10.7, 1.2), (11.6, 0.95), (12.5, 0.7), (13.1, 0.62), (21.97, 0.62)])
+SPH = pchip([(9.98, 0.08), (10.3, 0.44), (10.8, 0.66), (11.6, 0.74), (19.4, 0.74), (21.0, 0.66), (21.6, 0.56),
+             (21.97, 0.42)])
+DECK_SLATS = tuple((15.06 + 0.5 * i, 15.42 + 0.5 * i) for i in range(5))
+DECK_HATCHES = ((0.86, 1.23, 13.5, 14.62), (0.88, 1.21, 19.95, 21.2))
+DECK_CAP = (1.045, 18.55)
+RAIL_BOLTS = (10.62, 12.34, 12.86, 15.94, 16.46, 19.34, 19.86, 21.25)
+STERN_BAR = (21.52, 21.985, 1.46, 0.09)   # the closing frame: y0, y1, half width, height over the channel floor
+FILL_SINK = 0.04   # the outline copy's rails sit this far inside the real ones (see build_deck)
 
 
-def build_deck(P):
-    W, UP, CH = DK["W"], DK["rail"], DK["chan"]
-    prof = [(-W, 0.0), (-2.4, UP), (-1.72, UP), (-1.42, CH), (1.42, CH), (1.72, UP), (2.4, UP), (W, 0.0)]
-    for y0, y1 in DECK_PLATES:
-        ys = [y0, y0 + 0.07] + [y for y in DECK_YS if y0 + 0.2 < y < y1 - 0.2] + [y1 - 0.07, y1]
+def ZD(y):
+    """The hull's top line as the loft has it: straight between the fuselage's stations."""
+    y = clamp(y, FUSE_YS[0], FUSE_YS[-1])
+    for a, b in zip(FUSE_YS, FUSE_YS[1:]):
+        if y <= b:
+            return lerp(ZT(a), ZT(b), (y - a) / (b - a))
+
+
+def tramp(y, a, b, e):
+    """0 outside a..b, 1 from a + e to b - e."""
+    return clamp(min(y - a, b - y) / e, 0.0, 1.0)
+
+
+def deck_k(y):
+    """The casing's height scale: its chamfered front behind the hoop, its boat-tail at the stern."""
+    return min(lerp(0.3, 1.0, clamp((y - DK["y0"]) / 0.2, 0.0, 1.0)),
+               lerp(1.0, 0.6, clamp((y - DK["taper"]) / (DK["y1"] - DK["taper"]), 0.0, 1.0)))
+
+
+def rail_z(x, y):
+    """The rail top's height above the hull at lateral x."""
+    return lerp(DK["rail"], DK["rail_out"], clamp((abs(x) - DK["x_in"]) / (DK["x_out"] - DK["x_in"]), 0.0, 1.0)) * deck_k(y)
+
+
+def deck_half(y, gd=0.0):
+    """The casing's half section, centre to foot, as heights above the hull: channel floor (with the louvre
+    pocket), riser, rail, edge chamfer (with the intake slot), foot land. gd: a seam's depth here."""
+    k = deck_k(y)
+    p = DK["pk_d"] * tramp(y, *DK["pocket"], 0.02)
+    q = DK["notch_d"] * tramp(y, *DK["notch"], 0.12)
+    fl, g = DK["floor"] * k, DK["gut"] * k
+    a = (DK["x_out"], DK["rail_out"] * k - gd)
+    b = (DK["foot"], DK["lip"] * k - gd * 0.5)
+    ln = math.hypot(b[0] - a[0], b[1] - a[1])
+    nx, nz = -(b[1] - a[1]) / ln, (b[0] - a[0]) / ln
+
+    def C(t, push=0.0):
+        return (lerp(a[0], b[0], t) - nx * push, lerp(a[1], b[1], t) - nz * push)
+    return [(0.0, fl - g), (DK["gx0"], fl - g), (DK["gx0"] + 0.01, fl), (DK["pk0"], fl), (DK["pk0"] + 0.02, fl - p),
+            (DK["pk1"] - 0.02, fl - p), (DK["pk1"], fl), (DK["gx1"] - 0.01, fl), (DK["gx1"], fl - g), (DK["gx2"], fl - g),
+            (DK["x_in"], DK["rail"] * k - gd), a, C(0.3), C(0.34, q), C(0.76, q), C(0.8), b, (DK["W"], 0.0)]
+
+
+# Each segment of the half section: its slot, or (slot inside the pocket / the intake slot, slot elsewhere).
+DECK_SEGS = ("DARK", "DARK", "CHAN", ("DEEP", "CHAN", 0), ("DEEP", "CHAN", 0), ("DEEP", "CHAN", 0), "CHAN", "DARK", "DARK",
+             "DECK", "DECK", "DECK", ("DARK", "DECK", 1), ("DARK", "DECK", 1), ("DARK", "DECK", 1), "DECK", "DECK")
+
+
+def build_deck(P, fill=False):
+    if fill:
+        # For the outline shell: the casing's envelope (spine top to rail to foot), channels bridged. This
+        # copy stands in the scene during the bake, so its rails and edge chamfers are sunk FILL_SINK inside
+        # the real ones: coplanar with them, the bake's occlusion rays hit it at random (rounding) and the
+        # rails came out in cloudy patches.
+        e = FILL_SINK
         rings = []
-        for i, y in enumerate(ys):
-            drop = 0.07 if i in (0, len(ys) - 1) else 0.0
-            z = ZT(y)
-            top = [(x, y, z + max(0.0, dz - drop)) for x, dz in prof]
-            rings.append(top + [(W, y, z - 0.14), (-W, y, z - 0.14)])
+        for y in sorted({9.98, 10.12, 10.3, 10.55, 10.8, 11.3, 12.0, 12.5, 13.05, DK["y1"]} | {y for y in FUSE_YS if 13.1 < y < DK["y1"]}):
+            k, h, z = deck_k(y), SPH(y), ZD(y)
+            c = min(0.2, max(0.02, h * 0.45))
+            half = [(max(0.05, SPW(y) - c), max(h, DK["rail"] * k)), (DK["x_in"], DK["rail"] * k - e),
+                    (DK["x_out"], DK["rail_out"] * k - e), (DK["foot"], DK["lip"] * k - e), (DK["W"], DK["base"])]
+            rings.append([(-x, y, z + q) for x, q in reversed(half)] + [(x, y, z + q) for x, q in half])
         solid(P, rings, DECK)
-    # The bed under the plates: seen only down the gaps.
-    ys = [10.1] + [y for y in sorted(DECK_YS + (12.85, 13.15, 15.85, 16.15, 18.85, 19.15))] + [21.85]
-    solid(P, [[(-2.45, y, ZT(y) + DK["bed"]), (2.45, y, ZT(y) + DK["bed"]), (2.45, y, ZT(y) - 0.12), (-2.45, y, ZT(y) - 0.12)]
-              for y in ys], DARK)
-    for x0, x1, y0, y1 in DECK_HATCHES:
-        slab(P, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], lambda x, y: ZT(y), lambda x, y: ZT(y) + DK["land"], 0.06, DECK)
+        return
+    # The casing: one loft, stern to hoop, its seams V grooves across the rails and chamfers.
+    ys = {DK["y0"], DK["y0"] + 0.2, DK["taper"], DK["y1"]} | {y for y in FUSE_YS if DK["y0"] + 0.25 < y < DK["y1"]}
+    for a, b, e in ((*DK["pocket"], 0.02), (*DK["notch"], 0.12)):
+        ys |= {a, a + e, b - e, b}
+    st = [(y, 0.0) for y in ys if all(abs(y - g) > GROOVE_W * 2.2 for g in DECK_SEAMS)]
+    for g in DECK_SEAMS:
+        st += [(g - GROOVE_W, 0.0), (g, SEAM_D), (g + GROOVE_W, 0.0)]
+    st.sort()
+    rings, pk, nq = [], [], []
+    for y, gd in st:
+        half = deck_half(y, gd)
+        z = ZD(y)
+        rings.append([(-x, y, z + h) for x, h in reversed(half[1:])] + [(x, y, z + h) for x, h in half]
+                     + [(DK["W"], y, z + DK["base"]), (-DK["W"], y, z + DK["base"])])
+        pk.append(tramp(y, *DK["pocket"], 0.02) > 0)
+        nq.append(tramp(y, *DK["notch"], 0.12) > 0)
+    n = len(deck_half(12.0)) - 1
+
+    def mat(k, i):
+        j = n - 1 - i if i < n else i - n          # the half section's segment, either side
+        if i >= 2 * n:
+            return DECK
+        sg = DECK_SEGS[j]
+        if isinstance(sg, tuple):
+            on = (pk, nq)[sg[2]]
+            sg = sg[0] if on[k] or on[k + 1] else sg[1]
+        return globals()[sg]
+    solid(P, rings, mat)
+
+    # The dorsal spine: the canopy's fairing, necked behind it and run to the stern; a crowned polished top
+    # between chamfers, battered sides down into the channels. Seams and a waist band are modelled in.
+    sy = {9.98, 10.12, 10.3, 10.55, 10.8, 11.0, 11.3, 11.6, 12.0, 12.5, 12.8, 13.05, 20.0, 21.9, DK["y1"]}
+    sy |= {y for y in FUSE_YS if 13.1 < y < DK["y1"]}
+    st = [(y, 0.0) for y in sy if all(abs(y - g) > GROOVE_W * 2.2 for g in SPINE_SEAMS)
+          and not SPINE_BAND[0] - 0.12 < y < SPINE_BAND[1] + 0.12]
+    for g in SPINE_SEAMS:
+        st += [(g - GROOVE_W, 0.0), (g, SEAM_D), (g + GROOVE_W, 0.0)]
+    st += [(SPINE_BAND[0] - 0.06, 0.0), (SPINE_BAND[0], 0.05), (SPINE_BAND[1], 0.05), (SPINE_BAND[1] + 0.06, 0.0)]
+    st.sort()
+    rings = []
+    for y, gd in st:
+        end = 0.07 if y >= DK["y1"] else 0.0       # the stern end's chamfer
+        w, h, z = SPW(y) - gd - end, SPH(y) - gd - end, ZD(y)
+        c = min(0.2, max(0.02, h * 0.45))
+        fl = min((DK["floor"] - DK["gut"]) * deck_k(y) - 0.06, h - c - 0.01)
+        half = [(w - c, h), (w, h - c), (w + 0.035, fl)]
+        rings.append([(-x, y, z + q) for x, q in reversed(half)] + [(0.0, y, z + h + 0.035 * min(1.0, h / 0.5))]
+                     + [(x, y, z + q) for x, q in half])
+    solid(P, rings, lambda k, i: DECKP if i in (2, 3) else DECK, capmat=DECK)
+
+    # Stern closing frame: a low chamfered cross-member, rail to rail under the spine, that ends the channels
+    # and their gutters square (open, the gutters' mouths made the channel floors read as loose straps).
+    ya, yb, hw, up = STERN_BAR
+    pts = []
+    for y, c in ((ya, 0.05), (ya + 0.05, 0.0), (yb - 0.05, 0.0), (yb, 0.05)):
+        top = DK["floor"] * deck_k(min(y, DK["y1"])) + up - c
+        pts += [(sx * hw, y, ZD(y) + q) for sx in (-1, 1) for q in (DK["base"], top)]
+    hull(P, pts, DECK)
+
+    # Sensor blister on the fairing: a polished teardrop.
+    rings = []
+    for y, r, hh in ((10.98, 0.05, 0.02), (11.15, 0.22, 0.12), (11.45, 0.33, 0.2), (11.85, 0.3, 0.19), (12.25, 0.18, 0.11),
+                     (12.5, 0.05, 0.02)):
+        zb = ZD(y) + SPH(y)
+        rings.append([(r * math.cos(math.pi * k / 6), y, zb + hh * math.sin(math.pi * k / 6)) for k in range(7)]
+                     + [(-r, y, zb - 0.08), (r, y, zb - 0.08)])
+    solid(P, rings, DECKP)
+
+    for s in (-1, 1):
+        # Louvre slats over the pocket: raked plates, front edge on the floor, open aft.
+        for y0, y1 in DECK_SLATS:
+            za, zb = ZD(y0) + DK["floor"], ZD(y1) + DK["floor"]
+            pts = []
+            for x in (DK["pk0"] - 0.01, DK["pk1"] + 0.01):
+                pts += [(s * x, y0, za + 0.012), (s * x, y0 + 0.04, za - 0.05), (s * x, y1, zb + 0.13), (s * x, y1 - 0.02, zb + 0.08)]
+            hull(P, pts, DECK)
+        # Access hatch and inspection door: low chamfered lands in the channel, a bolt at each corner.
+        for x0, x1, y0, y1 in DECK_HATCHES:
+            slab(P, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], lambda x, y: ZD(y) + DK["floor"] * deck_k(y) - 0.03,
+                 lambda x, y: ZD(y) + DK["floor"] * deck_k(y) + 0.05, 0.03, DECK, s)
+            for x in (x0 + 0.09, x1 - 0.09):
+                for y in (y0 + 0.1, y1 - 0.1):
+                    stud(P, s * x, y, ZD(y) + DK["floor"] * deck_k(y) + 0.05, 0.05, 0.03, DECKP)
+        # Filler cap: a collar and a polished hex plug.
+        x, y = DECK_CAP
+        z = ZD(y) + DK["floor"]
+        stud(P, s * x, y, z, 0.2, 0.06, DECK, n=10)
+        stud(P, s * x, y, z + 0.05, 0.11, 0.05, DECKP)
+        # Bolt heads on the rails, either side of each seam.
+        for y in RAIL_BOLTS:
+            stud(P, s * 1.77, y, ZD(y) + rail_z(1.77, y), 0.085, 0.04, DECKP)
+    # and on the spine, either side of its seams
+    for g in SPINE_SEAMS:
+        for y in (g - 0.24, g + 0.24):
+            for x in (-0.22, 0.22):
+                stud(P, x, y, ZD(y) + SPH(y) + 0.02, 0.06, 0.035, DECKP)
 
 
 def build_fins(P):
@@ -622,8 +805,8 @@ def build(coll, mats, fill=False):
     P = Part("silver_hull", smooth_angle=30)
     build_fuselage(P)
     build_hoop(P)
-    D = Part("silver_deck", smooth_angle=30)
-    build_deck(D)
+    D = Part("silver_deck", smooth_angle=22)
+    build_deck(D, fill)
     G = Part("silver_canopy", smooth_angle=50)
     C = Part("silver_coaming", smooth_angle=40)
     build_canopy(G, C)
@@ -652,7 +835,161 @@ def build(coll, mats, fill=False):
     return [finish(p, mats, coll) for p in (P, D, G, C, W, S, E, Tl)] + [body]
 
 
+def cull_hidden_sym(obj, grid=6, ndirs=48):
+    """usp_talon.cull_hidden (same sample points, same directions) with one more rule: a face stays if its
+    mirror image stays. The ship is symmetric and the test is not (a fixed spiral of directions; a warped
+    quad's sample points lie off its two triangles, above them on one side of the ship and under them on
+    the other), so it found the hull flank under the canopy hoop hidden on one side only and left a hole
+    there: a pale shard beside the collar's corner."""
+    from mathutils.bvhtree import BVHTree
+    from mathutils.kdtree import KDTree
+    me = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    tree = BVHTree.FromBMesh(bm)
+    golden = math.pi * (3 - math.sqrt(5))
+    dirs = []
+    for i in range(ndirs):
+        z = 1 - 2 * (i + 0.5) / ndirs
+        r = math.sqrt(1 - z * z)
+        dirs.append(Vector((r * math.cos(golden * i), r * math.sin(golden * i), z)))
+    eps = 2e-4
+    seen, mids = [], []
+    for f in bm.faces:
+        n = f.normal
+        vs = [v.co for v in f.verts]
+        c = f.calc_center_median()
+        mids.append(c)
+        pts = [c]
+        if len(vs) == 4:
+            for i in range(grid):
+                for j in range(grid):
+                    u, v = (i + 0.5) / grid, (j + 0.5) / grid
+                    pts.append(vs[0].lerp(vs[1], u).lerp(vs[3].lerp(vs[2], u), v))
+        else:
+            for vco in vs:
+                for t in (0.35, 0.7, 0.92):
+                    pts.append(c.lerp(vco, t))
+        cand = [d for d in dirs if d.dot(n) > 0.05]
+        seen.append(any(tree.ray_cast(q + n * eps, d, 50.0)[0] is None for q in pts for d in cand))
+    kd = KDTree(len(mids))
+    for i, c in enumerate(mids):
+        kd.insert(c, i)
+    kd.balance()
+    dead, back = [], 0
+    for f, c, ok in zip(bm.faces, mids, seen):
+        if ok:
+            continue
+        twin = [i for _, i, _ in kd.find_range(Vector((2 * AXIS * PX - c.x, c.y, c.z)), 2e-5)
+                if seen[i] and len(bm.faces[i].verts) == len(f.verts) and abs(bm.faces[i].calc_area() - f.calc_area()) < 1e-7]
+        if twin:
+            back += 1
+        else:
+            dead.append(f)
+    print(f"silver: culled {len(dead)} hidden faces of {len(bm.faces)}, kept {back} for their mirror images")
+    bmesh.ops.delete(bm, geom=dead, context="FACES_ONLY")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.to_mesh(me)
+    bm.free()
+
+
 # --- texture: baked occlusion and edge wear (no concept projection), the baseline's bake ------------
+
+DECK_TEXELS = 2.0     # the spine deck's texel density, times the rest of the ship's
+DECK_UV_ANGLE = 30.0  # its unwrap's angle limit: every chamfer and wall an island of its own
+
+
+def on_deck(co):
+    """Whether a point of the built mesh (Blender units) is on the spine deck's casing or its fittings."""
+    x, y, z = co.x / PX - AXIS, 14 - co.y / PX, co.z / PX
+    return abs(x) < DK["W"] + 0.06 and DK["y0"] - 0.05 < y < STERN_BAR[1] + 0.02 and z > ZD(y) + DK["base"] - 0.02
+
+
+def unwrap(me):
+    """UVs for the bake (edit mode). The ship as the baseline has it (smart project, 55 degrees). The spine
+    deck, the part every camera looks down on, is then unwrapped again on its own with a tighter angle limit
+    and DECK_TEXELS the density: at 55 degrees a 45 degree chamfer joined its top's island as a strip two
+    texels wide, and where that strip ran diagonally in the atlas (the fairing's neck, one flank) the step
+    from the lit top to the shaded chamfer came out as a row of texel teeth. With the chamfer an island of
+    its own the tone changes at the mesh's edge, not at a texel's."""
+    def uv_area(f, uvl):
+        pts = [l[uvl].uv for l in f.loops]
+        return abs(sum(a.x * b.y - b.x * a.y for a, b in zip(pts, pts[1:] + pts[:1]))) / 2
+
+    def density(faces, uvl):
+        return math.sqrt(sum(uv_area(f, uvl) for f in faces) / sum(f.calc_area() for f in faces))
+
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(55), island_margin=0.003, scale_to_bounds=False)
+    bm = bmesh.from_edit_mesh(me)
+    uvl = bm.loops.layers.uv.active
+    rest = [f for f in bm.faces if not on_deck(f.calc_center_median())]
+    d0 = density(rest, uvl)
+    for f in bm.faces:
+        f.select_set(False)
+    n = 0
+    for f in bm.faces:
+        if on_deck(f.calc_center_median()):
+            f.select_set(True)
+            n += 1
+    bm.select_flush_mode()
+    bmesh.update_edit_mesh(me)
+    bpy.ops.uv.smart_project(angle_limit=math.radians(DECK_UV_ANGLE), island_margin=0.003, scale_to_bounds=False)
+    bm = bmesh.from_edit_mesh(me)
+    uvl = bm.loops.layers.uv.active
+    deck = [f for f in bm.faces if f.select]
+    k = DECK_TEXELS * d0 / density(deck, uvl)
+    for f in deck:
+        for l in f.loops:
+            l[uvl].uv *= k
+    bmesh.update_edit_mesh(me)
+    bpy.ops.mesh.select_all(action="SELECT")
+    try:
+        bpy.ops.uv.pack_islands(margin=0.002, rotate_method="CARDINAL")   # quarter turns only: straight strips stay straight
+    except TypeError:
+        bpy.ops.uv.pack_islands(margin=0.002)
+    bm = bmesh.from_edit_mesh(me)
+    uvl = bm.loops.layers.uv.active
+    rest = [f for f in bm.faces if not on_deck(f.calc_center_median())]
+    deck = [f for f in bm.faces if on_deck(f.calc_center_median())]
+    print(f"silver: unwrap {n} deck faces of {len(bm.faces)}; uv per unit: rest {density(rest, uvl):.3f} (alone {d0:.3f}), "
+          f"deck {density(deck, uvl):.3f}")
+
+
+def fill_unbaked(img):
+    """Every texel the bake and its margin left untouched (cleared: red 0; a baked texel's red is never 0)
+    takes its nearest baked neighbours' colour, so no black lies between the islands for the mip levels to
+    bleed in as dark specks, and an island too small to own a texel (a bolt head) still gets its
+    surroundings' tone, not a black dot."""
+    import numpy as np
+    w, h = img.size
+    a = np.empty(w * h * 4, np.float32)
+    img.pixels.foreach_get(a)
+    a = a.reshape(h, w, 4)
+    done = a[:, :, 0] > 0
+    left = int((~done).sum())
+    for _ in range(max(w, h)):
+        if done.all():
+            break
+        acc = np.zeros((h, w, 3), np.float32)
+        cnt = np.zeros((h, w), np.float32)
+        pd = np.pad(done, 1)
+        pa = np.pad(a[:, :, :3] * done[:, :, None], ((1, 1), (1, 1), (0, 0)))
+        for dy in (0, 1, 2):
+            for dx in (0, 1, 2):
+                if dy == 1 and dx == 1:
+                    continue
+                acc += pa[dy:dy + h, dx:dx + w]
+                cnt += pd[dy:dy + h, dx:dx + w]
+        new = ~done & (cnt > 0)
+        a[new, :3] = acc[new] / cnt[new][:, None]
+        done |= new
+    a[:, :, 3] = 1.0
+    img.pixels.foreach_set(a.ravel())
+    img.update()
+    print(f"silver: {img.name} filled {left} unbaked texels of {w * h}")
+
 
 def bake_maps(obj, out_dir, size=1024, samples=96):
     scene = bpy.context.scene
@@ -680,9 +1017,7 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.uv.smart_project(angle_limit=math.radians(55), island_margin=0.003, scale_to_bounds=False)
-    bpy.ops.uv.pack_islands(margin=0.002)
+    unwrap(me)
     bpy.ops.object.mode_set(mode="OBJECT")
 
     col_img = bpy.data.images.new("silver_colour", size, size, alpha=False)
@@ -763,7 +1098,9 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
 
     for mode, img in (("colour", col_img), ("rm", rm_img)):
         tmps = {m.name: bake_shader(m, mode) for m in mats}
-        bpy.ops.object.bake(type="EMIT", margin=6, use_clear=True)
+        # The margin extends each island's own texels (not the face next to it across the seam, the
+        # default): a face keeps its tone right up to its edge.
+        bpy.ops.object.bake(type="EMIT", margin=6, margin_type="EXTEND", use_clear=True)
         for m in mats:
             nt = m.node_tree
             for n in tmps[m.name]:
@@ -771,6 +1108,7 @@ def bake_maps(obj, out_dir, size=1024, samples=96):
             out = next(n for n in nt.nodes if n.type == "OUTPUT_MATERIAL")
             if saved[m.name] is not None:
                 nt.links.new(saved[m.name], out.inputs["Surface"])
+        fill_unbaked(img)
         img.filepath_raw = str(Path(out_dir) / f"{img.name}.png")
         img.file_format = "PNG"
         img.save()
@@ -831,7 +1169,7 @@ def main():
     obj = join(build(coll, mats), NAME)
     # The outline shell's source: the model with its slots, vents, throats and bores filled, plus ramps.
     closed = join(build(coll, mats, fill=True) + [finish(outline_fill(), [], coll)], f"{NAME}_closed")
-    cull_hidden(obj)
+    cull_hidden_sym(obj)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"silver: {len(obj.data.polygons)} faces, {tris} triangles")
     # Engine glows for the menu backdrop (src/ui/backdrop.ts): just outside each scarfed exit, glTF axes.
@@ -844,9 +1182,18 @@ def main():
     if "--no-bake" not in argv:
         bake_maps(obj, tempfile.mkdtemp(prefix="silver_bake_"))
         fmt = "WEBP"
-    # The outline shell (D51), made after the bake so its occlusion rays never hit it; from coarse
-    # voxels (0.03) so it bridges the seams and vents, held just inside the hull (D90).
-    shell = common.outline_shell(closed, coll, voxel=0.03, faces=3000, inside=0.004)
+    # The outline shell (D51), made after the bake so its occlusion rays never hit it: from 0.3 px voxels,
+    # coarse enough to bridge the seams, vents and the deck's channels. No `inside` pull (D90): as
+    # common.outline_shell sets that shrinkwrap (INSIDE mode, a negative offset), Blender 5.2 leaves the
+    # pulled vertices 0.05 px OUTSIDE the hull, not inside it (measured: 546 of the shell's 3300 vertices,
+    # all in creases), and there the shell's crumpled triangles drew as dark hairline spikes (the pipes'
+    # flanges, the cooling slots' corners, the canard and strake roots). Voxel and smoothing were chosen by
+    # the ink the shell draws over the model's interior in the viewer's judged cameras (Top, Game, front-high,
+    # three-quarter-high; --no-ink builds the reference): none in Top and Game.
+    shell = common.outline_shell(closed, coll, voxel=0.025, faces=3000, smooth=8)
+    if "--no-ink" in argv:
+        for v in shell.data.vertices:
+            v.co *= 0.001
     shell.name = shell.data.name = f"{NAME}_outline"
     bpy.data.objects.remove(closed)
     print(f"silver: outline shell {len(shell.data.polygons)} faces")

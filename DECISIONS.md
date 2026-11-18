@@ -14509,6 +14509,13 @@ Reviewers were told to fail a model that read worse than the baseline from any a
   8/10.
 - `public/art/shop/models.webp` is re-rendered with both ships.
 
+- **Silver Ship deck, fix round** (the user: "top of ship details feel amateurish"): the flat slab with three
+  full-width cuts is replaced. A raised Y fairing and spine now run down the deck's middle, with lengthwise rails and
+  channels, louvres, a sensor blister, hatches and fasteners on a crowned, chamfered deck. UVs are unwrapped per facet
+  at 2x texel density, which removed the sawtooth on the fairing. The bake no longer sees the outline-shell copy, which
+  removed the cloudy rails. The flank hole under the collar is closed. `tools/workflows/fix-round.js` ran on Fable
+  (4 agents, about 1.2M tokens). Review: ship, 8.5/10.
+
 **Open items (from the reviews, non-blocking):** hairline slivers at a few part junctions, visible only in close-up
 viewer orbits: the U-Ship pod spine's port seam, and on the Silver Ship the sponson slots, the canard roots and the pipe
 flanges. The U-Ship's pale `pal_28` hoop collars stand out from the rear.
