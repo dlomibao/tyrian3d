@@ -14,7 +14,7 @@ import { startLevel, tick } from "../sim/game";
 import { clearSimInput } from "../sim/input";
 import type { TyrianFiles } from "../sim/resources";
 import { g } from "../sim/state";
-import { BLACK, levelFade } from "./fade";
+import { BLACK, fadeInLevel, levelFade } from "./fade";
 import type { Hud } from "./hud";
 import type { CompareView } from "./compareView";
 import { preloadLevelModels } from "./levelPreload";
@@ -61,9 +61,9 @@ export async function playAttractDemo(c: AttractDemoContext): Promise<boolean> {
   c.hud.visible = true;
   if (c.compare) c.compare.visible = true;
 
-  // JE_main's fade_palette(colors, 50) into the level, as run.ts does.
-  levelFade().set(1, BLACK);
-  void levelFade().fade(0, 50, BLACK);
+  // JE_main's fade_palette(colors, 50) into the level, as run.ts does: the playfield fades in by the
+  // sim's levelBrightness (D254).
+  void fadeInLevel(c.view.playfieldCornersOnWindow());
 
   const stopped = await runDemo(c);
 

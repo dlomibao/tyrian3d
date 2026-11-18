@@ -55,7 +55,7 @@ import { damageModeFromSearch } from "./damage/damageMode";
 import { ShipCondition } from "./damage/shipDamage";
 import { artListsSprite, Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
-import { SurfaceTiles, airShadowShift, isAirborne, rayRoll } from "./sun";
+import { SurfaceTiles, airHeight, airShadowShift, isAirborne, rayRoll } from "./sun";
 import { ShadowDecals } from "./shadowDecals";
 import type { LevelDamage, LevelSprite, LevelTile } from "../sim/levelSprites";
 import { TileAtlas } from "./tileAtlas";
@@ -1170,13 +1170,11 @@ export class DrawListRenderer {
           // A star shows only where background 1 left the screen black (D127).
           if (d.pass === Pass.Starfield && this.starCover.hides(items, d.x, d.y)) continue;
           if (d.spark) {
-            // A spark (JE_drawSP): remastered, a glowing point flying on; else the C's plus, its
-            // brightness mixed with the screen under it (D147).
-            if (fx) {
-              if (d.spark.centre) fx.spark(d.x, d.y, d.pass, d.spark);
-              continue;
-            }
-            this.addSolid(this.sparkScreen.color(items, i), d.x, d.y, 1, 1, d.pass, cam, frame);
+            // A spark (JE_drawSP): the C's plus, its brightness mixed with the screen under it
+            // (D147); remastered, its centre also glows softly in that colour (D252).
+            const c = this.sparkScreen.color(items, i);
+            if (fx && d.spark.centre) fx.spark(d.x, d.y, d.pass, d.spark, c);
+            this.addSolid(c, d.x, d.y, 1, 1, d.pass, cam, frame);
             instances++;
             break;
           }
@@ -1995,7 +1993,8 @@ export class DrawListRenderer {
     const airborne = isAirborne(base);
     const surface = airborne ? this.surfaces.under(cx, cy, base) : 0;
     const ks = (ha - surface) / cam.y;
-    const air = airborne ? h - surface : 0;
+    // A sky enemy over a surface keeps at least SKY_AIR_FLOOR of air under it: it flies (D257).
+    const air = airborne ? airHeight(d.pass, h, surface) : 0;
     this.damage?.shadowShift(object, clone.materials, (gx - this.shadowRef.x) * ks + this.airShadow.x * air, (gz - this.shadowRef.z) * ks + this.airShadow.y * air);
     this.placedExtents.push({
       pass: d.pass,

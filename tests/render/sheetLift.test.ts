@@ -42,7 +42,17 @@ describe("sheet lift", () => {
     expect(sheetHeight(BASE, SHEET, 100, 50, 24, 28, [block(Pass.GroundEnemies, 126, 60, 0.27, 1.08)])).toBeCloseTo(1.08 + SHEET_CLEARANCE);
   });
 
-    test("never lower than its pass's height", () => {
+  test("a later model whose box only crosses the tile's edge row doesn't hold it down (D255)", () => {
+    // GYGES t6300: the boss piece (93-103, 35-63, low 0.46) crossed the horn tile (79, 8) by its top
+    // row, 1 px, and held it at its base under the arm's balls (top 1.08).
+    const ball = { pass: Pass.GroundEnemies, left: 70.9, top: 17.9, right: 86.1, bottom: 34.1, low: 0.27, high: 1.08 };
+    const piece = { pass: Pass.SkyEnemies, left: 93.3, top: 35, right: 103, bottom: 63, low: 0.46, high: 2.38 };
+    expect(sheetHeight(BASE, SHEET, 79, 8, 24, 28, [ball, piece])).toBeCloseTo(1.08 + SHEET_CLEARANCE);
+    // Three rows in, it still counts.
+    expect(sheetHeight(BASE, SHEET, 79, 8, 24, 28, [ball, { ...piece, top: 33 }])).toBe(BASE);
+  });
+
+  test("never lower than its pass's height", () => {
     const sunk = block(Pass.GroundEnemies, 110, 60, -0.2, 1.0);
     expect(sheetHeight(0.05, Pass.Background2Under, 100, 50, 24, 28, [sunk])).toBe(0.05);
   });

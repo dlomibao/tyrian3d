@@ -14789,6 +14789,134 @@ shadow on the painting (t900, t1500 pits). D216's stones stood with the deck, so
 `perf.txt` (not in git, D3). Fallback: `PAINTED_RIM = False` and rebuild the seven `l1bld_*.py`.
 
 **Cost:** one Opus agent; about 55 headless captures, three Blender builds of the seven scripts (about 80 s each).
+## D251 — The island rock takes 1.3x the ground's light, not 1.1x: D223's light change had left it about 8% under the original's brightness (QA round 3 L-a; amends D223)
+
+**Date:** 2026-11-18
+
+**Problem** (`tyrian-scratch/qa-sweep3/e4b/REPORT.md` L-a): NOSE DRIP's island rock read 8% darker than the
+original (frame ratio 0.92 from t5550 on, level median 0.99 -> 0.93 since 11-17). Its art is unchanged.
+
+**Bisect** (a detached worktree at each merge, NOSE DRIP t7050 `&compare=1`, frame ratio / rock-region ratio):
+0e010beb (the 11-17 sweep) 0.983 / 0.992; 262053c1 (before D223) the same; **70c7b5f0 (D223) 0.926 / 0.917**;
+975fbcd9 (D224), fe64fe80 (D233) and main 0.928-0.929 / 0.916. D223's change of light is the whole drop: the rock
+lost the models' blue hemisphere and sheen (its fix: bluer-than-red pixels 77% -> 11% in that region) and took the
+ground's light times ROCK_GROUND_GAIN 1.1, which D223 sized on the bump alone. Not measured apart: the stones'
+modelled cushions probably tilt away from that light too.
+
+**Decision:** `ROCK_GROUND_GAIN` 1.1 -> 1.3 (`src/render/rockMaterial.ts`). The light stays the ground's (no
+hemisphere, no specular), so the blue cast D223 removed stays gone.
+
+**Measured** (1080p `&compare=1`, original | before | after):
+- NOSE DRIP t7050: rock region luma 98.6 | 90.3 | 97.2 (ratio 0.916 -> 0.986), bluer-than-red 11% both; frame
+  0.929 -> 0.968 (11-17: 0.98).
+- NOSE DRIP t3300: rock 0.943 -> 1.021; frame 0.961 -> 0.995 (11-17: 1.02).
+- TYRIAN X t2700: frame 0.963 -> 1.012 (its rock rectangle, which takes in an enemy, 0.99 -> 1.06).
+- Gain 1.25 and 1.35 were tried at NOSE DRIP t7050: rock 0.969 and 1.002; 1.35 took TYRIAN X's rock to 1.08.
+
+**Checked:** `tyrian-scratch/qa-sweep3/fix/fix-renderer/{bisect,rock,v1}/` (not in git, D3); the crops named below are in its `crops/`. Not re-checked: TYRIAN's (1-9) rock
+frames, which D223 measured at 0.95-1.01 and may now read a few per cent light.
+
+**Cost:** part of one Opus agent's renderer round (D251-D257): about 20 captures.
+## D252 — JE_drawSP's sparks keep the C's plus in the remastered look, in the colour the C wrote over the screen under them, with a soft glow of that colour (QA round 3 L-b; amends D147)
+
+**Date:** 2026-11-18
+
+**Problem** (`qa-sweep3/e4b` L-b): the superpixel sparks (TIME WAR by the mothership, DESERTRUN's arch, BRAINIAC)
+were white or pale-yellow glowing dots; the original's are red five-pixel pluses. D147's remastered spark was a glow
+alone, at the colour over a bright screen (`sparkColor(spark, 15)`, near the top of the ramp), lifted toward white
+while new and drawn out along its flight.
+
+**Decision** (`drawListRenderer.ts`, `remasteredFx.ts`): both looks draw the C's plus, five solid pixels in the index
+`SparkScreen` reads back from the screen under them (D147's original-look path). The remastered look adds one
+additive glow round the centre in the centre's own colour (radius 2.5 px, gain 0.35, fading with z): no white lift,
+no streak.
+
+**Checked:** TIME WAR t6300 at 4K (`crops/2_timewar_t6300_orig_before_after.png`): red pluses with a faint halo
+where there were white dots. Test: `tests/render/sparkLook.test.ts` (the remastered look draws the five pixels).
+## D253 — A small fireball throws no flash, spark streaks or embers in the remastered effects (QA round 3 L-c; amends D35, D169, D224)
+
+**Date:** 2026-11-18
+
+**Problem** (`qa-sweep3/e4b` L-c): at APPROACH t300 white cross-shaped stars stood beside the blended small
+fireballs (newsh6 123/127, explosion type 1). Removing their three spark streaks (white where they cross) left a
+pale dot in the same place: the birth's flash, in the mean colour of the fireball's pale first frame and white at
+its core, left at the birth point while the fireball moves on with its enemy (found by turning the flash, the light
+and the embers off in turn). The embers' cores are white-hot too.
+
+**Decision** (`remasteredFx.ts` `spawnBirth`): a small fireball spawns no flash, sparks or embers; it keeps its point
+light and the occasional debris and smoke. The C's small fireball is a still red puff, so it now reads as one. A
+large explosion's quarters keep D224's shared sparks, flash and embers.
+
+**Checked:** APPROACH t300 at 4K (`crops/3_approach_t300_orig_before_after.png`: no star, no dot; the steps in
+`crops/3_approach_t300_orig_before_nosparks_noembers.png`). Test: `sparkLook.test.ts` (type 1 spawns nothing, type 2 still spawns).
+## D254 — The level's fade-in leaves the playfield to the sim's levelBrightness, as the original does (QA round 3 L-e; amends the port-story level fades)
+
+**Date:** 2026-11-18
+
+**Problem** (`qa-sweep3/demos` L-e): on the level-start banner the 3D playfield was near black while the original
+panel was about half lit; both were full a second later. In the C, JE_main's `fade_palette(colors, 50)` runs on the
+interface picture before the first frame, and the playfield then fades in by itself: the level starts at
+`levelBrightness = -14` and JE_filterScreen raises it a step a tick (backgrnd.c L565-578), which the 3D view's palette
+already applies. The port starts the level under its 50-frame fade layer, so the 3D playfield had both fades at once.
+
+**Decision** (`src/app/fade.ts` `fadeInLevel`, `run.ts`, `attractDemo.ts`): the level fade-in's layer has a hole
+over the playfield (`clip-path: path(evenodd, ...)` round `View.playfieldCornersOnWindow()`), so the HUD and the
+frame fade in as before and the playfield follows the sim's brightness, as the original panel does. Any later
+`set()` or fade clears the hole. Not done: running the 50 frames before the first tick, as the C does (it would add
+0.7 s to every level start).
+
+**Measured** (demo 1 at the banner and 200, 400, 700, 1000 ms after, playfield mean luma, original | 3D): before
+20.7 | 1.6, 63.5 | 29.1, 72.4 | 65.9; after 21.0 | 14.3, 63.5 | 63.0, 72.4 | 73.2
+(`crops/5_demo1_fadein_before_top_after_bottom_b0_b200_b400.png`). Test: `tests/app/fade.test.ts`.
+## D255 — A later model's box counts against a blended sheet tile only by more than 2 px of overlap, so GYGES's horn rises over the arm's balls (QA round 3, E2 L5; extends D224)
+
+**Date:** 2026-11-18
+
+**Problem** (`qa-sweep3/e2` L5): GYGES t6300's horn still drew translucent over the arm's blue balls. The horn tile at
+(79, 8) overlaps the balls (pass 3, tops 1.08) and a boss piece (SkyEnemies, box 93-103 x 35-63, low 0.46) whose top
+row crosses the tile's bottom row by 1 px. D224's rule counted that piece's footprint, so the tile settled at its
+base 0.9, under the balls, which then showed through it in their own blue.
+
+**Decision** (`sheetLift.ts`): a later model's box is inset by `LATER_INSET` = 2 px each side (as `COVER_INSET`,
+D181) before the overlap test. A model whose foot is inside the tile by 3 px or more still holds it down.
+
+**Checked:** GYGES t6300 at 4K (`crops/6_gyges_t6300_horn_orig_before_after.png`): the horn reads purple over the
+balls, as the C's blend draws them. Test: `sheetLift.test.ts`.
+## D256 — The hangar fits the ship by its own model's reach, measured on screen with the camera's perspective (QA round 3 L-d; amends D55)
+
+**Date:** 2026-11-18
+
+**Problem** (`qa-sweep3/demos` L-d): turning in the hangar, the Talon's tail and engine glow reached past the
+screen's left edge, and the U-Ship's barrel ran under the stats panel. The fit used one bound for every ship
+(`SHIP_RADIUS` = half the 2.4 length + 0.2) and an orthographic scale. A ship's diagonal reaches past half its length
+(the U-Ship's guns, 1.49), the near side of the turning circle is larger on screen, and the sway (up to 0.32) and
+glows were not counted.
+
+**Decision** (`src/ui/backdrop.ts`): `shipRadius` measures each loaded model's farthest vertex or glow edge from its
+turning axis. `shipReachPx` projects a circle of that radius plus the sway, at the ship's height and bob, through
+the pose's camera and takes its largest extent each way. `freeSlot` sizes the ship from that.
+
+**Measured** (1920x1080 item screen, the projected ship over a full turn, x range against the gap 0-627):
+Talon -39..544 -> 32..474 (scale 0.918 -> 0.697), U-Ship 56..687 -> 157..585 (0.918 -> 0.626), Silver Ship
+-35..542 -> 38..470. The ships are about 25-30% smaller in that layout (`crops/7_hangar_before_after.png`).
+Tests: `tests/ui/backdropLayout.test.ts`.
+## D257 — A sky enemy over a raised surface keeps at least 1 unit of air in its shadow's drop (D243's fallback; QA round 3)
+
+**Date:** 2026-11-18
+
+**Problem:** since D243, HARVEST's purple spheres (newsh5 #47, sky enemies at 1.65) cast their shadows at their feet,
+because HARVEST's whole ground is background 3, under them at 1.25. **What they are:** they fly. Over 40 ticks
+(t549-587) the sprite keeps one frame (no rolling animation) and moves 1 px a tick down the screen while the ground
+scrolls 2, drifting 1 px a tick sideways on a curve: they cross the ground at their own speed.
+
+**Decision** (`sun.ts` `airHeight`, `drawListRenderer.ts`): a sky enemy (`SkyEnemies`, `SkyEnemiesOver`) over a
+raised surface counts at least `SKY_AIR_FLOOR` = 1 in D171's air term (never more than its own height). D133's term
+still counts from the surface. Top enemies keep D243's count: TYRIAN's tanks on its platforms are the same 0.4 over
+theirs, so a floor for every model would have put them back in the air.
+
+**Checked:** HARVEST t640 overhead (`crops/9_harvest_t640_overhead_before_after.png`): the spheres' shadows fall a
+few px below them again. Not re-checked: DELIANI's girder turrets (sky over background 2 at 0.9), whose air term
+goes from 0.75 to 1. Test: `flyerShadows.test.ts`.
 ## D250 — A level that follows another in `?debug=play` waits for its models as the game's does; an object drawn as its sprite because its model was late turns into the model when it arrives (amends D54, D236)
 
 **Date:** 2026-11-18
