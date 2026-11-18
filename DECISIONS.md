@@ -14490,3 +14490,45 @@ Test: `tests/render/flyerShadows.test.ts` (shadows on a raised surface).
 
 **Review:** look at TYRIAN's road platforms (t4200) and HARVEST under `&camera=overhead`. If a flyer over a surface
 should read higher, the fallback is a floor on the air term for models over a surface, not the ground's count.
+## D242 — The U-Ship and Silver Ship rebuilt through the full flagship pipeline on Fable, with the restored blueprint-built models as the baseline to beat at every angle (follows D240, D241, CLAUDE.md art rule 8)
+
+**Date:** 2026-11-17
+
+**Decision:** `tools/workflows/model-flagship.js` in full mode ran on both ships with every stage on Fable (high effort)
+at the user's request. Each ship got a multi-view HTML blueprint (top traced from the sprite, plus side, front, rear,
+underside and three-quarter views), two competing designs, a judge (winner A for both, with grafts and must-fix
+items), a finisher and a strict review. The restored models (D240, D241) were the baseline. Every sheet put baseline
+and new side by side at the same `?viewer=` Free orbits, the Game angle, the hangar backdrop and in-game banking.
+Reviewers were told to fail a model that read worse than the baseline from any angle.
+- **U-Ship:** a round finned gun barrel and a ridge-roofed hoop with an exact mirrored centre line. The pod is
+  plated lengthwise and pointed, with no orange glow port. The plan widths are the baseline's: the rails read thinner
+  by form, not by shrinking. Level IoU 1.000; banks 0.879/0.858 and 0.765/0.758. 11.8k triangles (baseline 17.3k).
+  Review: ship, 8.5/10.
+- **Silver Ship:** a slim hull, faceted sponsons with engine barrels where D118 had round pods, paired red vent bands,
+  and three exhaust pipes on a tray. Level IoU 0.9965; banks 0.866/0.928 and 0.918/0.858. 5.2k triangles. Review: ship,
+  8/10.
+- `public/art/shop/models.webp` is re-rendered with both ships.
+
+- **Silver Ship deck, fix round** (the user: "top of ship details feel amateurish"): the flat slab with three
+  full-width cuts is replaced. A raised Y fairing and spine now run down the deck's middle, with lengthwise rails and
+  channels, louvres, a sensor blister, hatches and fasteners on a crowned, chamfered deck. UVs are unwrapped per facet
+  at 2x texel density, which removed the sawtooth on the fairing. The bake no longer sees the outline-shell copy, which
+  removed the cloudy rails. The flank hole under the collar is closed. `tools/workflows/fix-round.js` ran on Fable
+  (4 agents, about 1.2M tokens). Review: ship, 8.5/10.
+
+- **Silver Ship deck tone** (the user: "the color/brightness on the top is jarring"): the form is unchanged, and only
+  palette slots, material response and the bake change. The casing stays index 11 with a 0.62 baked gain and a little
+  more roughness. The fairing top gets its own satin index-10 slot. Only the spine top aft of its seam stays polished.
+  A small tint removes index 11's green cast. The deck's occlusion no longer clamps, so roots, flanks and channel floors
+  darken. The deck now sits at D118's deck-to-hull ratio (1.44-1.57) with the spine as its one bright strip. It is a
+  little under the sprite's absolute deck tone in the hangar and in level, because the brief's two targets conflict.
+  The canopy collar (`pal_12`, untouched) is now the whitest part of the top. Review: ship, 8/10.
+
+**Open items (from the reviews, non-blocking):** hairline slivers at a few part junctions, visible only in close-up
+viewer orbits: the U-Ship pod spine's port seam, and on the Silver Ship the sponson slots, the canard roots and the pipe
+flanges. The U-Ship's pale `pal_28` hoop collars stand out from the rear.
+
+**Review:** the user compares baseline and new in `tyrian-scratch/ships-fable/<ship>/final/sheet.png` and in
+`?viewer=` before merging. Fallback: keep D240/D241's restored models (the state on main).
+
+**Cost:** 12 Fable agents, about 3.5M subagent tokens, about 2 h wall clock.
