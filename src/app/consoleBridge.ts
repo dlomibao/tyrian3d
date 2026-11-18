@@ -8,6 +8,7 @@ import type { TyrianFiles } from "../sim/resources";
 import type { View } from "../render/view";
 import type { OptionsHost } from "./options";
 import type { Screen } from "../ui/screen";
+import { taintRun } from "../sim/runRecord";
 
 /** Where the console was opened: what its level commands can do there. */
 export type ConsolePlace = "title" | "shop" | "level" | "menu";
@@ -95,6 +96,9 @@ export function openDebugConsole(): Promise<void> {
 
 /** Show the console screen now (the level loop calls this once it has paused). */
 export async function showDebugConsole(): Promise<void> {
+  // Any use of the console taints the run, and every run for the rest of the page session: it can
+  // change anything (the shared high-score list doesn't take tainted runs).
+  taintRun("console", true);
   const { showConsole } = await load();
   await showConsole(consoleBridge);
 }
@@ -125,7 +129,10 @@ export function installDebugConsole(): void {
     tyrianConsole: {
       open: () => openDebugConsole(),
       /** Run one command line without the overlay; resolves with its output lines. */
-      run: async (line: string) => (await load()).runConsoleLine(consoleBridge, line),
+      run: async (line: string) => {
+        taintRun("console", true);
+        return (await load()).runConsoleLine(consoleBridge, line);
+      },
     },
   });
   if (consoleStore().perf) void load().then(({ restorePerfOverlay }) => restorePerfOverlay(consoleBridge)).catch(() => {});

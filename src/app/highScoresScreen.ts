@@ -33,6 +33,7 @@ import { g } from "../sim/state";
 import { button, h, keyHints, lastDevice, reveal, showScreen, title, type Intent, type Navigable, type Screen } from "../ui";
 import { loadHighScores, saveHighScores } from "./highScores";
 import { nameAppend, nameDelete, pickerCell, pickerMove, pickerNextSet, pickerRows, PICKER_SETS, type PickerKey, type PickerState } from "./namePicker";
+import { sharedListPanel, sharedResultLine, type SharedHighScoreHost } from "./sharedScores";
 
 /** OpenTyrian song number (0-based, as passed to play_song) of the high score fanfare. */
 const SONG_HIGH_SCORE = 33;
@@ -62,6 +63,8 @@ export interface HighScoreTexts {
 export interface HighScoreHost extends HighScoreTexts {
   sfx: SoundEffects;
   music: MusicPlayer;
+  /** The shared list (builds with VITE_SCORES_API): a one-player name entered is sent to it too. */
+  shared?: SharedHighScoreHost;
 }
 
 /** miscText[i] (0-based, as the C indexes it), with a fallback when the data lacks it. */
@@ -95,6 +98,8 @@ function table(saveFiles: HighScoreEntry[], first_slot: number, difficultyNameB:
 }
 
 export interface HighScoreScreenOptions extends HighScoreTexts {
+  /** The difficulty names by level (the shared list's filter); difficultyNameB where missing. */
+  difficultyNames?: string[];
   /** episodeAvail: which of episodes 1-3 have data (a missing one's header is dimmed). */
   episodes: number[];
   sfx?: SoundEffects;
@@ -130,6 +135,7 @@ export function showHighScoreScreen(opts: HighScoreScreenOptions): Promise<void>
       onIntent: (intent) => {
         if (intent === "left") page(-1);
         else if (intent === "right") page(1);
+        else if (sharedPanel && (intent === "up" || intent === "down")) sharedPanel.cycle(intent === "up" ? -1 : 1);
         else if (intent === "accept" || intent === "back" || intent === "start") done();
         else return false;
         return true;
@@ -146,6 +152,8 @@ export function showHighScoreScreen(opts: HighScoreScreenOptions): Promise<void>
     next.setAttribute("aria-label", "Next episode");
     const episodeEl = h("h3", { class: "hs-episode", attrs: { "aria-live": "polite" } });
     const tablesEl = h("div", { class: "hs-tables" });
+    // The shared list beside the local tables, with VITE_SCORES_API (up/down: the difficulty filter).
+    const sharedPanel = sharedListPanel(opts.difficultyNames ?? [], opts.difficultyNameB);
 
     const render = () => {
       episodeEl.textContent = opts.episodeName[episodeIndex + 1]?.trim() || `Episode ${episodeIndex + 1}`;
@@ -159,6 +167,7 @@ export function showHighScoreScreen(opts: HighScoreScreenOptions): Promise<void>
       // Draw paging controls (the keys wrap around; the arrows only show where there's a page).
       prev.style.visibility = episodeIndex > 0 ? "visible" : "hidden";
       next.style.visibility = episodeIndex < episodeCount - 1 ? "visible" : "hidden";
+      sharedPanel?.show(episodeIndex + 1);
     };
     render();
 
@@ -166,7 +175,7 @@ export function showHighScoreScreen(opts: HighScoreScreenOptions): Promise<void>
       // The original's layout (D85): the title with the episode pager beside it, the tables, Done,
       // and the hints in the message bar.
       h("header", { class: "hs-head" }, title(misc(50, "High Scores")), h("div", { class: "hs-paging" }, prev, episodeEl, next)),
-      tablesEl,
+      sharedPanel ? h("div", { class: "hs-columns" }, tablesEl, sharedPanel.el) : tablesEl,
       h("div", { class: "ui-actions" }, button({ label: misc(13, "DONE"), variant: "primary", class: "hs-done", onPress: done })),
       h(
         "div",
@@ -398,7 +407,7 @@ function askHighScoreName(score: number, episodeName: string, sfx?: SoundEffects
  * glowing (the slot's entry, also when the name entry was cancelled), until a key, click, tap or
  * pad button.
  */
-function showHighScoreEntered(saveFiles: HighScoreEntry[], slot: number, first_slot: number, episodeName: string): Promise<void> {
+function showHighScoreEntered(saveFiles: HighScoreEntry[], slot: number, first_slot: number, episodeName: string, sharedNote: HTMLElement | null = null): Promise<void> {
   return new Promise((resolve) => {
     const done = () => {
       if (!screen.open) return;
@@ -424,6 +433,7 @@ function showHighScoreEntered(saveFiles: HighScoreEntry[], slot: number, first_s
       title(misc(50, "High Scores")),
       h("h3", { class: "hs-episode", text: episodeName }),
       h("div", { class: "hs-tables" }, table(saveFiles, first_slot, null, slot)),
+      ...(sharedNote ? [sharedNote] : []),
       h("p", { class: "hs-press" }, h("span", { class: "hs-press__keys", text: misc(4, "Press a key") }), h("span", { class: "hs-press__touch", text: "Tap to continue" })),
     );
     screen.root.addEventListener("click", done);
@@ -451,7 +461,12 @@ export async function highScoreCheck(host: HighScoreHost, initial_episode_num: n
     JE_highScoreCheckEnter(saveFiles, slot, temp_score, name, g.difficultyLevel);
     saveHighScores(saveFiles);
 
+    // The shared list: a one-player name entered goes there too (if the run is eligible).
+    const shared = !two && name !== null ? host.shared : undefined;
+    const pending = shared && !shared.ineligible ? shared.submit(saveFiles[slot].highScoreName.trimEnd(), temp_score) : null;
+    const note = shared ? sharedResultLine(shared, pending) : null;
+
     const { first_slot } = highScoreTable(initial_episode_num, two);
-    await showHighScoreEntered(saveFiles, slot, first_slot, episodeName);
+    await showHighScoreEntered(saveFiles, slot, first_slot, episodeName, note);
   }
 }

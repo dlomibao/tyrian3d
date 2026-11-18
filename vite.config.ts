@@ -50,10 +50,18 @@ function localFiles(): Plugin {
   };
 }
 
+/**
+ * Local only: SCORES_PROXY=http://127.0.0.1:<port> forwards /api to a local shared-scores service
+ * (server/scores/) on the dev server and on `vite preview`, for a build made with VITE_SCORES_API=/api.
+ */
+const scoresProxy = process.env.SCORES_PROXY ? { "/api": { target: process.env.SCORES_PROXY, changeOrigin: false } } : undefined;
+
 export default defineConfig({
   // Relative asset URLs so the build works from the GitHub Pages subpath.
   base: "./",
   plugins: [localFiles()],
+  server: { proxy: scoresProxy },
+  preview: { proxy: scoresProxy },
   test: {
     include: ["tests/**/*.test.ts"],
   },

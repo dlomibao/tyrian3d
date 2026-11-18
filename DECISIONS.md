@@ -14917,3 +14917,91 @@ theirs, so a floor for every model would have put them back in the air.
 **Checked:** HARVEST t640 overhead (`crops/9_harvest_t640_overhead_before_after.png`): the spheres' shadows fall a
 few px below them again. Not re-checked: DELIANI's girder turrets (sky over background 2 at 0.9), whose air term
 goes from 0.75 to 1. Test: `flyerShadows.test.ts`.
+## D250 — A level that follows another in `?debug=play` waits for its models as the game's does; an object drawn as its sprite because its model was late turns into the model when it arrives (amends D54, D236)
+
+**Date:** 2026-11-18
+
+**Problem** (Episode 4 walkthrough, `tyrian-scratch/qa-sweep3/e4a/REPORT.md` H1; the E2 sweep): after a level change in
+the play harness, the new level's enemies stayed extruded sprites: CORE after LAVA RUN (newsh3 g237x2, g275x2), LAVA
+EXIT after CORE (newsh5 g51x2, newshe g195x2), BONUS after GYGES (newshs g269/g171, newsh2 g159/g267/g247); fresh
+starts were clean. Not a release of a needed model: every one of them is on the new level's list, its pool loaded
+by the time of the capture (`levelModels`, `modelPools`). The harness's level change (`playHarness.ts`) called
+`preloadLevel` without waiting and ticked on; inside `&skip=` the whole fast-forward is synchronous, so the new
+level's loads only began once it ended, and the first frame drew its enemies while some 60 models loaded six at a
+time. D54 held each for 250 ms (`HOLD_MS`) and then locked it to its extruded sprite **for its life**; in a
+`&freezeAt=` capture that is forever. It depends on load speed: clean in a quiet run, extruded on a busy machine
+(the sweeps ran many Chromes at once). The race predates D236 (the unwaited `preloadLevel` dates from D54; the E2 sweep saw ASTCITY → BONUS 2.12 do it
+before and after D236); GYGES → BONUS tipped between 380209d8 and main (E2's bisect), probably with D236, likely because D236's borrowed-sheet rule lists more models at time 0 (BONUS's
+newsh2 frames 171-f2..f6, 229-f1..f8, 191-f1..f8 load ahead of its own enemies; GYGES 108 → 128 models), not
+verified further.
+The game itself (`run.ts`, `attractDemo.ts`, `?debug=level`) awaits `preloadLevelModels` at every start. Driven
+through the real flow (LAVA RUN, the `skip` cheat, the item screen's Play Next Level, CORE) on the D236 code, every
+model CORE drew was a loaded model, also with each model fetch held 3 s. But the lock is reachable there: with
+each fetch held 8 s the start hits the 20 s timeout (`PRELOAD_TIMEOUT_MS`; 40 of 49 loaded) and CORE's towers
+(newsh3-275) were drawn extruded and stayed so after their model came in (t120, t200); a model due after
+`PRELOAD_WAIT_LOC` still loading when its enemy shows does the same. A boss would stay a sprite for minutes.
+**Decision:**
+- **The harness waits** (`playHarness.ts`): a level that follows another runs `preloadLevelModels` (with its warm-up)
+  before its first tick, as `run.ts` does; the tick loop pauses meanwhile ("Loading models…" in the overlay). Inside
+  `&skip=` it waits for all of the level's models, as a start part-way in already did. `&preload=0` keeps the old
+  unwaited preload.
+- **The lock lets go** (`DrawListRenderer.objectLook`): an object drawn as its sprite because its model was late
+  (or a hold that ran out) is drawn as its model from the first frame the model is in. One pop instead of a sprite
+  for its life; later enemies of the type were already models. A model that fails stays a sprite. The hold
+  (nothing drawn for up to 250 ms) and the rule for a model object whose next frame's model isn't in (held that
+  frame) are unchanged. No cross-fade: the sprite and the model would both have to draw, translucent, for a few
+  frames; not worth it for a case the preload makes rare.
+**Options considered:** *keep D54's lock and only fix the harness* (the game's timeout and late-due models still
+lock, a boss for minutes); *swap only when the object respawns* (that is what already happened: a new serial
+decides afresh); *put the level's own enemies ahead of the borrowed-sheet frames in the preload order* (helps
+the race, doesn't end it).
+**Checked:** `tests/render/levelTransition.test.ts`: the bot plays LAVA RUN → CORE → LAVA EXIT and episode 1's first
+three levels on one renderer, each preloaded as a level start (with D236's release), and every sprite drawn as a
+model finds its model loaded (a model left off the list fails it: tried). `modelPop.test.ts`: a late model now
+replaces the sprite. `tsc`; full vitest (a first run had 78 tests time out at a machine load of 300-500; rerun at ~30, all
+pass but two of `destruct/trace.test.ts` on its 5 s default timeout, which pass with a longer one).
+**Captures** (`tyrian-scratch/level-transition/caps/`; `?debug=play&skip=T&freezeAt=T`, model fetches held 1 s each
+from the end of the first level's preload, so the race is the same every run; extruded draws in the frozen frame,
+before (main, D236 in) → after): LAVA RUN → CORE t5250 12 → 0 (newsh3 g275, g237); CORE → LAVA EXIT t7850 0 → 0,
+t9000 8 → 0 (newshe g195); GYGES → BONUS t8590 43 → 0; ASTCITY → BONUS t8282 16 → 0 (newshh g167/169/267/269);
+episode 1 TYRIAN → ASTEROID2 t9500 8 → 0 (newshd g121); ASTEROID1 → ASTEROID? t8250 0 → 0; episode 3 CAMANIS →
+MACES t8636 0 → 0 (145 model draws). Without the held fetches, LAVA RUN → CORE on a busy machine: 12 → 0.
+The real flow with fetches held 8 s: before, newsh3-275 extruded at t60, t120, t200; after, extruded at t60 (its
+model not in yet), the model from t120.
+**Memory** (D236's win holds; the release is untouched): the game's own level starts through the console's `level`
+(episode 1: TYRIAN, ASTEROID1, ASTEROID2, MINES, BUBBLES, DELIANI, TYRIAN), at tick 300 of each: GL textures
+414, 198, 172, 125, 78, 258, 433; model pools 132, 95, 92, 63, 12, 76, 134; JS heap 190 → 90 → 198 MB; GPU
+process 780 → 503 → 876 MB. The same dev server with this change reverted: textures and pools identical, GPU
+process 777 → 506 → 878 MB. Memory follows the level as D236 made it.
+**Fallback:** the `objectLook` line back to `if (o.look === ObjectLook.Holding) { ... }` (D54's lock); the harness's
+`loading` wait is independent of it.
+## D249 — A shared high-score list for the lomibao.net build only: plausibility from the level data, a run token, cheat taint; plus anonymous per-level play reports (new)
+
+**What:** with `VITE_SCORES_API` set (only `deploy.sh`'s build), a qualifying one-player full game is sent to a
+small Node 22 + `node:sqlite` service (`server/scores/`) when the original would record a high score (the episode's
+end, or quitting), and the high-score screen shows that episode's shared top 20 beside the local tables. Builds
+without the flag (GitHub Pages, dev) behave exactly as before: no requests, no new Options rows, saves unchanged.
+
+**No replay on the server** (the VPS is small). A submission carries the levels played in order with each one's
+sim ticks and score; the server checks (`server/scores/lib/plausibility.mjs`):
+- the path through the episode's level graph (story order, the item screen's `]G[` choices, `]J[`/`]H[`/`]h[`
+  jumps by difficulty class, in-level warps);
+- each finished level's ticks against its floor (fewest ticks to its end event at the fastest scroll, -3%) and,
+  for levels that can't stall, a ceiling; the summed ticks against the wall time since the token;
+- the score against the sum of the levels' bounds, each level's own gain against its bound, and its gain per tick.
+The bounds come from `tools/maxScores/maxScores.ts` (committed as `server/scores/maxScores.json`; regenerate with
+`npm run max-scores`): every enemy and pick-up the event script spawns, with drops, damaged second lives and
+difficulty scaling, plus per-tick rates for random spawns, launchers and event loops, and the gear value a level's
+power-ups can add. They are upper bounds, loose by design (a level's power-ups alone may add 484,440 of gear value).
+
+**Run token:** HMAC-signed by the server at a new game, kept in the save (30-day expiry), single use. **Run hash:**
+a SHA-256 over the run, computed by both sides; a consistency check only (the code ships in the page).
+
+**Taint:** the debug console (opened or `tyrianConsole.run`, for the page session), the in-flight cheat chords,
+`?loot`, `?seed`, `?debug=` taint the run (`src/sim/runRecord.ts`), kept in its saves; a tainted run never
+submits and the local table still records it, with a note. Arcade, two-player, Super Arcade and Super Tyrian are not
+tainted but not eligible (the bounds model a one-player full game); the hidden difficulties are eligible.
+
+**Play reports:** at each level's end (finished, died, quit) a beacon with the level's summary, when Options →
+"Share anonymous play stats" is on (default on), with a random id kept in the browser; the server stores only a
+country code (DB-IP Lite, CC BY 4.0) and a monthly-salted IP hash for rate limits.

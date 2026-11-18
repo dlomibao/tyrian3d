@@ -12,6 +12,7 @@ came from, its license, and where it's used. Add a row in the same commit that b
 | Loudness (LDS) player (via OpenTyrian `lds_play.c`, adapted from AdPlug) | https://github.com/opentyrian/opentyrian/blob/master/src/lds_play.c | GPL-2.0-or-later | Ported to `src/audio/lds.ts` for music playback |
 | MMPX pixel-art magnification (Morgan McGuire and Mara Gagiu, JCGT 2021; `js-demo.html` in the paper's supplement) | https://casual-effects.com/research/McGuire2021PixelArt/ | MIT | Ported to `src/render/remaster/mmpx.ts` for the remastered ground (DECISIONS.md D34) |
 | Tyrian 2.1 game data | https://camanis.net/tyrian/tyrian21.zip (the mirror OpenTyrian links to) | Freeware (not redistributed here; see README) | Level, item, enemy and shape data loaded at runtime |
+| IP to Country Lite ("IP geolocation by DB-IP") | https://db-ip.com | CC BY 4.0 | The scores service's country counts (`server/scores/`, D249); loaded on the server, not in this repo |
 
 ## Fonts
 
