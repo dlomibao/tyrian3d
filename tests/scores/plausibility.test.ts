@@ -34,8 +34,11 @@ describe("plausibility", () => {
 
   test("a played run passes", () => {
     expect(checkRun(data, run(BOT), wall(BOT))).toMatchObject({ ok: true });
-    // but not an empty one (quit from the first item screen): it isn't ranked
-    expect(checkRun(data, run([], { score: 19500 }), 1000)).toMatchObject({ ok: false, reason: "path" });
+    // D264: an empty one (quit from the first item screen) is ranked, bounded by the start total
+    expect(checkRun(data, run([], { score: 19500 }), 1000)).toMatchObject({ ok: true });
+    expect(checkRun(data, run([], { score: 19501 }), 1000)).toMatchObject({ ok: false, reason: "cap" });
+    // and it can't claim the episode's end
+    expect(checkRun(data, run([], { score: 19500, ended: "episode" }), 1000)).toMatchObject({ ok: false, reason: "path" });
   });
 
   describe("path", () => {

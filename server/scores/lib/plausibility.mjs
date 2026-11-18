@@ -66,8 +66,7 @@ export function checkRun(data, run, elapsedMs) {
   const graph = run.difficulty >= 3 ? ep.graph.hi : ep.graph.lo;
   const levels = run.levels;
 
-  // 1. path (at least one level: a run quit from the first item screen isn't ranked)
-  if (levels.length === 0) return fail("path", "no level played");
+  // 1. path (D264: no level needed; a run quit from the first item screen is bounded by the start total)
   for (let i = 0; i < levels.length; i++) {
     const l = levels[i];
     if (!ep.levels[l.lvl]) return fail("path", `level ${l.lvl} isn't in episode ${run.episode}`);

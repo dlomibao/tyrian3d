@@ -326,16 +326,15 @@ function report(t: LevelTrack, result: LevelReport["outcome"]["result"], score: 
 
 // --- The high-score check ---
 
-/** Why the run can't go on the shared list, or null if it can. */
+/** Why the run can't go on the global leaderboard, or null if it can (D264: no level needed). */
 export function ineligibleReason(episode: number): string | null {
   if (!scoresEnabled()) return "off";
   const r = runRecord.current;
-  if (!r) return "This game was saved before the shared list, so it isn't eligible.";
-  if (r.tainted) return "Cheats or debug tools were used in this run, so it isn't eligible for the shared list.";
-  if (r.mode !== "story" || g.twoPlayerMode) return "Only one-player full games go on the shared list.";
-  if (r.episode !== episode) return "Only the episode the game started on goes on the shared list.";
-  if (!r.token) return "The shared list couldn't be reached when this game started.";
-  if (r.levels.length === 0 && !quitLevel) return "Play a level to go on the shared list.";
+  if (!r) return "This game was saved before the global leaderboard, so it isn't eligible.";
+  if (r.tainted) return "Cheats or debug tools were used in this run, so it isn't eligible for the global leaderboard.";
+  if (r.mode !== "story" || g.twoPlayerMode) return "Only one-player full games go on the global leaderboard.";
+  if (r.episode !== episode) return "Only the episode the game started on goes on the global leaderboard.";
+  if (!r.token) return "The global leaderboard couldn't be reached when this game started.";
   return null;
 }
 

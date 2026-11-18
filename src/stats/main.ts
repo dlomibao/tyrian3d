@@ -108,7 +108,7 @@ function tiles(s: StatsSummary): HTMLElement {
     tile(t.cleared, "Levels cleared", flown ? `${pct(t.cleared / flown)} of attempts` : "of attempts"),
     tile(t.lost, "Ships lost", flown ? `${pct(t.lost / flown)} of attempts` : "of attempts"),
     tile(t.countries, t.countries === 1 ? "Country" : "Countries", "pilots flew from"),
-    tile(t.submitted, "Scores sent", "to the shared high-score list"),
+    tile(t.submitted, "Scores sent", "to the global leaderboard"),
   );
 }
 
@@ -425,7 +425,7 @@ function countries(s: StatsSummary): HTMLElement {
 
 function topScores(names: GameNames): HTMLElement {
   const grid = h("div", { class: "st-scores" });
-  const sec = pane("scores", "Shared list", "Top pilots", note("The top five of each episode's shared high-score list, every difficulty. The full lists are on the game's High Scores screen."), grid);
+  const sec = pane("scores", "Global leaderboard", "Top pilots", note("The top five of each episode's global leaderboard, every difficulty. The full lists are on the game's High Scores screen."), grid);
   for (const ep of EPISODES) {
     const list = h("ol", { class: "st-score-list" }, h("li", { class: "st-dim", text: "Loading…" }));
     grid.append(h("div", { class: "st-score-card" }, h("h3", { class: "st-score-ep" }, h("small", { text: `Episode ${ep}` }), h("span", { text: names.episode(ep) })), list));
@@ -472,7 +472,7 @@ function emptyState(): HTMLElement {
         item("Where ships go down", "a heat map of losses on each level's playfield."),
         item("Hangar", "favourite ships and front guns, and what the shop sells most."),
         item("Worldwide", "the countries pilots fly from."),
-        item("Top pilots", "each episode's shared high-score list."),
+        item("Top pilots", "each episode's global leaderboard."),
       ),
       h("a", { class: "st-play st-play--big", attrs: { href: GAME_URL }, text: "Fly the first mission" }),
     ),
