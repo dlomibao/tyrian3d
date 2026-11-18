@@ -113,8 +113,8 @@ class OutlineEffect {
 			'	float thickness = outlineThickness;',
 			'	const float ratio = 1.0;', // TODO: support outline thickness ratio for each vertex
 			'	vec4 tip = vec4( skinned.xyz + normal, 1.0 );',
-			// an instanced shell (the asteroid rim's tile models, D211): the normal's tip goes where
-			// project_vertex put the vertex, through the instance's matrix
+			// an instanced shell (D211 added it for the asteroid rim's tile models, since removed): the
+			// normal's tip goes where project_vertex put the vertex, through the instance's matrix
 			'	#ifdef USE_INSTANCING',
 			'	tip = instanceMatrix * tip;',
 			'	#endif',

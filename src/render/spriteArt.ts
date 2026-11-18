@@ -1,5 +1,6 @@
 // Remastered flat sprite art (DECISIONS.md D42): high-resolution paintings of the original sprites
-// for shots and pickups, drawn as flat textured quads instead of extruded sprites or models.
+// for shots, pickups, explosions and the asteroids (D244), drawn as flat textured quads instead of
+// extruded sprites or models.
 //
 // public/art/sprites/manifest.json lists, per original sprite sheet, an RGBA atlas image and where
 // each sprite's painting is in it:

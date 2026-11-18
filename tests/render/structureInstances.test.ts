@@ -8,7 +8,7 @@ import { StructureInstances } from "../../src/render/remaster/structureInstances
 
 /**
  * A loaded tile model as loadModel returns it: two palette meshes (one under a node), and optionally a
- * D51 shell, tagged `tyrian_tile_outline` with `inked` (the asteroid rim's, D211).
+ * D51 shell, tagged `tyrian_tile_outline` with `inked` (D211's asteroid rim tagged its shells so; no longer drawn).
  */
 function structure(withShell: boolean, inked = false) {
   const root = new THREE.Group();
@@ -64,24 +64,12 @@ describe("StructureInstances", () => {
     });
   }
 
-  test("a shell tagged tyrian_tile_outline stays as an instanced part drawn only by the outline pass (D211)", () => {
+  test("a shell tagged tyrian_tile_outline is dropped like any other helper (D211's inked rim went with the rim models)", () => {
     const structures = new StructureInstances();
-    structures.add("rim", structure(true, true));
-    const parts = structures.meshes("rim");
-    expect(parts.map((m) => (m.material as THREE.Material).name).sort()).toEqual(["outline_shell", "pal_121_light", "pal_26_deck"]);
-    const shell = parts.find((m) => (m.material as THREE.Material).name === "outline_shell")!;
-    const mat = shell.material as THREE.Material;
-    expect(mat.colorWrite).toBe(false); // prepareModel's: no colour, no depth
-    expect(mat.depthWrite).toBe(false);
-    expect(mat.userData.outlineParameters.visible).toBe(true);
-    expect(shell.castShadow).toBe(false);
-    for (const m of parts.filter((p) => p !== shell)) expect((m.material as THREE.Material).userData.outlineParameters.visible).toBe(false);
-    // the heights stay the colour parts' (the shell is a sphere of radius 1.5)
-    expect(structures.heights("rim")!.high).toBeLessThan(1);
-    structures.begin();
-    for (let i = 0; i < 3; i++) structures.place("rim", i * 2, 0, 0, 1);
-    structures.end(1, (_i, c) => c.set(0xffffff));
-    expect(shell.count).toBe(3);
+    const model = structure(true, true);
+    structures.add("rim", model);
+    expect(structures.meshes("rim").map((m) => (m.material as THREE.Material).name).sort()).toEqual(["pal_121_light", "pal_26_deck"]);
+    expect(helpers(model)).toHaveLength(0);
   });
 
   test("placed copies draw one instanced mesh per colour part, and nothing else", () => {

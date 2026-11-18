@@ -407,6 +407,12 @@ export interface SpriteArtLoadIo {
   loadTexture(url: string): Promise<{ texture: THREE.Texture; width: number; height: number }>;
 }
 
+/** `?spriteart=<dir>` (relative to the site root, ending in "/"): another art folder, for testing (as `?terrainart=`). */
+function spriteArtDir(search: string | undefined = typeof location === "undefined" ? undefined : location.search): string {
+  const v = search === undefined ? null : new URLSearchParams(search).get("spriteart");
+  return v && /^[\w\-./]+\/$/.test(v) && !v.includes("..") ? v : SPRITE_ART_DIR;
+}
+
 const browserIo = (): SpriteArtLoadIo => ({
   fetchJson: (url) => fetch(url).then((r) => (r.ok ? r.json() : undefined)),
   loadTexture: async (url) => {
@@ -422,7 +428,7 @@ const browserIo = (): SpriteArtLoadIo => ({
  * sheet's sprites draw as before until its atlas arrives, and for good if it fails to load.
  */
 export async function loadSpriteArt(base: string = import.meta.env.BASE_URL, io: SpriteArtLoadIo = browserIo()): Promise<SpriteArt<THREE.Texture> | null> {
-  const dir = `${base}${SPRITE_ART_DIR}`;
+  const dir = `${base}${spriteArtDir()}`;
   let json: unknown;
   try {
     json = await io.fetchJson(`${dir}manifest.json`);

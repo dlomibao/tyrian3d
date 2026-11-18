@@ -96,12 +96,12 @@ describe("sprite art manifest", () => {
     expect(art.frame("g", 2)!.shade).toBe(1);
   });
 
-  test("the shipped manifest's shade gains are on the pickups (tyrian.shp#10) only, and lift the blue gem", async () => {
+  test("the shipped manifest's shade gains are on the hit-flashed art only (the pickups, tyrian.shp#10; the asteroids, newshd.shp), and lift the blue gem", async () => {
     const { readFileSync } = await import("node:fs");
     const m = parseSpriteArtManifest(JSON.parse(readFileSync("public/art/sprites/manifest.json", "utf8")))!;
     for (const [id, sheet] of m.sheets) {
       const gains = [...sheet.frames.values()].filter((f) => f.shade !== undefined).map((f) => f.shade!);
-      if (id !== "tyrian.shp#10") expect(gains, id).toEqual([]);
+      if (id !== "tyrian.shp#10" && id !== "newshd.shp") expect(gains, id).toEqual([]);
       for (const g of gains) expect(g).toBeGreaterThanOrEqual(0.4), expect(g).toBeLessThanOrEqual(3);
     }
     // The blue gem's saturated ramp (bank 3) is far darker by luma than by palette index.

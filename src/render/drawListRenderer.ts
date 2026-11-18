@@ -27,8 +27,9 @@
 //   flat quads from its atlases instead (remaster/terrainMaterial.ts); the rest stay as above.
 //
 // - Remastered flat sprite art (setSpriteArt, D42): sprites with a painting in
-//   public/art/sprites/ (shots and pickups) are flat textured quads (spriteArtLayer.ts) instead of
-//   extruded sprites or models. Sprites without one, and atlases still loading, stay as above.
+//   public/art/sprites/ (shots, pickups, explosions, the asteroids: D244) are flat textured quads
+//   (spriteArtLayer.ts) instead of extruded sprites or models. Sprites without one, and atlases still
+//   loading, stay as above.
 //
 // Integrator API: add `root` to the scene, call setPalettes() once, setDrawList() every logic
 // tick, and update(alpha, camera) every display frame before rendering.
@@ -52,7 +53,7 @@ import type { SpriteModels } from "./spriteModels";
 import { DamageFrames, type DamageState } from "./damage/damageFrames";
 import { damageModeFromSearch } from "./damage/damageMode";
 import { ShipCondition } from "./damage/shipDamage";
-import { Route, Sprite2Router } from "./sprite2Route";
+import { artListsSprite, Route, Sprite2Router } from "./sprite2Route";
 import { bankShift } from "./bankShift";
 import { SurfaceTiles, airShadowShift, isAirborne, rayRoll } from "./sun";
 import { ShadowDecals } from "./shadowDecals";
@@ -447,6 +448,10 @@ export class DrawListRenderer {
   private readonly emptyTile = (index: number): boolean => this.cache.sprite2Geometry(this.routeSheet!, index, 1) === null;
   /** The sprite art (manifest and atlases) while it loads, so preloadLevel can wait for it. */
   private artLoading: Promise<unknown> = Promise.resolve();
+  /** The sprite art's manifest as it arrives (null: none), for preloadLevel's choice of models. */
+  private artManifest: Promise<SpriteArt<THREE.Texture> | null> = Promise.resolve(null);
+  /** The level preloadLevel last loaded, for the models its flat art stands in for (artLookChanged). */
+  private levelInfo: LevelModelInfo | null = null;
   /** Per object key (objectKey): whether it's drawn as its model or its sprite (D54). */
   private readonly objects = new Map<number, ObjectState>();
   /** Per structure in view (anchor|model): whether it's drawn as its model or its tiles (D54). */
@@ -614,7 +619,9 @@ export class DrawListRenderer {
 
   setVfxMode(mode: VfxMode): void {
     if (mode === this.vfx) return;
+    const art = this.spriteArtMode;
     this.vfx = mode;
+    if (this.spriteArtMode !== art) this.artLookChanged();
     this.fx?.dispose();
     this.fx = mode === "remastered" ? new RemasteredFx(this.cache, this.palette) : null;
     if (this.fx) this.root.add(this.fx.root);
@@ -636,6 +643,7 @@ export class DrawListRenderer {
    */
   setSpriteArtLoading(loading: Promise<SpriteArt<THREE.Texture> | null>): void {
     this.artLoading = loading.then((art) => art?.loaded).catch(() => undefined);
+    this.artManifest = loading.catch(() => null);
   }
 
   /**
@@ -643,7 +651,19 @@ export class DrawListRenderer {
    * exists. Undefined (the default without `?sprites=`) follows the effects look (setVfxMode).
    */
   setSpriteArtMode(mode: SpriteArtMode | undefined): void {
+    const was = this.spriteArtMode;
     this.artMode = mode;
+    if (this.spriteArtMode !== was) this.artLookChanged();
+  }
+
+  /**
+   * The sprite look changed mid-level (the play harness's A or V key): to the original sprites, the
+   * models the level's flat art stood in for (levelModels leaves them out) start loading, so the next
+   * enemies of those types get their models (those already on screen keep their look, D54).
+   */
+  private artLookChanged(): void {
+    if (this.spriteArtMode !== "original" || !this.levelInfo) return;
+    for (const m of this.levelModels(this.levelInfo)) if (!m.structure) this.modelPool(m.name);
   }
 
   /** The sprite look in effect. */
@@ -782,10 +802,14 @@ export class DrawListRenderer {
    * The models a level can show, earliest needed first: those of the sprites it can draw
    * (sim/levelSprites.ts: its enemies' frames, damaged frames and launched enemies, the players'
    * ships and sidekicks) and, in the remastered backgrounds, the structure models of its tiles.
+   * In the remastered sprite look, a sprite the flat art's manifest paints (`art`, default the art
+   * set; the asteroids, D42) is drawn flat, so its model is left out.
    */
-  levelModels(info: LevelModelInfo): LevelModel[] {
+  levelModels(info: LevelModelInfo, art: SpriteArt<THREE.Texture> | null = this.spriteArt): LevelModel[] {
     const out = new Map<string, LevelModel>();
+    const flat = this.spriteArtMode === "remastered" ? art : null;
     for (const r of info.sprites) {
+      if (flat && artListsSprite(flat.sheet(r.sheet), r.size, r.index, r.grouped)) continue;
       const name = this.router.modelFor(r.sheet, r.size, r.index, r.grouped);
       if (name === undefined) continue;
       const had = out.get(name);
@@ -813,7 +837,10 @@ export class DrawListRenderer {
     info: LevelModelInfo,
     { progress, timeoutMs = Infinity, waitUntil = Infinity }: { progress?: (done: number, total: number) => void; timeoutMs?: number; waitUntil?: number } = {},
   ): Promise<PreloadResult> {
-    const models = this.levelModels(info);
+    // Which models the flat art stands in for needs its manifest (a small file, fetched at startup).
+    const art = this.spriteArt ?? (this.spriteArtMode === "remastered" ? await this.artManifest : null);
+    this.levelInfo = info;
+    const models = this.levelModels(info, art);
     const tileset = info.tileShapes ? parseTileId(`${info.tileShapes}:0`)?.[0] : undefined;
     // What the last level loaded and this one can't show goes first (D236).
     this.releaseModels(models, info.tileShapes ? tileset ?? null : undefined);

@@ -17,6 +17,19 @@ export interface ArtFrames {
   frame(index: number): unknown;
 }
 
+/**
+ * Whether a level sprite (sim/levelSprites.ts: an object's first tile, or a sprite drawn on its own)
+ * is drawn flat from `art`'s manifest (SpriteArtSheet.listed, loaded or not), so its model needn't be
+ * preloaded (DrawListRenderer.levelModels). A grouped 2x2 object goes by its first tile with art, as
+ * route() goes by its first non-empty tile (the cutter paints every non-empty tile, never an empty
+ * one: assembly-newshd-45's first tile, newshd 7, is empty).
+ */
+export function artListsSprite(art: { listed(index: number): boolean } | undefined, size: 1 | 2, index: number, grouped: boolean): boolean {
+  if (!art) return false;
+  if (!grouped || size === 1) return art.listed(index);
+  return SPRITE2X2_PARTS.some(([di]) => art.listed(index + di));
+}
+
 export const enum Route {
   /** The extruded sprite. */
   Sprite,
@@ -130,9 +143,9 @@ export class Sprite2Router {
     out.roll = Number.NaN;
     out.frame = d.groupIndex;
     out.damaged = false;
-    // With flat art for the sprite (for a grouped one, the object's first tile), it's drawn flat
-    // instead of as a model (D42); a tile without art is then drawn as its sprite.
-    if (art !== null && art.frame(d.groupIndex >= 0 ? d.groupIndex : d.index) !== undefined) {
+    // With flat art for the sprite (for a grouped one, the object's first non-empty tile), it's drawn
+    // flat instead of as a model (D42); a tile without art is then drawn as its sprite.
+    if (art !== null && art.frame(artTile(d, emptyTile)) !== undefined) {
       out.route = flatComplete(d, art, emptyTile) ? Route.Flat : Route.Sprite;
       return out;
     }
@@ -177,6 +190,18 @@ export class Sprite2Router {
     out.route = Route.Sprite;
     return out;
   }
+}
+
+/**
+ * The tile whose art decides a draw's route: its own for a sprite drawn alone, else its object's first
+ * tile, or for a 2x2 object whose first tile is empty (an asteroid assembly's corner piece), its first
+ * non-empty one.
+ */
+function artTile(d: SpriteDraw, emptyTile: (index: number) => boolean): number {
+  if (d.groupIndex < 0) return d.index;
+  if (d.groupSize === 1) return d.groupIndex;
+  for (const [di] of SPRITE2X2_PARTS) if (!emptyTile(d.groupIndex + di)) return d.groupIndex + di;
+  return d.groupIndex;
 }
 
 /** Whether every non-empty 12x14 tile of the draw has art (addFlatSprite2 can draw it all flat). */
