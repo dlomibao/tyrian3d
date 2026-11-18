@@ -14635,3 +14635,43 @@ back) and restore D211's files from git.
   are the rocks' rounded painting rather than the earlier, grittier one; then `cut --recut` the same tiles.
 - Retry the small rocks' sheet (prompt ready): the painting is photo-glossy and soft; the recolour holds its tones only.
 - The asteroid models are no longer drawn in the default look; drop them if the original-sprite look stops needing them.
+
+## D246 — The asteroid belt's rim and the small rocks are repainted in the loose rocks' rounded style (completes D244's follow-ups)
+
+**Date:** 2026-11-18
+
+**Problem:** D244 left two pieces in a different hand from its loose rocks: the rim's twelve `shapesz` tiles (0:360-364,
+370, 372-374, 380-382) kept their pre-D211 painting, grittier than the new rocks, and the 12x14 small rocks (newshd
+95, 114, 133, 152) came back photo-glossy. Gemini had dropped the three requests that were to fix them.
+
+**Decision:**
+- **Small rocks:** a new answer (D244's sheet; the prompt now asks for D244's loose-rock wording: lumpy clumps of fused
+  stones, pitted, dark crevices, upper-left light, "not a photograph, not a 3D render"), cut with `flat_art.py cut --merge`,
+  D244's `art_alpha` and recolour, `shade` re-measured (95 1.41 → 1.40, 133 1.19 → 1.18). No frame animates, so no
+  `steady`. A second answer asking the rocks to fill their whole outline came back larger but reshaped (fit 0.74-0.83),
+  so only newshd 114, whose first painting was clearly too small, takes it: fit 0.83-0.88 (D244's glossy painting
+  0.93-0.96: it followed the sprite's highlights more literally), tones as before (luma p5/p50/p95 within 1 of D244's).
+- **Rim:** D244's two region sheets and prompts, `terrain_hd.py cut --recut <the twelve> --lam 0.05 --band-hi 8` (NCC
+  0.92-0.98, colour error ≤ 0.037, blockiness ≤ 1.31). The twelve tiles go into a new `0-5.webp`; every other tile and
+  atlas image stays byte for byte (their old rim pixels stay unused in `0-2.webp`). The tighter seam settings were
+  chosen over the defaults on the measures below; the contact sheets look the same.
+- Every other sprite and terrain atlas is byte-identical. `newshd-shp.webp` is re-encoded, so its other 102 frames take
+  one lossy WebP generation (mean |diff| 0.16, max 20 on a 0-255 scale); their shade gains are kept as they were.
+
+**Measured** (layer 0 over the 32 `shapesz` levels, old → new; texel steps 0-255 RGB):
+- All edges: ratio 0.574 → 0.578 (edge step 2.14 → 2.15).
+- Edges with a rim tile: edge step 2.20 → 2.27, ratio 0.491 → 0.520. Rim against rim: 1.45 → 1.08.
+- Rim against the floor (371): edge step 2.25 → 2.89, ratio 0.51 → 0.69. The floor kept its earlier painting, which is
+  where the step comes from. Defaults gave 3.03; recutting 371 too gave 2.92 and a worse overall ratio (0.585). No line
+  shows in the contact sheets or the 4K captures.
+- Per level, the edge steps barely move (ASTEROID1 2.18 → 2.24, ASTEROID? 2.27 → 2.33, ASTEROID2 and AST. CITY
+  unchanged). The ratios rise (ASTEROID1 0.584 → 0.662, ASTEROID? 0.651 → 0.747) because the rounder painting has
+  less texture inside the tiles (inside step 3.73 → 3.39).
+
+**Not covered:** ASTEROID?'s seven bases are D216's layer-1 models (`shapesz-l1bld-*`), whose rim stones are still
+faceted 3D rock over the painted belt.
+
+**Review:** `?debug=play&episode=1&main=21&seed=1&skip=900&freezeAt=900&compare=1` (four small rocks on screen), and
+1.5 t80/t1525, 3.15 t680/t1410, 2.8 t1210. Captures and sheets: `tyrian-scratch/asteroid-gemini/paint2/` (not in git,
+D3). Fallback: `git checkout` D244's `public/art/terrain/shapesz/manifest.json` (and delete `0-5.webp`), or
+`public/art/sprites/newshd-shp.webp` and `manifest.json`.
