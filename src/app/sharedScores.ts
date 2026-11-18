@@ -3,7 +3,7 @@
 // whether it went on the shared list (and where) or why it can't. Without the API, or when it
 // can't be reached, these screens are exactly as before.
 
-import { fetchTopScores, scoresEnabled, type SharedScore, type SubmitResult } from "../scores/api";
+import { fetchTopScores, levelsText, scoresEnabled, type SharedScore, type SubmitResult } from "../scores/api";
 import { ineligibleReason, submitHighScore } from "../scores/session";
 import { DIFFICULTIES } from "../../server/scores/lib/plausibility.mjs";
 import { h } from "../ui";
@@ -80,6 +80,7 @@ export function sharedListPanel(names: string[], difficultyNameB: string[]): { e
       h("span", { class: "hs-rank", text: String(s.rank) }),
       h("span", { class: "hs-score", text: String(s.score) }),
       h("span", { class: "hs-name", text: s.name }),
+      h("span", { class: "hs-levels", text: levelsText(s.levels) }),
       h("span", { class: "hs-diff", text: label(s.difficulty) }),
     );
   const load = () => {

@@ -15278,3 +15278,14 @@ client's "Play a level" gate is gone, and the server's plausibility check accept
 the episode's start total plus the shop's surplus (0 in this data), so a run quit from the first item screen can rank
 with its starting total and no more. An empty path still can't claim an episode end. Tests: `plausibility.test.ts`,
 `client.test.ts`.
+
+## D265 — The global leaderboard shows each run's levels completed beside its score (amends D249, D263)
+
+**Date:** 2026-11-18
+
+**Decision** (the user's call): every leaderboard row shows the run's score and its levels completed ("12 levels"):
+the game's High Scores panel gets a levels column between the name and the difficulty (on phones the difficulty is
+hidden and the levels stay), and the stats page's Top pilots rows read "difficulty · N levels". Captured as before:
+the server stores `level_count` = the run's finished levels (a level quit or died in doesn't count) with each accepted
+score and returns it as `levels` from `GET /api/scores`; no schema change. The label helper `levelsText` lives in
+`src/scores/api.ts`, shared by both pages.
