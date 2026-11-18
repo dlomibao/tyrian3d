@@ -471,3 +471,19 @@
   font-size: 0.85rem;
   color: var(--ui-ink-faint);
 }
+
+/* The link to the public play stats (D263), under the shared list. */
+.hs-shared-stats {
+  display: inline-block;
+  margin-top: var(--ui-space-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ui-copper-lite);
+  text-decoration: none;
+}
+
+.hs-shared-stats:hover,
+.hs-shared-stats:focus-visible {
+  color: var(--ui-copper-hi);
+  text-decoration: underline;
+}

@@ -15220,3 +15220,50 @@ pixel mosaic at 4K full screen; the TORM boss crown is lit evenly where the spri
 **Review:** 235's IoU depends on every material staying single-sided (0.55 without back-face culling). Piece newshu-93's
 lit frames, whose sprites leave a diagonal crack transparent, measure 0.924-0.941; the -f2 fade frame still reads
 charcoal.
+
+## D263 — A public play-stats page at /stats/, only in the shared-scores build: the summary drawn in the game's own look, names from the game data (amends D249)
+
+**Date:** 2026-11-18
+
+**What:** `stats/index.html` + `src/stats/` draw `GET /api/stats/summary` (and each episode's top five from
+`GET /api/scores`) at `https://tyrian3d.lomibao.net/stats/`. The high-score screen's shared list links to it (new tab,
+so the game in progress isn't left).
+
+**How it ships:** a second Vite entry, added to `build.rolldownOptions.input` only when `VITE_SCORES_API` is set
+(`deploy.sh`'s build), so it is typechecked and hashed like the game and a GitHub Pages build has no `/stats/`. The dev
+server serves the page anyway; without the API it says stats aren't collected there and links to the public page. nginx
+needs nothing new: `try_files $uri $uri/` and `index index.html` already answer `/stats/` (and redirect `/stats`).
+
+**What it shows** (only what the summary supports; a section with no data says so; the whole page has a designed empty
+state that lists what will appear):
+- totals: pilots, pilots seen on another day, games started, levels flown, cleared and lost (with shares), countries,
+  scores sent; and a few computed facts (deadliest level, richest median clear, favourite ship and front gun), each only
+  past a minimum sample (10 attempts / 5 clears / 10 levels);
+- pilots per day (new vs returning, last 90 days, missing days as zero) and games / days per pilot;
+- per episode (tabs): the funnel (players reaching the k-th level of their route), a level table in script order
+  (cleared / lost / quit bar, clear rate, points gained on a clear as p25-p75 band, median tick and p90 dot on a shared
+  scale that lets one outlier like ASTEROID?'s bonus haul run off the end), with a starting-difficulty filter; route
+  splits (first level, and after each level with more than one next level); death heat grids per level on the ship's
+  playfield range (x 40-256, y 0-160 in 16 px buckets), busiest first;
+- hangar: ships and front guns by share of levels flown, the most-bought items by slot, totals of buys, sales and
+  power-ups; countries by games started (`Intl.DisplayNames`, ZZ as Unknown), no map tiles;
+- the DB-IP credit (CC BY 4.0, linked) and a one-line privacy note (anonymous ID, country only, Options to opt out).
+
+**Names:** the summary has ids only. The page fetches `tyrian.hdt` (150 KB) and `levels1-4.dat` (32 KB) from
+`../tyrian-data/` and reads them with the game's own parsers: level names from the scripts' `]L[` lines, episode and
+difficulty names from the menu texts, item names from the item data (episode 4's item data in `tyrian4.lvl` has the
+same names for every id, checked, so it isn't fetched). Two levels of one name in an episode (episode 1's TYRIAN 9 and
+its hard twin 15, its two SAVARAs) show the later one as "(2)". The level name in each report isn't used: it is client
+text. Without the data every name falls back to "Level 9" / "Ship 3".
+
+**Look:** the menus' tokens (D85): umber glass panes in the bronze rim over a warm CSS starfield, copper type and labels,
+phosphor for figures and bars. Outcomes cleared / lost / quit are green / ember / neutral grey (quit is no outcome, the
+legend names all three); new / returning pilots take the HUD's two player colours (D61); the heat grids use the
+generator gauge's ember-to-yellow ramp. Charts are hand-drawn HTML bars and SVG (no library, no third-party requests
+beyond the Google Fonts the game already loads); every mark has a hover/tap tooltip; bars animate in except under
+prefers-reduced-motion; at phone width the level table becomes cards and nothing scrolls sideways.
+
+**Test data** (local only, never sent to the live service): the real sim played 220 runs through the episodes' real
+scripts with a mortal bot (shopping, random branch choices, retries, quits), and its level reports were posted to an
+in-process copy of the scores service with a controlled clock and made-up players, days and countries (scripts in
+`tyrian-scratch/stats-page/gen/`).
