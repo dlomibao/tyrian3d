@@ -25,7 +25,7 @@ export function sharedHighScores(episode: number, ended: "quit" | "episode"): Sh
   };
 }
 
-const REJECTED = "The shared list didn't accept this score.";
+const REJECTED = "The global leaderboard didn't accept this score.";
 
 /** The line under the entered table: the submission's outcome, filled in when it arrives. */
 export function sharedResultLine(shared: SharedHighScoreHost, pending: Promise<SubmitResult | null> | null): HTMLElement {
@@ -34,10 +34,10 @@ export function sharedResultLine(shared: SharedHighScoreHost, pending: Promise<S
     p.textContent = shared.ineligible;
     return p;
   }
-  p.textContent = "Sending to the shared list…";
+  p.textContent = "Sending to the global leaderboard…";
   void pending?.then((r) => {
-    if (!r) p.textContent = "The shared list couldn't be reached.";
-    else if (r.ok) p.textContent = `Shared list: rank ${r.rank}${r.total ? ` of ${r.total}` : ""}.`;
+    if (!r) p.textContent = "The global leaderboard couldn't be reached.";
+    else if (r.ok) p.textContent = `Global leaderboard: rank ${r.rank}${r.total ? ` of ${r.total}` : ""}.`;
     else p.textContent = REJECTED;
   });
   return p;
@@ -60,7 +60,7 @@ export function sharedListPanel(names: string[], difficultyNameB: string[]): { e
   // The public play stats (stats/index.html, D263), built alongside the game in these builds only.
   // A new tab, so following it never ends the game in this one.
   const stats = h("a", { class: "hs-shared-stats", text: "Play stats from every pilot ›", attrs: { href: "stats/", target: "_blank", rel: "noopener" } });
-  const el = h("section", { class: "hs-shared", attrs: { "aria-label": "Shared high scores" } }, h("span", { class: "ui-label", text: "Shared list" }), tabs, list, status, stats);
+  const el = h("section", { class: "hs-shared", attrs: { "aria-label": "Global leaderboard" } }, h("span", { class: "ui-label", text: "Global leaderboard" }), tabs, list, status, stats);
 
   const drawTabs = () =>
     tabs.replaceChildren(
@@ -89,7 +89,7 @@ export function sharedListPanel(names: string[], difficultyNameB: string[]): { e
     status.textContent = "Loading…";
     void fetchTopScores(episode, filters[filter] || undefined).then((scores) => {
       if (mine !== seq) return;
-      if (!scores) status.textContent = "The shared list couldn't be reached.";
+      if (!scores) status.textContent = "The global leaderboard couldn't be reached.";
       else {
         list.replaceChildren(...scores.map(row));
         status.textContent = scores.length ? "" : "No scores yet.";

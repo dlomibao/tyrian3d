@@ -455,7 +455,7 @@ export class SettingsMenu {
       case "reset": return g.mainMenuHelp[25 - 1] ?? "";
       case "pad": return "See which gamepad buttons the game reads, and what they do.";
       case "console": return "A command line for testing: cheats, hidden settings and looks, and jumps to any level. ` (backtick) opens it too.";
-      case "stats": return `${STATS_DISCLOSURE} Off sends none; shared high scores still work. Left/right or Enter switches.`;
+      case "stats": return `${STATS_DISCLOSURE} Off sends none; the global leaderboard still works. Left/right or Enter switches.`;
       case "statsId": return this.statsIdReset ? "A new random stats ID is in use." : "Start over with a new random stats ID: earlier reports can't be linked to the new one.";
       case "done": return g.mainMenuHelp[12 - 1] ?? "";
     }

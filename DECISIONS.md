@@ -15267,3 +15267,14 @@ prefers-reduced-motion; at phone width the level table becomes cards and nothing
 scripts with a mortal bot (shopping, random branch choices, retries, quits), and its level reports were posted to an
 in-process copy of the scores service with a controlled clock and made-up players, days and countries (scripts in
 `tyrian-scratch/stats-page/gen/`).
+
+## D264 — "Global leaderboard", not "shared list"; a run needs no level played to go on it (amends D249, D263)
+
+**Date:** 2026-11-18
+
+**Decision** (the user's call): every player-facing "shared list" / "shared high scores" in the game and the stats page
+reads "global leaderboard". A one-player full game goes on the leaderboard whether or not a level was played: the
+client's "Play a level" gate is gone, and the server's plausibility check accepts an empty path, bounded as before by
+the episode's start total plus the shop's surplus (0 in this data), so a run quit from the first item screen can rank
+with its starting total and no more. An empty path still can't claim an episode end. Tests: `plausibility.test.ts`,
+`client.test.ts`.

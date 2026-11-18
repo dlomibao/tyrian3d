@@ -79,7 +79,7 @@ describe.skipIf(!DATA)("taint", { timeout: 30000 }, () => {
   test("a clean run submits", async () => {
     m.session.initScoresSession("");
     await m.session.startRun(1, 2, "story");
-    expect(m.session.ineligibleReason(1)).toMatch(/Play a level/);
+    expect(m.session.ineligibleReason(1)).toBeNull(); // D264: no level needed
     m.rec.runRecord.current!.levels.push({ lvl: 9, ticks: 3000, score: 25000, done: true });
     const r = await m.session.submitHighScore("ACE", 25000, 1, "quit");
     expect(r).toEqual({ ok: true, rank: 1, total: 1 });
