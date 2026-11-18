@@ -15158,3 +15158,43 @@ t2370 / t2650 / t3300), captures in `shots/` (not in git, D3). Fallback: `PAINTE
 pipe junction's JSON and rebuild the seven `l1bld_*.py`.
 
 **Cost:** one Opus agent; about 30 headless captures, three Blender builds of the seven scripts (about 35 s each with -j 2).
+## D259 — Walkthrough round 3 model fixes: GYGES drill cap, eye pods, EYESPY shell, SAWBLADES pebbles, IXMUCANE cracked egg, ASTCITY slab
+
+**Date:** 2026-11-18
+
+**Decision** (fix-round workflow, Opus, strict review "ship" 7-8 each):
+- **GYGES drill cap** (`newshh-79.py`): a domed crown shaped by slope so the light makes the sprite's hotspot (max 252 vs
+  253), a polished roughness patch where the sun's lobe falls (D176's sheen method), and each row keeps the sprite's
+  palette index (104-108) with a smooth multiplier between them, no ring edges. Top-view IoU 0.9597.
+- **GYGES eye pods** (`newshg-121.py` pod group): softer rings, pupil low-left, thinner ink ring. IoU 0.983.
+- **EYESPY shell** (`assembly-newsh9-191.py`): the swirl is a grey-on-grey shaded yin-yang, not a white S with heavy ink;
+  the shell darker to match. The iris and D227 limbs untouched.
+- **SAWBLADES pebbles** (`newshr-171.py`, `newshr-190.py`): lighter, thinner outline.
+- **IXMUCANE egg** (`newsh8-102.py`): the damaged sprite newsh8-140 gets its own cracked frame (amends D87's routing).
+- **ASTCITY slab** (`assembly-newshp-191.py`): tone and hue matched to the sprite (was 1.17x bright and blue).
+
+**Held back** (review "fix"): STARGATE's small bubble newshe-235, HARVEST's bubble newshu-91, ASTEROID?'s station floor.
+**Not a model issue:** the Stalker's blue-grey cast was the invulnerable blend (D258's 0.8 model opacity).
+
+**Review:** the drill cap's per-row shade multiplier is close to painted tone; if it reads as bands, drop it and keep the
+per-row indices only.
+
+## D260 — TORM boss crown ridges and shield, TORM waterfall contrast and crest strands, New Deli boss eye pods and H block (Fable fix round, walkthrough round 3)
+
+**Date:** 2026-11-18
+
+**Decision** (fix-round workflow on Fable at the user's standing request for repeat-failure items; strict review "ship" 7-8 each):
+- **TORM / BOTANY boss** (`assembly-newshj-191.py`): ten real round crown ridges on the sprite's seam columns, one palette
+  index (37), the band sloped toward the game's sun so the light makes the crests (p99 240 vs the original's 254, was 181);
+  the painted pale rib removed. Posts become the sprite's short knobs. The pod is a shallow shield and `tyrian_anchor`
+  goes 2.0 → 1.85 on all 21 models (amends D185's value), so the outline sits within 2-3 sprite px of the sprite's. The
+  slit is back at the sprite's width. Worst piece IoU 0.9512 (was 0.8998).
+- **TORM waterfall** (`assembly-newshh-129.py`, `lib_newshh_falls.py`): the water layers take the ground light (D223's
+  `rock_material(ground=True)`) so dark water stays dark (p10 23 → 10 vs 9); each zone's tones are matched back to the
+  art's own histogram (p99 171 → 207 vs 210); the haze band is gone; the crest strands are restored in the model, since
+  the HD river tiles have none (D212). Correlation with the original 0.973 → 0.990 (amends D212).
+- **New Deli boss** (`assembly-newsht-39.py`): the goggle eggs and red cradles become low black sockets with a dark
+  glass ball high under the brow; the grey cylinder becomes the sprite's dark wedge carrying a polished-steel H.
+
+**Review:** the waterfall's crest strands are brighter and denser than the original's, and the curtain reads as a crisp
+pixel mosaic at 4K full screen; the TORM boss crown is lit evenly where the sprite is brighter on its left.

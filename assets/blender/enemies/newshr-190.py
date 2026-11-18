@@ -34,8 +34,16 @@ RZ_TOP, RZ_BOTTOM = 0.37, 0.33  # crown about 4.5 px up, base about 4 px down
 # (column, row, radius px, depth px) of the pits, in sprite pixel coordinates
 PITS = [(8.0, 7.6, 2.0, 0.8), (4.0, 7.4, 1.4, 0.6)]
 # The facet ramp (lib_newshd_rock.facet_ramp, D175): the tan ramp's shades on the stone's facets.
-# `bias` 0.08: the lit crown facets the game's sun lights well read past the sprite's top shade at 0.
-SPEC = {"mid": BODY, "metallic": 0.0, "roughness": ROUGH, "ramp": {"bias": 0.08}}
+# QA 2026-11-18 (round 3, SAWBLADES t5130): with `bias` 0.08 (a step darker) the pebble read dark olive
+# against the sprite's pale tan. The sprite's dark limb (19-21, 178/179) is its lighting, and the game's
+# sun already darkens the facets turned away, so matching those dark too shaded the limb twice: the ramp
+# is now set paler (bias -0.2) and compressed toward its upper half (strength 0.75).
+SPEC = {"mid": BODY, "metallic": 0.0, "roughness": ROUGH, "ramp": {"bias": -0.2, "strength": 0.75}}
+#: How far the outline shell is set in from the rock (units; 12 sprite px = 1), along its smooth
+#: normals. The game's ink pushes out about 1.1 sprite px at this size: a full black ring round a
+#: 9 px stone the original draws with no ink (QA 2026-11-18, "heavily outlined"). Set in about 1 px,
+#: only a hairline survives where the rock's lumps stand flush with the shell (as newshr-171).
+SHELL_INSET = 0.085
 
 
 def lumps(x, y, z):
@@ -79,7 +87,21 @@ def build(sprite):
             if key in bsdf.inputs:
                 bsdf.inputs[key].default_value = 0.15
                 break
-    return [obj, R.d90_shell(obj, coll, NAME)]
+    return [obj, inset_shell(R.d90_shell(obj, coll, NAME))]
+
+
+def inset_shell(shell):
+    """Every shell vertex moved SHELL_INSET in along its normal (the shell is a smooth closed blob,
+    so this is a uniform inset): the ink shows only as a hairline past the rock's silhouette."""
+    bm = bmesh.new()
+    bm.from_mesh(shell.data)
+    bm.normal_update()
+    for v in bm.verts:
+        v.co -= v.normal * SHELL_INSET
+    bm.to_mesh(shell.data)
+    bm.free()
+    shell.data.shade_smooth()
+    return shell
 
 
 def rock(bm, grid, rz, slot_for, brightness, n=10, relief=0.22, shrink=0.15, under_slot=None):

@@ -479,12 +479,22 @@ def build_claw(coll, out):
 # crests in the sprite's pale index, the grooves in the body's. The straight hoop over the top went
 # (the row-14 band is the inner ring, it bends round the lens); the side pivot bosses stay. The ball
 # is a little less metallic so its rim no longer reads as a second, heavier ink ring.
+# Round-3 compare (2026-11-18): the rings read far more contrasty than the sprite's (white crests,
+# dark grooves; the sprite's arcs are 59-61 among 55-58), the eye read as one dark lens centred on
+# the ball (the sprite's eye is a pale glass lens low-left, 62 at cols 11-12 rows 15-16, with a small
+# dark pupil at its lower right that turns per frame), and the ink ring stood thick. Now: crests in
+# 59 over shallow grooves; the eye is a pale glass lens (61) at the sprite's pale patch with a small
+# dark pupil (49) at the sprite's pupil pixels, its dark index-52 bezel gone (a thin body-tone rim
+# instead); the shell held further inside.
 
 POD_AXIS_UV = (13.0, 17.5)
 POD_RIDGES = (36.0, 55.0, 77.0)   # degrees from the axis (unit-sphere space)
-POD_RIDGE_W = 4.2                 # ridge half-width (degrees, gaussian)
-POD_GROOVE = 0.055                # groove depth, fraction of the radius
-POD_SHELL_INSIDE = 0.045
+POD_RIDGE_W = 4.6                 # ridge half-width (degrees, gaussian)
+POD_GROOVE = 0.018                # groove depth, fraction of the radius
+POD_SHELL_INSIDE = 0.065
+# The eye per frame: (frame, pale-lens centroid u, v, pupil centroid u, v), sprite pixel-edge coords,
+# measured from the frames (pale = index 61-62 round cols 11-12 rows 15-17; pupil = 1/48-52 pixels).
+POD_EYES = ((127, 11.83, 15.83, 13.17, 17.17), (129, 12.0, 16.0, 13.7, 17.1), (131, 12.1, 16.3, 14.7, 17.1))
 
 
 def ribbed_ball(base_bm, centre, radii, axis, mat_body, mat_ridge, clip=None, grow=1.0):
@@ -562,12 +572,14 @@ def build_pod(coll, out):
     body_i = region_index(fr, fr.region(8, 17, 8, 14))
     print(f"newshg-127: body index {body_i}")
     mats = [
-        common.palette_material(sp, body_i, name, metallic=0.4, roughness=0.34),   # 0 ball (grooves)
-        common.palette_material(sp, 60, name, metallic=0.35, roughness=0.3),       # 1 ridge crests
-        common.palette_material(sp, 52, name, metallic=0.55, roughness=0.45),      # 2 bosses, socket
-        common.palette_material(sp, 49, name, metallic=0.2, roughness=0.08),       # 3 lens
+        common.palette_material(sp, body_i, name, metallic=0.15, roughness=0.45),  # 0 ball (grooves)
+        common.palette_material(sp, 59, name, metallic=0.15, roughness=0.42),      # 1 ridge crests
+        common.palette_material(sp, 52, name, metallic=0.55, roughness=0.45),      # 2 bosses
+        common.palette_material(sp, 61, name, metallic=0.1, roughness=0.12),       # 3 pale glass lens
+        common.palette_material(sp, 49, name, metallic=0.2, roughness=0.1),        # 4 pupil
+        common.palette_material(sp, 56, name, metallic=0.15, roughness=0.4),       # 5 lens rim
     ]
-    BALL, RIDGE, BOSS, LENS = range(4)
+    BALL, RIDGE, BOSS, LENS, PUPIL, RIM = range(6)
     CU, CV, R, RZ = 13.0, 14.0, 6.0, 0.40
     cx, cy = X(CU), Y(CV)
     # The ring axis in unit-sphere space (the ball normalised by its radii).
@@ -613,25 +625,46 @@ def build_pod(coll, out):
 
     # The lens turns per frame: (frame, centre u, v).
     eyes = []
-    for frame, eu, ev in ((127, 12.9, 17.2), (129, 13.7, 17.0), (131, 14.4, 16.8)):
-        ebm = bmesh.new()
-        dx, dy = X(eu) - cx, Y(ev) - cy
-        nrm = Vector((dx / (R / 12) ** 2, dy / (R / 12) ** 2, 0))
+    def on_ball(u, v):
+        dx, dy = X(u) - cx, Y(v) - cy
         zz = RZ * math.sqrt(max(0.0, 1 - (dx ** 2 + dy ** 2) / (R / 12) ** 2))
-        nrm.z = zz / RZ ** 2
-        nrm.normalize()
-        base = Vector((cx + dx, cy + dy, zz))
+        nrm = Vector((dx / (R / 12) ** 2, dy / (R / 12) ** 2, zz / RZ ** 2)).normalized()
+        return Vector((cx + dx, cy + dy, zz)), nrm
+
+    for frame, pu, pv, qu, qv in POD_EYES:
+        ebm = bmesh.new()
+        # The lens centred between the pale patch and the pupil; the pupil at its own pixels, so the
+        # pale glass shows to its upper left as on the sprite.
+        lu, lv = 0.5 * (pu + qu), 0.5 * (pv + qv)
+        RP = 1.15 / 12
+        RL = math.hypot(qu - lu, qv - lv) / 12 + 0.3 * RP + 0.3 / 12
+        base, nrm = on_ball(lu, lv)
         a = nrm.cross(Vector((0, 0, 1))).normalized()
         b = nrm.cross(a).normalized()
+        q3, _ = on_ball(qu, qv)
+        pa, pb = (q3 - base).dot(a), (q3 - base).dot(b)
+        k = min(1.0, (RL - RP - 0.08 / 12) / max(math.hypot(pa, pb), 1e-6))   # the pupil stays on the glass
+        pa, pb = pa * k, pb * k
 
-        def ring(r, h, sides=16):
-            return [tuple(base + nrm * h + r * (math.cos(2 * math.pi * k / sides) * a + math.sin(2 * math.pi * k / sides) * b))
-                    for k in range(sides)]
-        # Socket bezel (dark ring) and the lens dome set in it.
-        ring_loft(ebm, [ring(2.1 / 12, -0.03), ring(2.1 / 12, 0.012), ring(1.75 / 12, 0.022), ring(1.4 / 12, 0.008)],
-                  BOSS, cap_end=False)
-        ring_loft(ebm, [ring(1.4 / 12, 0.008), ring(1.25 / 12, 0.02), ring(0.8 / 12, 0.032), [tuple(base + nrm * 0.036)]],
-                  LENS)
+        def lens_h(r):
+            return 0.01 + 0.03 * math.sqrt(max(0.0, 1 - (r / RL) ** 2))
+
+        def ring(r, h, sides=24, oa=0.0, ob=0.0, hf=None):
+            pts = []
+            for k in range(sides):
+                ca, cb = oa + r * math.cos(2 * math.pi * k / sides), ob + r * math.sin(2 * math.pi * k / sides)
+                hh = h if hf is None else hf(math.hypot(ca, cb)) + h
+                pts.append(tuple(base + nrm * hh + ca * a + cb * b))
+            return pts
+        # A thin body-tone rim (sunk into the ball so no gap shows from the side) and the pale lens.
+        ring_loft(ebm, [ring(RL + 0.22 / 12, -0.04), ring(RL + 0.22 / 12, 0.0), ring(RL + 0.08 / 12, 0.011),
+                        ring(RL, 0.01)], RIM, cap_end=False)
+        ring_loft(ebm, [ring(RL * s, lens_h(RL * s)) for s in (1.0, 0.85, 0.65, 0.4)] + [[tuple(base + nrm * lens_h(0))]],
+                  LENS, cap_start=False)
+        # The pupil: a small dark glass disc riding just over the lens surface.
+        ring_loft(ebm, [ring(RP * s, 0.002 + 0.004 * math.sqrt(max(0.0, 1 - s * s)), oa=pa, ob=pb, hf=lens_h)
+                        for s in (1.0, 0.7, 0.35)] + [[tuple(base + nrm * (lens_h(math.hypot(pa, pb)) + 0.006)
+                                                             + pa * a + pb * b)]], PUPIL)
         o = common.mesh_object(f"{name}-eye-{frame}", ebm, mats, coll, smooth=True)
         common.frame_part(o, [frame])
         o["tyrian_model"] = name

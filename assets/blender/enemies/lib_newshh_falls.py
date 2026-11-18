@@ -1,4 +1,5 @@
 """The TORM waterfall's fields (assembly-newshh-129.py, DECISIONS.md D212): numpy only, no bpy.
+Only that script uses this module.
 
 The waterfall's sprite is a full rectangle of scenery painted to run on into the tiles round it: the
 shadowed flanks of the jungle's cliff wall, a curtain of falling water (its crest is in the river
@@ -12,14 +13,21 @@ times side by side, so every noise is periodic over 24 px along u and each piece
 from its HOME copy (the middle one for those two: its neighbours are copies of itself).
 
   static layer   rock, bushes and what lies under the water (dark wet rock): one texture
-  water layer    falls, foam and pool, one texture per animation phase. Clear between the strands
-                 (the wet rock behind shows), and its top edge is ragged: each bright strand starts
-                 up to LIP_REACH px above the sprite's first row, thinning into the river's tone
+  water layer    falls, foam and pool, one texture per animation phase. Partly clear between the
+                 strands (the wet rock behind shows), and its top edge is ragged: each bright strand
+                 starts up to LIP_REACH px above the sprite's first row
+  crest layer    the strands' arched heads on the river above the falls, from the river TILES there
+                 (the original has them in shapesx 540-542; the HD river tiles have none): one
+                 texture per top piece, the same in every phase, at most CREST_ALPHA opaque and
+                 clear between the strands, so the HD river shows through and between them
 
 The paint: each palette shade's region keeps its tone and gets a smooth outline (`levels`), mixed
 with a little plain blur; strands are kept crisp across and soft along, the pool's dither becomes
-mottling with the bright pixels as glints. The water's paint is darkened by what the game's lights
-add to a model (GAIN_*), so it meets the terrain, which shows its palette colours as they are.
+mottling and froth. Smoothing pulls a pixel-art map's darks up and its lights down, so each zone
+(strand heads, curtain, foam and pool) is then given the art's own share of every tone back
+(`match`): black gaps, white strand cores and sparkles. The water and the crest are lit as the
+ground (`tyrian_rock_ground`, D223): their palette colours as they are, no sheen and no lifted
+blacks, as the terrain they run into; the paint only undoes what the slope does to that light (LIGHT).
 
 `heights` gives the real shape, as a height above the ground for every point of the art (the model
 is a surface over the art's oblique view: a point drawn at row s with height h stands at plan row
@@ -59,20 +67,35 @@ WATER_RAMPS = (3,)
 # --- the shape (px) ---------------------------------------------------------------------------
 CREST_H = 30.0     # height of the river where it goes over
 CREST_ROW = 0.2    # the art row where the water starts to fall (it wanders, crest_row)
-LIP_REACH = 2.6    # px above the sprite's first row the brightest strands start (the river tiles run on under them)
+LIP_REACH = 1.4    # px above the sprite's first row the brightest strands start (the crest layer runs on from them)
 ROLL = 4.5         # px (art rows) over which the river rolls from level to falling
 FOOT_ROW = 37.6    # where the curtain meets the pool
 POOL_H = 1.6       # the pool's surface (the static bed lies WATER_OVER under the water everywhere)
 WATER_OVER = 1.6   # px the water layer lies over the static one, at least
 WATER_BUMP = 0.3   # how much of the water's paint is relief in the bump map
 ROCK_BUMP = 0.5    # and of the rock's
-GAP_CLEAR = 0.65   # how clear the water layer is between the strands (1: only the wet rock behind shows)
-RIVER_SHADE = 6.6  # the water shade that, lit, matches the HD river tiles above the falls
-SPARKLE = 7        # water shades over this are sparkles on the pool
-#: The game lights a model's up-facing matte surface to about 1.3 times its palette colour and the
-#: plumb curtain to about 1.2 (measured at TORM t4050, D205's lights), while the terrain round it
-#: shows its palette colour as it is: the water's paint is that much darker, so pool and river meet.
-GAIN_POOL, GAIN_FALL = 0.74, 0.84
+GAP_CLEAR = 0.3    # how clear the water layer is between the strands (1: only the wet rock behind shows)
+GAP_SHADE = (0.3, 1.5)   # the water shades over which a gap closes
+PEAK = 0.5         # shades added to the water's lightest cores
+HEAD_ROWS = 7      # the art rows of the strands' heads (the river's blue between them; black under that)
+RIVER_SHADE = 6.4  # the water shade of the HD river tiles above the falls (their mean there)
+#: The crest (`Fields.crest`): the strands' arched heads, which the original has in the river TILES over
+#: the falls (shapesx 540-542, their last CREST_UP rows; the HD river tiles have none).
+CREST_SHAPES = "shapesx"        # the tileset (reference/tiles/shapesx: TILES_SHAPES=x npm run tiles)
+CREST_TILES = (540, 541, 542)   # left, middle (over every newshh-129), right
+CREST_UNDER = (550, 551, 552)   # the tiles under the sprite's top row: the strands' run on, for the hand-over
+CREST_UP = 14    # art rows above the sprite the crest layer covers
+CREST_DOWN = 2     # and below its first row, fading out over the water layer
+CREST_ALPHA = 0.44   # the crest's coverage at most: light on the river, which shows through it
+CREST_GAIN = 0.8     # how much of the tile's light over the river's tone the strands get (the HD river has highlights of its own)
+CREST_SHADE = (8.6, 10.4)   # the tile shades over which a crest strand comes in (the river itself is 5-7)
+CREST_OVER = 0.4   # px the crest layer lies over the water layer
+#: The water is lit as the ground (`tyrian_rock_ground`, D223): level, it shows its palette colours as
+#: they are. On a slope the sun's share changes: what the game's light makes of the paint, by how far
+#: the river has rolled over (0 level, 1 the curtain's full fall; measured at TORM t4050, each row's
+#: screen luma over its paint's). The paint is divided by it.
+LIGHT = [(0.0, 1.03), (0.25, 1.06), (0.5, 1.08), (0.7, 1.06), (0.81, 1.03), (0.855, 1.0), (0.91, 0.975), (0.945, 0.95),
+         (0.975, 0.93), (1.0, 0.93)]
 BANK_H = 1.5       # the banks' height
 FACE_RISE = 0.9    # px of height per art row up the cliffs' faces (1 = plumb)
 #: Per column u: the art row of the cliffs' foot, and of the rim where their caps roll over into the face.
@@ -194,6 +217,33 @@ def levels(shade, sig_s, sig_u, soft=0.16, top=15):
     return out
 
 
+def spread(values):
+    """Whole-number shades, sorted, with every run of equal ones spread evenly over +-0.5: the
+    distribution of a pixel-art region as a continuous one."""
+    t = np.sort(np.asarray(values, float).ravel())
+    out = t.copy()
+    vals, start, counts = np.unique(t, return_index=True, return_counts=True)
+    for v, s0, n in zip(vals, start, counts):
+        out[s0:s0 + n] = v + (np.arange(n) + 0.5) / n - 0.5
+    return out
+
+
+def match(field, where, target, top=14.0):
+    """`field` remapped (monotone) so that its values over `where` are distributed as the pixels
+    `target` (whole-number shades): smoothing a pixel-art shade map pulls its darks up and its lights
+    down (a one-pixel strand of 13 between black gaps comes out a soft 8 on 3); this gives every tone
+    its share of the area back, so the paint keeps the art's blacks and whites."""
+    src = np.sort(field[where])
+    tq = spread(target)
+    q = (np.searchsorted(src, field, side="left") + np.searchsorted(src, field, side="right")) / (2.0 * len(src))
+    return np.clip(np.interp(q, (np.arange(len(tq)) + 0.5) / len(tq), tq), 0, top)
+
+
+def down(a, k):
+    """Mean over k x k blocks."""
+    return a.reshape(a.shape[0] // k, k, a.shape[1] // k, k).mean((1, 3))
+
+
 # --- the layers -------------------------------------------------------------------------------
 
 class Fields:
@@ -277,22 +327,31 @@ class Fields:
         shade1 = np.where(self.water, shade, np.round(filled))
         foot = self.foot_row(TEX)
         fall = 1 - rh.smoothstep(-1.5, 1.5, self.s - foot)   # 1 on the curtain, 0 on the pool
-        # how steep the water is here: 0 level (the river going over, the pool), 1 falling
-        steep = fall * (1 - np.exp(-np.clip(self.s - self.crest_row(TEX), 0, None) / ROLL))
-        # strands: crisp across, soft along
-        soft = blur(up(shade1, TEX), 0.6 * TEX, 0.26 * TEX)
-        strands = 0.65 * levels(shade1, 0.5, 0.28, top=14) + 0.35 * soft
-        # pool and foam: the dither as soft mottling, the sparkles (the bright pixels) as round glints
-        calm = np.minimum(shade1, SPARKLE)
+        wet = up(self.water, TEX)
+        fall_px = down(fall * np.ones(self.shape), TEX) > 0.5
+        # strands: crisp across, soft along; then every tone gets its share of the curtain back (match)
+        soft = blur(up(shade1, TEX), 0.5 * TEX, 0.22 * TEX)
+        strands = 0.8 * levels(shade1, 0.42, 0.22, soft=0.13, top=14) + 0.2 * soft
+        # (the heads, where the river still shows blue between them, and the curtain under them: each its own share)
+        rows = np.arange(g.shape[0])[:, None] - PAD
+        heads = 1 - rh.smoothstep(HEAD_ROWS - 1.0, HEAD_ROWS + 1.0, self.s) * np.ones(self.shape)
+        curtain = wet & (fall > 0.5)
+        strands = (heads * match(strands, curtain & (self.s < HEAD_ROWS), shade1[self.water & fall_px & (rows < HEAD_ROWS)])
+                   + (1 - heads) * match(strands, curtain & (self.s >= HEAD_ROWS), shade1[self.water & fall_px & (rows >= HEAD_ROWS)]))
+        # pool and foam: the dither as mottling and froth (clumps of the art's light pixels, the river's
+        # swirls under them), with the art's own share of every tone: its white sparkles and its darks
         ripple = noise(self.shape, TEX, 9, 44, 31 + phase)   # long along u: the river's swirls
-        blots = 0.4 * levels(calm, 0.5, 0.5, soft=0.3, top=14) + 0.6 * blur(up(calm, TEX), 0.6 * TEX)
+        blots = 0.6 * levels(shade1, 0.36, 0.4, soft=0.3, top=14) + 0.4 * blur(up(shade1, TEX), 0.45 * TEX, 0.55 * TEX)
+        blots = match(blots + 0.2 * ripple, wet & (fall < 0.5), shade1[self.water & ~fall_px])
         hd = fall * strands + (1 - fall) * blots
-        hd = gain(hd, self.lum[48:63], GAIN_POOL + (GAIN_FALL - GAIN_POOL) * steep)
-        hd = hd + (1 - fall) * (1.15 * levels(shade1 - calm, 0.36, 0.36, top=14) + 0.4 * ripple)
-        # above the sprite's first row the strands' heads thin out into the river's own tone
-        hd = hd + np.clip(-self.s / LIP_REACH, 0, 1) * (RIVER_SHADE - hd) * 0.7
-        # between the strands the wet rock behind shows (the static layer: matte, so the gaps stay black)
-        gaps = 1 - GAP_CLEAR * fall * (1 - rh.smoothstep(0.2, 1.7, blur(soft, 0.15 * TEX)))
+        # the lightest cores a little lighter: the game's texture filter takes that much off a thin strand
+        # and a sparkle (their paint at 8 texels per px is drawn at about 5 screen px at 4K, fewer below)
+        hd = hd + PEAK * rh.smoothstep(10.0, 13.0, hd)
+        # how far the river has rolled over here (0 level: the crest, the pool; 1: falling), and the light's share for it
+        steep = fall * (1 - np.exp(-np.clip(self.s - self.crest_row(TEX), 0, None) / ROLL))
+        hd = gain(hd, self.lum[48:63], 1.0 / interp(LIGHT, steep))
+        # between the strands the wet rock behind shows (the static layer)
+        gaps = 1 - GAP_CLEAR * fall * (1 - rh.smoothstep(GAP_SHADE[0], GAP_SHADE[1], blur(hd, 0.1 * TEX)))
         tone = blur(hd, 0.25 * TEX) / 14.0
         height = 0.5 + WATER_BUMP * (tone - blur(tone, 1.0 * TEX)) + 0.02 * ripple * (1 - fall)
         inside = rh.smoothstep(0.4, 0.6, self.wsoft)
@@ -300,6 +359,36 @@ class Fields:
         bottom = rh.smoothstep(-0.9, 0.9, H + 0.2 - self.s + 0.6 * self.wob)
         return {"shade": np.clip(hd, 0, 14), "code": np.zeros(self.shape), "height": np.clip(height, 0, 1),
                 "alpha": inside * top * bottom * gaps}   # 14: the water ramp's last colour is palette 62
+
+    # ---- the crest: the strands' heads on the river above the falls ----
+    def crest(self, tiles):
+        """The crest layer's channels, for art rows -CREST_UP .. CREST_DOWN of the padded canvas's
+        columns, TEX texels per px. `tiles`: {tile number: (28, 24) palette indices} for CREST_TILES and
+        CREST_UNDER. The river's own tone is left to the terrain: only what is lighter than the river is
+        painted (the arched strand heads), at most CREST_ALPHA opaque, in the paint that over the
+        river's tone gives the tile's."""
+        n = W // PW
+        pick = lambda t: [t[0]] + [t[1]] * (n - 2) + [t[2]]   # noqa: E731
+        g = np.concatenate([np.concatenate([np.asarray(tiles[t])[PH - CREST_UP:] for t in pick(CREST_TILES)], 1),
+                            np.concatenate([np.asarray(tiles[t])[:CREST_DOWN] for t in pick(CREST_UNDER)], 1)], 0)
+        g = np.pad(g, ((0, 0), (PAD, PAD)), mode="edge")
+        blue = (g >> 4) == 3
+        shade = np.where(blue, g & 15, RIVER_SHADE).astype(float)
+        hd = 0.8 * levels(np.round(shade), 0.38, 0.38, soft=0.13, top=14) + 0.2 * blur(up(shade, TEX), 0.4 * TEX)
+        hd = match(hd, up(blue, TEX), shade[blue])
+        s = (np.arange(hd.shape[0]) + 0.5) / TEX - CREST_UP
+        strand = rh.smoothstep(CREST_SHADE[0], CREST_SHADE[1], hd)
+        ends = rh.smoothstep(-CREST_UP + 0.3, -CREST_UP + 3.0, s) * (1 - rh.smoothstep(-1.0, CREST_DOWN - 1.0, s))
+        alpha = CREST_ALPHA * strand * ends[:, None] * rh.smoothstep(0.4, 0.6, blur(up(blue.astype(float), TEX), 0.5 * TEX))
+        # the paint that, CREST_ALPHA of it over the river's tone, shows the tile's tone
+        ramp = self.lum[48:63]
+        idx = np.arange(len(ramp))
+        river = np.interp(RIVER_SHADE, idx, ramp)
+        want = river + CREST_GAIN * (np.interp(hd, idx, ramp) - river)
+        paint = np.interp(np.clip((want - (1 - CREST_ALPHA) * river) / CREST_ALPHA, ramp[0], ramp[-1]), ramp, idx)
+        tone = blur(hd, 0.25 * TEX) / 14.0
+        height = 0.5 + WATER_BUMP * (tone - blur(tone, 1.0 * TEX))
+        return {"shade": np.clip(paint, 0, 14), "code": np.zeros(hd.shape), "height": np.clip(height, 0, 1), "alpha": alpha}
 
     # ---- the shape ----
     def heights(self):
@@ -349,6 +438,12 @@ def piece_texture(ch, name):
     """A piece's part of a layer's channels: its box and PAD px round it."""
     c0, r0 = HOME[name]
     return {k: v[r0 * TEX:(r0 + PH + 2 * PAD) * TEX, c0 * TEX:(c0 + PW + 2 * PAD) * TEX] for k, v in ch.items()}
+
+
+def crest_texture(ch, name):
+    """A top piece's part of the crest's channels: its columns and PAD px either side."""
+    c0, _ = HOME[name]
+    return {k: v[:, c0 * TEX:(c0 + PW + 2 * PAD) * TEX] for k, v in ch.items()}
 
 
 def preview(colors, ch, ramps, back=None):

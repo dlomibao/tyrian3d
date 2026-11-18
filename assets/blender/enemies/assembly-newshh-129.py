@@ -14,9 +14,14 @@ with no ink outline and no cast shadow. lib_newshh_falls.py makes the fields; he
 piece:
 
   <piece>-static     rock, bushes and the wet rock under the water: matte, one texture
-  <piece>-water-<f>  falls, foam and pool for sprite frame f (tyrian_frames): smoother, so the sun's
-                     sheen lies where the river rolls over; its own texture; clear between the
-                     strands, where the wet rock of the static layer shows
+  <piece>-water-<f>  falls, foam and pool for sprite frame f (tyrian_frames): its own texture, lit
+                     as the ground (the art's own blacks and whites, as the river it runs into);
+                     partly clear between the strands, where the wet rock of the static layer shows
+  <piece>-crest      (the three top pieces) the strands' arched heads on the river above the falls,
+                     which the original has in the river tiles there (shapesx 540-542; the HD river
+                     tiles have none): a level sheet over the art rows above the sprite, at most 44%
+                     opaque and clear between the strands. Needs reference/tiles/shapesx
+                     (`TILES_SHAPES=x npm run tiles`)
   <piece>-under      the closed underside (back wall, sides, base), turned away from the art's view
 
 The shape is the real standing cliff (about 30 px tall): each layer is a surface over the art's
@@ -61,8 +66,10 @@ FINE_STEP, COARSE_STEP = 0.5, 1.0   # px between a layer's vertices: fine over r
 CREST_ROWS = 10   # the rows the water layer is fine over (both ways: the crest is scalloped)
 WATER_NODE_UP = 0.5   # units the water nodes sit above the static one: three.js draws blended meshes far to near
                       # by their node's place, so the static layer (which writes depth) is drawn before its water
+CREST_NODE_UP = 1.0   # and the crest's node: drawn after the water it runs on into
+CREST_FINE = -2.0     # the crest's grid is fine below this art row (where the water under it starts to roll)
 STATIC_FINISH = {"roughness": 0.9, "metallic": 0.0}
-WATER_FINISH = {"roughness": 0.78, "metallic": 0.0}
+WATER_FINISH = {"roughness": 0.78, "metallic": 0.0}   # (the ground's light has no specular: the viewer's and Blender's look)
 UNDER_DROP = 0.5  # px under the surface the underside starts
 STATIC_CREASE, WATER_CREASE = 45.0, 55.0   # degrees: sharper folds are hard edges (no smoothed normals across)
 
@@ -88,14 +95,15 @@ def sample(a, u, s):
     return float((a[y0, x0] * (1 - fx) + a[y0, x0 + 1] * fx) * (1 - fy) + (a[y0 + 1, x0] * (1 - fx) + a[y0 + 1, x0 + 1] * fx) * fy)
 
 
-def material(name, ch, ramps, finish):
+def material(name, ch, ramps, finish, ground=False):
     """lib_tiles' HD rock material for a layer's channels, with its own finish and no ink outline
-    (the game's outline pass skips a material whose userData.outlineParameters.visible is false)."""
+    (the game's outline pass skips a material whose userData.outlineParameters.visible is false).
+    `ground`: lit as the ground (D223: its palette colours as they are, no sheen, no toe) instead of
+    as the models."""
     old = bpy.data.materials.get(name)
     if old is not None:
         bpy.data.materials.remove(old)
-    # The models' light: its paint was toned for it (D212), not for the island rock's ground light (D223).
-    mat = lt.rock_material(name, ch, ramps, alpha=ch["alpha"], ground=False)
+    mat = lt.rock_material(name, ch, ramps, alpha=ch["alpha"], ground=ground)
     bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
     bsdf.inputs["Roughness"].default_value = finish["roughness"]
     bsdf.inputs["Metallic"].default_value = finish["metallic"]
@@ -180,6 +188,50 @@ def sheet(name, piece, heights, tex, fine, coll, mat, crease, seam=0.0, node_up=
     return o
 
 
+def crest_sheet(name, piece, heights, tex, coll, mat, min_alpha=0.004):
+    """A top piece's crest layer (lib_newshh_falls Fields.crest): a grid over art rows -CREST_UP ..
+    CREST_DOWN of its columns, CREST_OVER px over the water layer (level river above the sprite's
+    first row), UVs on the crest texture; only the quads its coverage reaches."""
+    c0, r0 = F.HOME[piece]
+    us = axis(c0, c0 + F.PW)
+    ss, s = [float(-F.CREST_UP)], float(-F.CREST_UP)
+    while s < F.CREST_DOWN - 1e-6:
+        s += FINE_STEP if s >= CREST_FINE - 1e-6 else COARSE_STEP
+        ss.append(s)
+    cx, cy = c0 + F.PW / 2, r0 + F.PH / 2
+    tw, th = F.PW + 2 * F.PAD, F.CREST_UP + F.CREST_DOWN
+    bm = bmesh.new()
+    uv = bm.loops.layers.uv.new("rock")
+    verts, uvs = {}, {}
+    for j, s in enumerate(ss):
+        for i, u in enumerate(us):
+            h = sample(heights, u, r0 + s) + F.CREST_OVER
+            verts[(i, j)] = bm.verts.new(((u - cx) * PX, (cy - (r0 + s + h)) * PX, h * PX - CREST_NODE_UP))
+            uvs[(i, j)] = ((u - c0 + F.PAD) / tw, 1 - (s + F.CREST_UP) / th)
+    alpha = tex["alpha"]
+    for j in range(len(ss) - 1):
+        for i in range(len(us) - 1):
+            x0, x1 = int((us[i] - c0 + F.PAD) * F.TEX), int(np.ceil((us[i + 1] - c0 + F.PAD) * F.TEX))
+            y0, y1 = int((ss[j] + F.CREST_UP) * F.TEX), int(np.ceil((ss[j + 1] + F.CREST_UP) * F.TEX))
+            if alpha[max(0, y0 - 1):y1 + 1, max(0, x0 - 1):x1 + 1].max() < min_alpha:
+                continue
+            keys = [(i, j), (i, j + 1), (i + 1, j + 1), (i + 1, j)]
+            f = bm.faces.new([verts[k] for k in keys])
+            f.smooth = True
+            for loop, k in zip(f.loops, keys):
+                loop[uv].uv = uvs[k]
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.normal_update()
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(mat)
+    o = bpy.data.objects.new(name, me)
+    o.location = (0, 0, CREST_NODE_UP)
+    coll.objects.link(o)
+    return o
+
+
 def underside(name, piece, heights, coll, mat):
     """A piece's closed underside (art rule 3: closed and plausible, nothing more): a back wall under
     its top edge, a base on the ground, side walls, and a skirt under its bottom edge. Every face is
@@ -244,6 +296,8 @@ def build():
     h_static, h_water = fields.heights()
     static = fields.static()
     waters = [fields.water_layer(k) for k in range(4)]
+    ts = lt.Tileset(WT, F.CREST_SHAPES)
+    crest = fields.crest({n: ts.tiles[n]["px"] for n in F.CREST_TILES + F.CREST_UNDER})
     parts = {}
     rock = ~fields.water   # (padded canvas) where the static layer is seen
     for name in F.PIECES:
@@ -261,18 +315,22 @@ def build():
             frame = F.CYCLES[name][k]
             tex = F.piece_texture(layer, name)
             o = sheet(f"{name}-water-{frame}", name, h_water, tex, water_fine, coll,
-                      material(f"rock_{name}_water_{frame}", tex, F.WATER_RAMPS, WATER_FINISH), WATER_CREASE,
+                      material(f"rock_{name}_water_{frame}", tex, F.WATER_RAMPS, WATER_FINISH, ground=True), WATER_CREASE,
                       node_up=WATER_NODE_UP, min_alpha=0.004)
             group.append(common.frame_part(tag(o), [frame]))
+        if r0 == 0:
+            tex = F.crest_texture(crest, name)
+            group.append(tag(crest_sheet(f"{name}-crest", name, h_water, tex, coll,
+                                         material(f"rock_{name}_crest", tex, F.WATER_RAMPS, WATER_FINISH, ground=True))))
         group.append(tag(underside(f"{name}-under", name, h_static, coll, under)))
         parts[name] = group
-    return fields, data, parts, (static, waters)
+    return fields, data, parts, (static, waters, crest)
 
 
 def write_measure(out, fields, layers):
     """Each phase's coverage in the art's view on the catalogue layout's grid, TEX px per sprite px:
     where a layer's texture is more than half opaque (the sheets cover every texel of their boxes)."""
-    static, waters = layers
+    static, waters, _ = layers
     out.mkdir(parents=True, exist_ok=True)
     p = F.PAD * F.TEX
     for k, layer in enumerate(waters):
