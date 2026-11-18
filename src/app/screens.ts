@@ -126,6 +126,8 @@ export interface TitleOptions {
   // and the screen it opens (src/app/highScoresScreen.ts); the title waits while it's open.
   highScoresLabel?: string;
   onHighScores?: () => Promise<void>;
+  /** Play Stats (D267): the public stats page (stats/), only in builds with the global leaderboard. */
+  onStats?: () => Promise<void>;
   // [cheats] The difficulty row shows the first `difficultiesShown` of `difficulties` (default
   // all); Shift+G, Shift+] and L O R D reveal the rest, one at a time, as difficultySelect does
   // (src/app/titleCodes.ts, which also listens for the codes in `arcade.specialName`).
@@ -150,6 +152,7 @@ export const TITLE_PAD = {
   loadGame: { button: 4, glyph: "LB" },
   options: { button: 8, glyph: "Back" },
   highScores: { button: 3, glyph: "Y" },
+  stats: { button: 5, glyph: "RB" },
 } as const;
 
 /**
@@ -202,6 +205,7 @@ export function showTitle(opts: TitleOptions): Promise<TitleChoice> {
   const more: { label: string; key: string; code: string; pad: { button: number; glyph: string }; over?: boolean; run: () => Promise<boolean | void> }[] = [];
   if (opts.onLoadGame) more.push({ label: "Load Game", key: "L", code: "KeyL", pad: TITLE_PAD.loadGame, over: true, run: opts.onLoadGame });
   if (opts.onHighScores) more.push({ label: opts.highScoresLabel ?? "High Scores", key: "H", code: "KeyH", pad: TITLE_PAD.highScores, over: true, run: opts.onHighScores });
+  if (opts.onStats) more.push({ label: "Play Stats", key: "S", code: "KeyS", pad: TITLE_PAD.stats, over: true, run: opts.onStats });
   if (opts.onOptions) more.push({ label: "Options", key: "O", code: "KeyO", pad: TITLE_PAD.options, over: true, run: opts.onOptions });
   const padButtons = new Map(more.map((m) => [m.pad.button, m]));
 

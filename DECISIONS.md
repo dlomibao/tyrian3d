@@ -15289,3 +15289,12 @@ hidden and the levels stay), and the stats page's Top pilots rows read "difficul
 the server stores `level_count` = the run's finished levels (a level quit or died in doesn't count) with each accepted
 score and returns it as `levels` from `GET /api/scores`; no schema change. The label helper `levelsText` lives in
 `src/scores/api.ts`, shared by both pages.
+
+## D267 — The title menu gets "Play Stats", opening the public stats page in a new tab (lomibao.net build only; follows D263)
+
+**Date:** 2026-11-18
+
+**Decision** (the user's call): in builds with the global leaderboard (`VITE_SCORES_API`), the title's main step lists
+Start New Game, Load Game, High Scores, **Play Stats**, Options, Music. Play Stats opens `stats/` in a new tab
+(`noopener`), so the game and its music keep running in this one. Shortcuts follow the other entries: key S, pad RB
+(button 5, not a navigation intent; `TITLE_PAD.stats`). Without the API the entry isn't there.
