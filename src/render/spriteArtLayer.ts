@@ -31,9 +31,6 @@ export const SPRITE_ART_DIR = "art/sprites/";
  * halo over the shot), and as the art writes no depth, whatever draws later lands on top.
  */
 export const SPRITE_ART_ORDER = -1;
-/** Explosion layers per screen pixel; each needs EXPLOSION_LAYER_EVERY more explosions overlapping (a power of two). */
-const EXPLOSION_LAYERS = 3;
-const EXPLOSION_LAYER_EVERY = 2;
 /**
  * The instance mode (aFx.x) of blit_sprite2_blend (D174): the art's palette bank (aFx.y, the hue)
  * at the mean of its shade and the shade under it, at opacity aFx.w (a fade, not a blend).
@@ -92,7 +89,7 @@ void main() {
   vec2 halfTexel = 0.5 / vec2(textureSize(map, 0));
   vec4 tex = texture2D(map, clamp(vUv, vUvRect.xy + halfTexel, vUvRect.zw - halfTexel));
   float a = tex.a * vFx.w;
-  // Soft edge texels write nothing: the dark rim of a puff would claim the stencil and leave a dark seam over the puff behind (D106).
+  // Soft edge texels write nothing: the art is cut hard at its silhouette (D106), so a puff's dark soft rim never shows as a seam over the puff behind.
   if (a < 0.004 || tex.a < 0.5) discard;
   vec3 rgb = tex.rgb / max(tex.a, 1e-4);
   // The shade (0..15) a palette ramp would give this brightness.
@@ -237,7 +234,6 @@ export class SpriteArtLayer {
   private readonly materials = new Map<SpriteArtSheet<THREE.Texture>, THREE.ShaderMaterial>();
   private readonly batches = new Map<SpriteArtSheet<THREE.Texture>, Batch[]>();
   private readonly all: Batch[] = [];
-  private setter: THREE.Mesh | undefined;
   private readonly levelUniforms = { levelFilter: { value: -99 }, levelBrightness: { value: 0 } };
   /** Instances drawn last frame. */
   instances = 0;
@@ -277,8 +273,8 @@ export class SpriteArtLayer {
 
   /**
    * Make an atlas's materials and batches now, so the level's warm-up compiles them (D91): the plain
-   * one and the explosions' stencilled one with its stencil setter, which otherwise came at the
-   * first explosion and, for the screen filters' target, at the first filtered frame (D159).
+   * one and the explosions' one, which otherwise came at the first explosion and, for the screen
+   * filters' target, at the first filtered frame (D159).
    */
   warm(sheet: SpriteArtSheet<THREE.Texture>): void {
     this.batch(sheet, 0);
@@ -305,11 +301,10 @@ export class SpriteArtLayer {
     if (!list) this.batches.set(sheet, (list = []));
     let b = list[pass];
     if (!b) {
-      b = list[pass] = new Batch(pass === Pass.Explosions ? this.stencilled(sheet) : this.material(sheet), SPRITE_ART_ORDER + pass / 100);
+      b = list[pass] = new Batch(pass === Pass.Explosions ? this.explosionMaterial(sheet) : this.material(sheet), SPRITE_ART_ORDER + pass / 100);
       // Left out of the outline pass's render of the scene (outlineEffect.js), which drew every
       // batch a first time. The explosions blend with the frame copied under them (D174), in the main
-      // render only: that copy came before the blend sheets, without their stencil, over a stale
-      // copy (D193). The other passes draw once with two draws' output (artDrawnTwice, D206).
+      // render only: that copy came before the blend sheets, over a stale copy (D193). The other passes draw once with two draws' output (artDrawnTwice, D206).
       b.mesh.userData.outlineSkip = true;
       // Its pass, for the under-shade pass (underShade.ts): an enemy's art hides the terrain's shade (D247).
       b.mesh.userData.artPass = pass;
@@ -317,21 +312,22 @@ export class SpriteArtLayer {
       if (pass === Pass.PlayerShots || pass === Pass.EnemyShots) b.mesh.layers.enable(SHOT_ART_LAYER);
       this.all.push(b);
       this.root.add(b.mesh);
-      if (pass === Pass.Explosions && !this.setter) this.root.add((this.setter = this.stencilSetter()));
     }
     return b;
   }
 
   /**
-   * The sheet's material for explosions: up to EXPLOSION_LAYERS layers per screen pixel, the 1st,
-   * (N+1)th and (2N+1)th explosion drawn there (N = EXPLOSION_LAYER_EVERY), none after. Dozens
-   * overlap in a boss's death, and blending each at its own opacity would pile up to solid fire (D105, D106).
+   * The sheet's material for explosions: the plain one's uniforms (shared, live) with its own
+   * artDrawnTwice (D206), each explosion drawn over the ones before it, in the C's order (D249).
    *
-   * The stencil starts at 256 - 3N (`stencilSetter`) and every draw increments it, saturating at 255, pass
-   * or fail. Passing needs (stencil & (N-1)) == 0, which is true at counts 0, N and 2N, and false for good
-   * once it saturates (255 & (N-1) != 0). N must be a power of two.
+   * D105-D106 drew them through a stencil (the 1st, 3rd and 5th explosion on a pixel, none after) so
+   * that translucent layers wouldn't pile up to solid fire. Since D174 an explosion's art is the C's
+   * hue-keeping blend at full opacity, so layers no longer pile up, and the stencil only picked which
+   * layer showed by how many outlines a pixel was inside: within a cluster a later explosion showed
+   * through an earlier one only where a third overlapped, a mosaic of shards cut along the others'
+   * outlines (2026-11-18 walkthrough, demos N1).
    */
-  private stencilled(sheet: SpriteArtSheet<THREE.Texture>): THREE.ShaderMaterial {
+  private explosionMaterial(sheet: SpriteArtSheet<THREE.Texture>): THREE.ShaderMaterial {
     const base = this.material(sheet);
     const m = base.clone();
     // clone() copies the uniforms, textures and all, so the explosions kept the frame copy, palette,
@@ -340,38 +336,6 @@ export class SpriteArtLayer {
     // the live ones instead.
     // They have been drawn once since D193: artDrawnTwice is their own (D206).
     m.uniforms = { ...base.uniforms, artDrawnTwice: { value: 0 } };
-    m.stencilWrite = true;
-    m.stencilRef = 0;
-    m.stencilFuncMask = EXPLOSION_LAYER_EVERY - 1;
-    m.stencilWriteMask = 0xff;
-    m.stencilFunc = THREE.EqualStencilFunc;
-    m.stencilZPass = THREE.IncrementStencilOp;
-    m.stencilFail = THREE.IncrementStencilOp;
-    m.stencilZFail = THREE.IncrementStencilOp;
-    return m;
-  }
-
-  /** A full-screen, colourless quad that sets the stencil to 256 - 3N, drawn just before the explosions. */
-  private stencilSetter(): THREE.Mesh {
-    const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(2, 2),
-      new THREE.ShaderMaterial({
-        vertexShader: "void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }",
-        fragmentShader: "void main() { gl_FragColor = vec4(0.0); }",
-        transparent: true,
-        colorWrite: false,
-        depthTest: false,
-        depthWrite: false,
-        stencilWrite: true,
-        stencilRef: 256 - EXPLOSION_LAYERS * EXPLOSION_LAYER_EVERY,
-        stencilFunc: THREE.AlwaysStencilFunc,
-        stencilZPass: THREE.ReplaceStencilOp,
-        side: THREE.DoubleSide,
-      }),
-    );
-    m.frustumCulled = false;
-    m.renderOrder = SPRITE_ART_ORDER + Pass.Explosions / 100 - 0.001;
-    m.userData.outlineParameters = { visible: false };
     return m;
   }
 

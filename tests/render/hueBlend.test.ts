@@ -104,11 +104,13 @@ describe("hue-keeping blend (D174)", () => {
   test("the explosions read the live frame copy, palette and filters, in the main render only (D193)", () => {
     const f = frame([draw(fireSheet("fire.shp"))]);
     const mesh = f.layer.peek(f.sheet, Pass.Explosions)!.mesh;
-    // The stencilled material is a clone: its uniforms must be the shared ones, not copies frozen
+    // The explosions' material is a clone: its uniforms must be the shared ones, not copies frozen
     // at creation (a blank 1x1 frame copy made every explosion blend as if over black).
     for (const k of ["blendUnder", "blendUnderSize", "blendUnderLinear", "blendUnderLut", "blendShadeLut"])
       expect(mesh.material.uniforms[k]).toBe(f.under.uniforms[k]);
-    expect(mesh.material.stencilWrite).toBe(true);
+    // Drawn in the C's order, each over the last: no stencil layers (D249; D105-D106's stencil cut clusters into shards).
+    expect(mesh.material.stencilWrite).toBe(false);
+    expect(mesh.material.uniforms.artDrawnTwice.value).toBe(0);
     // The outline pass's own render of the scene leaves them out (outlineEffect.js).
     expect(mesh.userData.outlineSkip).toBe(true);
     // So do the explosions' and the top sheets' frame copies; the sheets' copy may be made there.
@@ -150,8 +152,8 @@ describe("hue-keeping blend (D174)", () => {
   test("the grabs come after the outlines and just before the layers that read them", () => {
     expect(UNDER_GRAB_ORDER.sheets).toBeGreaterThan(OUTLINE_ORDER);
     expect(UNDER_GRAB_ORDER.sheets).toBeLessThan(blendSheetOrder(Pass.Background2Under));
-    // The explosions' flat art and its stencil setter (spriteArtLayer.ts) start at -1 + pass / 100 - 0.001.
-    expect(UNDER_GRAB_ORDER.explosions).toBeLessThan(-1 + Pass.Explosions / 100 - 0.001);
+    // The explosions' flat art (spriteArtLayer.ts) starts at -1 + pass / 100.
+    expect(UNDER_GRAB_ORDER.explosions).toBeLessThan(-1 + Pass.Explosions / 100);
     expect(UNDER_GRAB_ORDER.explosions).toBeGreaterThan(-1 + Pass.SkyEnemiesOver / 100);
     expect(UNDER_GRAB_ORDER.top).toBeLessThan(blendSheetOrder(Pass.Background2Top));
   });

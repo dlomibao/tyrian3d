@@ -185,7 +185,7 @@ vec3 hbColor(float bank, float srcShade, float underShade, float height, inout f
 export const UNDER_GRAB_ORDER = {
   /** After the outline pass (-1.5) and the depth-writing translucent draws; before the blend sheets (-1). */
   sheets: -1.25,
-  /** Just before the explosions' flat art (SPRITE_ART_ORDER + Pass.Explosions / 100, its stencil setter 0.001 earlier). */
+  /** Just before the explosions' flat art (SPRITE_ART_ORDER + Pass.Explosions / 100). */
   explosions: -1 + 15 / 100 - 0.002,
   /** Before background2over 2's sheets (1), after the explosions and effects drawn under them. */
   top: 0.999,

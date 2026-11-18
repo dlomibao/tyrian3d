@@ -113,6 +113,13 @@ const ROLL_RATE = 12;
  * blended flat art outside the explosions.
  */
 const BLEND_ALPHA = 0.55;
+/**
+ * A model drawn for a blended draw (the ship while invulnerable, blit_sprite2x2_blend). The C keeps
+ * the sprite's hue and averages only its value with the ground's, so its ship reads solid in its
+ * own colours, dimmer or brighter with the ground; at BLEND_ALPHA the Talon took nearly half the
+ * ground's colour and read as a pale ghost (D249). The higher opacity keeps the model's colours.
+ */
+const MODEL_BLEND_ALPHA = 0.8;
 /** Explosions without the ported blend (extruded sprites) blend thinner than the rest (D104, D105). */
 const EXPLOSION_ALPHA = 0.33;
 /** Passes drawn with a partly emissive material: energy shots, explosions, sparks. */
@@ -2038,7 +2045,7 @@ export class DrawListRenderer {
           continue;
         }
         m.transparent = blended || rockFades(m);
-        m.opacity = blended ? BLEND_ALPHA : 1;
+        m.opacity = blended ? MODEL_BLEND_ALPHA : 1;
         m.depthWrite = !blended;
         // A translucent two-sided material is drawn by three in two passes (back faces, then front),
         // flipping its side with needsUpdate each time: every program recomputed twice a frame (~2 ms

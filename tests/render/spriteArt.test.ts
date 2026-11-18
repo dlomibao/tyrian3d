@@ -366,7 +366,7 @@ describe("renderer", () => {
     expect(render(make(art2), [draw(sheet("big.shp", 21, true), 1, { size: 2 })])).toMatchObject({ flatSprites: 3, visiblePools: 0 });
   });
 
-  test("the warm-up makes each atlas's plain and explosion batches and the explosions' stencil setter (D91, D159)", () => {
+  test("the warm-up makes each atlas's plain and explosion batches, and no stencil setter since D249 (D91, D159)", () => {
     const art = readyArt();
     const r = make(art);
     const layer = (r as unknown as { artLayer: { peek(s: unknown, p: number): unknown; root: THREE.Group } }).artLayer;
@@ -376,7 +376,7 @@ describe("renderer", () => {
     expect(layer.peek(sheetArt, 0)).toBeDefined();
     expect(layer.peek(sheetArt, Pass.Explosions)).toBeDefined();
     const setters = layer.root.children.filter((o) => ((o as THREE.Mesh).material as THREE.Material | undefined)?.stencilWrite && !((o as THREE.Mesh).material as THREE.Material).colorWrite);
-    expect(setters).toHaveLength(1);
+    expect(setters).toHaveLength(0);
   });
 
   test("many shots of one atlas are one draw per pass", () => {
