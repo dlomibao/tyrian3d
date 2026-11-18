@@ -21,6 +21,20 @@
   margin: 0 0 var(--ui-space-3);
 }
 
+/* D268: the upgrade tip, set off from the goal as the one thing to do first. */
+.htp-tip {
+  margin: calc(-1 * var(--ui-space-2)) 0 var(--ui-space-3);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border-left: 2px solid var(--ui-copper-hi);
+  font-size: var(--ui-text-sm);
+  line-height: 1.4;
+  color: var(--ui-ink);
+}
+
+.htp-tip b {
+  color: var(--ui-copper-hi);
+}
+
 .htp-cols {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

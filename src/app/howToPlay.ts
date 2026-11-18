@@ -83,6 +83,9 @@ export const HOW_TO_PLAY_GOAL = [
   "Shoot everything, grab credits and power-ups. Between levels, buy guns, shields, generators and sidekicks in the shop.",
 ] as const;
 
+/** D268: new players tend to fly straight in on the starting gun; the shop is the "Upgrade Ship" row of the game menu. */
+export const HOW_TO_PLAY_TIP = "Upgrade your ship before you fly: open Upgrade Ship in the game menu and spend your credits. A stronger front gun makes the early levels far easier.";
+
 const ARROWS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 const WASD = ["KeyW", "KeyS", "KeyA", "KeyD"];
 
@@ -200,6 +203,7 @@ export function showHowToPlay(opts: HowToPlayOptions = {}): Promise<void> {
       "div",
       { class: "htp" },
       h("p", { class: "htp-goal" }, h("b", { text: HOW_TO_PLAY_GOAL[0] }), " ", HOW_TO_PLAY_GOAL[1]),
+      h("p", { class: "htp-tip" }, h("b", { text: "Tip:" }), " ", HOW_TO_PLAY_TIP),
       h("div", { class: "htp-cols" }, keysCol, touchCol),
       pad,
     );
