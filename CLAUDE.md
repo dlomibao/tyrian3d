@@ -43,6 +43,8 @@ tools/build-models.sh [-j N] [-p previewdir] [-n] script.py ...   # Blender head
 - `?viewer=<model>` sprite vs model; `?debug=models&model=a,b&flash=1`; `?debug=sprites`.
 - Looks: `?bg=original`, `?vfx=original`, `?sprites=original`, `?terrain=original|hd`, `?terrainart=<dir>/`,
   `?spriteart=<dir>/` (another flat-art folder, e.g. a test cut).
+- UI: `?howtoplay=1|0` forces the How to play card before every level, or never (D266; it is skipped
+  under automation otherwise); `?touchhud=1|0` forces the touch controls on or off.
 
 ## Worktrees
 Feature work never happens in `/Users/dlomibao/projects/tyrian` (main checkout). Per branch:
